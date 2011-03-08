@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+import higu
+import sys
+
+if( __name__ == '__main__' ):
+
+    if( len( sys.argv ) < 2 ):
+        print 'Usage: higuadd [-t taglist] file...'
+
+    if( sys.argv[1] == '-t' ):
+        taglist = sys.argv[2].split( ',' )
+        flist = sys.argv[3:]
+    else:
+        taglist = []
+        flist = sys.argv[1:]
+
+    h = higu.init_default()
+
+    for f in flist:
+        x = h.register_file( f )
+
+        for t in taglist:
+            x.tag( t )
+
+    h.commit()
+
+# vim:sts=4:et:sw=4
