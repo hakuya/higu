@@ -1,0 +1,399 @@
+#!/usr/bin/python
+
+import higu
+import cherrypy
+import sys
+import os
+
+JAVASCRIPT="""
+<!--
+function resize_image( im ) {
+    if( im.width > window.innerWidth ) {
+        h = im.height * window.innerWidth / im.width;
+        if( h > window.innerHeight ) {
+            im.height = window.innerHeight;
+        } else {
+            im.width = window.innerWidth;
+        }
+    } else if( im.height > window.innerHeight ) {
+        im.height = window.innerHeight;
+    }
+}
+
+function open_in_viewer2( uri ) {
+    if( typeof parent.viewer2 === "undefined" ) {
+        create_2nd_viewer( uri );
+    } else {
+        parent.viewer2.location.href = uri;
+    }
+}
+
+function close_viewer2() {
+    v2 = parent.document.getElementById( "viewer2" );
+    fs = parent.document.getElementById( "mainfs" );
+
+    fs.removeChild( v2 );
+    fs.cols = "250,*";
+}
+
+function create_2nd_viewer( uri ) {
+    f = document.createElement( "frame" );
+    f.id = "viewer2";
+    f.name = "viewer2";
+    f.src = uri;
+
+    fs = parent.document.getElementById( "mainfs" );
+    fs.appendChild( f );
+    fs.cols = "250,*,500";
+}
+
+function make_group( type ) {
+    this_img = document.forms[0].fid.value;
+    parent   = parent.viewer.document.forms[0].fid.value;
+    action = "group|" + type + " " + parent;
+
+    location.href = "/view?id=" + this_img + "&secondary=1&action=" + action;
+}
+//-->
+"""
+
+HEAD = """<html><head><body>
+<script language="javascript">""" + JAVASCRIPT + """</script>"""
+
+TAIL = "</body></html>"
+
+
+class Server:
+
+    def index( self ):
+
+        s = '<html>'
+        s += '<frameset rows=35,*>'
+        s += '<frame src="/top"/>'
+        s += '<frameset id="mainfs" cols=250,*>'
+        s += '<frame src="/list?mode=all" name="list"/>'
+        s += '<frame src="about:blank" name="viewer"/>'
+        s += '</frameset></frameset>'
+        s += '</html>'
+    
+        return s
+
+    def admin( self, action = None, **args ):
+
+        s = HEAD
+
+        if( action == 'rename' ):
+            if( args['rntag'] != '' and args['rnnew'] != '' ):
+                db = higu.init_default()
+                db.rename_tag( args['rntag'], args['rnnew'] )
+                db.commit()
+
+        s += '<h2>Rename tag</h2>'
+        s += '<form>'
+        s += '<input type="hidden" name="action" value="rename"/>Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="submit">'
+        s += '</form>'
+        s += TAIL
+
+        return s
+
+    def top( self ):
+
+        s = HEAD
+        s += '<form onsubmit="parent.list.location.href=\'/list?mode=tags&tags=\' + document.forms[0].tags.value; return false;">'
+        s += '<a href="/list?mode=all" target="list">all</a> /'
+        s += '<a href="/list?mode=untagged" target="list">untagged</a> /'
+        s += '<a href="/taglist" target="list">taglist</a> /'
+        s += '<a href="/admin" target="viewer">admin</a> /'
+        s += '<input type="text" name="tags"/></form>'
+        s += TAIL
+
+        return s
+
+    def fillin_view( self, f, secondary ):
+
+        s = ""
+
+        p = f.get_path()
+
+        if( p == None ):
+            s += 'Image not available<br/>'
+        else:
+            s += '<img src="/img?id=%d" onload="resize_image( this )"/><br/>' % ( f.get_id() )
+
+        varient = f.is_varient()
+        duplicate = f.is_duplicate()
+        parent = f.get_parent()
+
+        if( secondary ):
+            s += '<a href=\'javascript:close_viewer2()\'>Close</a> / '
+            if( parent != None ):
+                s += 'Has parent'
+            else:
+                s += '<a href=\'javascript:make_group( 0 )\'>Collection</a> / '
+                s += '<a href=\'javascript:make_group( 1 )\'>Varient</a> / '
+                s += '<a href=\'javascript:make_group( 2 )\'>Duplicate</a>'
+        else:
+            if( varient ):
+                name = parent.get_name()
+
+                s += 'Varient: <a href="/view?id=%d" target="viewer">%s</a> ' \
+                        % ( parent.get_id(), name )
+                s += '(<a href="/view?id=%d&action=rempar|">clear</a>)' \
+                        % ( f.get_id() )
+            elif( duplicate ):
+                name = parent.get_name()
+
+                s += 'Duplicate: <a href="/view?id=%d" target="viewer">%s</a> ' \
+                        % ( parent.get_id(), name )
+                s += '(<a href="/view?id=%d&action=rempar|">clear</a>)' \
+                        % ( f.get_id() )
+            elif( parent != None ):
+                name = parent.get_name()
+
+                s += 'Collection: <a href="/view?id=%d" target="viewer">%s</a> ' \
+                        % ( parent.get_id(), name )
+                s += '(<a href="/view?id=%d&action=rempar|">clear</a>)' \
+                        % ( f.get_id() )
+
+            s += '<h2>Tags</h2>'
+
+            tags = f.get_tags()
+
+            s += '<ul>'
+            for t in tags:
+                s += '<li>%s (<a href="/view?id=%d&action=untag|%s">del</a>)</li>' \
+                        % ( t, f.get_id(), t )
+            s += '<li><form onsubmit="location.href=\'/view?id=%d&action=tag|\' + document.forms[1].tag.value; return false;"><input type="text" name="tag"/></form></li>' \
+                        % ( f.get_id() )
+            s += '</ul>'
+
+            s += '<h2>Names</h2>'
+
+            names = f.get_names()
+
+            s += '<ul>'
+            for n in names:
+                s += '<li>%s</li>' % ( n )
+            s += '</ul>'
+
+            dups = []
+            vars = []
+            coll = []
+
+            for c in f.child_iterator():
+
+                if( c.is_duplicate() ):
+                    dups.append( c )
+                elif( c.is_varient() ):
+                    vars.append( c )
+                else:
+                    coll.append( c )
+
+            if( len( dups ) > 0 ):
+                s += '<h2>Duplicates</h2>'
+
+                s += '<ul>'
+                for g in dups:
+                    name = g.get_name()
+                    s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
+                    % ( g.get_id(), name, )
+                s += '</ul>'
+
+            if( len( vars ) > 0 ):
+                s += '<h2>Varients</h2>'
+
+                s += '<ul>'
+                for g in vars:
+                    name = g.get_name()
+                    s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
+                    % ( g.get_id(), name, )
+                s += '</ul>'
+
+            if( len( coll ) > 0 ):
+                s += '<h2>Collection</h2>'
+
+                s += '<ul>'
+                s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
+                        % ( f.get_id(), f.get_name(), )
+                for g in coll:
+                    s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
+                            % ( g.get_id(), g.get_name(), )
+                s += '</ul>'
+
+            if( parent != None and not duplicate and not varient ):
+                coll = []
+
+                for c in parent.child_iterator():
+
+                    if( not c.is_duplicate() and not c.is_varient() ):
+                        coll.append( c )
+
+                s += '<h2>Collection</h2>'
+
+                s += '<ul>'
+                s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
+                        % ( parent.get_id(), parent.get_name(), )
+                for g in coll:
+                    s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
+                            % ( g.get_id(), g.get_name(), )
+                s += '</ul>'
+
+        return s
+
+    def view( self, id = None, action = None, secondary = 0 ):
+
+        if( id == None ):
+            raise cherrypy.HTTPError( 404 )
+        try:
+            id = int( id )
+        except:
+            raise cherrypy.HTTPError( 400 )
+
+        s = HEAD
+        s += '<form><input type="hidden" name="fid" value="%d"/></form>' % ( id )
+
+        db = higu.init_default()
+        f = db.get_file_by_id( id )
+
+        if( action != None ):
+            cmd, parm = action.split( '|' )
+            parms = parm.split( ' ' )
+            if( cmd == 'tag' ):
+                for t in parms:
+                    f.tag( t )
+            elif( cmd == 'untag' ):
+                f.untag( parm )
+            elif( cmd == 'rempar' ):
+                f.set_parent( None )
+            elif( cmd == 'group' ):
+                parms = map( lambda x: int( x ), parms )
+
+                if( parms[0] == 0 ):
+                    f.set_parent( higu.File( f.db, parms[1] ) )
+                if( parms[0] == 1 ):
+                    f.set_varient_of( higu.File( f.db, parms[1] ) )
+                if( parms[0] == 2 ):
+                    f.set_duplicate_of( higu.File( f.db, parms[1] ) )
+
+            db.commit()
+
+        s += self.fillin_view( f, secondary )
+        s += TAIL
+
+        db.close()
+
+        return s
+
+    def list( self, mode = None, tags = None ):
+
+        db = higu.init_default()
+        s = [ HEAD ]
+
+        if( mode == 'untagged' ):
+            files = db.lookup_files_by_tags_with_names( [], strict = True )
+        elif( mode == 'tags' ):
+            if( tags[0] == '$' ):
+                strict = True
+                tags = tags[1:]
+            else:
+                strict = False
+
+            ls = tags.split( ' ' )
+            require = []
+            add = []
+            sub = []
+            for tag in ls:
+                if( len( tag ) == 0 ):
+                    continue
+                elif( tag[0] == '?' ):
+                    add.append( tag[1:] )
+                elif( tag[0] == '!' ):
+                    sub.append( tag[1:] )
+                else:
+                    require.append( tag )
+
+            files = db.lookup_files_by_tags_with_names( require, add, sub, strict )
+        else:
+            files = db.lookup_files_by_tags_with_names( [] )
+
+        totidx = len( s )
+        s.append( 'Total: %d files<br/>' )
+        s.append( '<ul>' )
+
+        c = 0
+        for f in files:
+            c += 1
+
+            name = f[1]
+            f = f[0]
+
+            s.append( '<li><a href="/view?id=%d" target="viewer">%s</a>'
+                    % ( f.get_id(), name, ) )
+            s.append( ' <a href=\'javascript:open_in_viewer2( "/view?id=%d&secondary=1" )\'>*</a></li>'
+                    % ( f.get_id() ) )
+        s.append( '</ul>' )
+
+        s.append( TAIL )
+
+        s[totidx] = s[totidx] % ( c )
+
+        return ''.join( s )
+
+    def taglist( self ):
+
+        db = higu.init_default()
+        s = HEAD
+
+        tags = db.all_tags()
+
+        s += '<ul>'
+        for t in tags:
+            s += '<li><a href="/list?mode=tags&tags=%s" target="list">%s</a></li>' \
+                    % ( t, t,)
+        s += '</ul>'
+
+        s += TAIL
+
+        return s
+
+    def img( self, id = None ):
+
+        db = higu.init_default()
+
+        if( id == None ):
+            raise cherrypy.HTTPError( 404 )
+
+        try:
+            id = int( id )
+        except:
+            raise cherrypy.HTTPError( 400 )
+
+        f = db.get_file_by_id( id )
+        p = f.get_path()
+
+        if( p == None ):
+            raise cherrypy.HTTPError( 404 )
+
+        name = os.path.split( p )[-1]
+        ext = name[name.rindex( '.' )+1:]
+
+        name = f.get_name()
+
+        db.close()
+
+        return cherrypy.lib.static.serve_file( p, 'image/' + ext, \
+                'filename=%s' % ( name )  )
+
+    index.exposed = True
+    view.exposed = True
+    list.exposed = True
+    taglist.exposed = True
+    img.exposed = True
+    top.exposed = True
+    admin.exposed = True
+
+if( __name__ == '__main__' ):
+
+    cherrypy.quickstart( Server() )
+
+# vim:sts=4:et:sw=4
