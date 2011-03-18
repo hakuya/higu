@@ -15,6 +15,10 @@ class QueryError:
 
         self.ex = ex
 
+    def __str__( self ):
+
+        return self.ex.__str__()
+
 class Query:
 
     def __init__( self, select, table ):
@@ -46,6 +50,7 @@ class Query:
     def __iter__( self ):
 
         q, k = self.build_query()
+        print q
 
         try:
             c = self.db.cursor()
@@ -137,6 +142,20 @@ class OrOperator( LogicOperator ):
     def __init__( self, constraints ):
 
         LogicOperator.__init__( self, 'OR', constraints )
+
+class NullOperator( Operator ):
+
+    def __init__( self, field, is_null ):
+
+        self.field = field
+        self.is_null = is_null
+
+    def make_query( self ):
+
+        if( self.is_null ):
+            return '%s is null' % ( self.field, ), []
+        else:
+            return '%s is not null' % ( self.field, ), []
 
 class InOperator( Operator ):
 
@@ -230,6 +249,10 @@ class Selection:
         elif( isinstance( table, Operator ) ):
             qt, kt = table.make_query()
             q += '%s FROM %s' % ( sel, qt )
+            k.extend( kt )
+        elif( isinstance( table, Query ) ):
+            qt, kt = table.build_query()
+            q += '%s FROM (%s)' % ( sel, qt )
             k.extend( kt )
 
         if( self.query == None or len( self.query ) == 0 ):

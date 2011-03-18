@@ -189,11 +189,16 @@ class Database:
     def lookup_files_by_tags( self, require, add = [], sub = [], strict = False ):
 
         q = self.db.get_tagl().restrict_ids( self.db.get_mfl().mfl, require, add, sub, strict )
+        if( strict ):
+            q = self.db.get_mfl().select_no_collection( q )        
+
         return ResultIterator( q.__iter__(), lambda x: File( self, x[0] ) )
 
     def lookup_files_by_tags_with_names( self, require, add = [], sub = [], strict = False ):
 
         q = self.db.get_tagl().restrict_ids( self.db.get_mfl().mfl, require, add, sub, strict )
+        if( strict ):
+            q = self.db.get_mfl().select_no_collection( q )        
         q = self.db.get_naml().lookup_names_by_query( q )
 
         class ResultWithNameIterator:
