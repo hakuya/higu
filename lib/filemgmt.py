@@ -235,6 +235,13 @@ class MasterFileList:
 
         return self.lookup( length, crc32, md5, sha1 ).next()
 
+    def select_no_collection( self, tbl ):
+
+        invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
+            [ db.NullOperator( 'parent', False ) ] ), self.mfl ), True )
+
+        return db.Query( db.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
+
 class TagList:
 
     def __init__( self, tagl ):
