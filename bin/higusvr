@@ -65,6 +65,17 @@ TAIL = "</body></html>"
 
 class Server:
 
+    def __init__( self, database_path = None ):
+
+        self.db_path = database_path
+
+    def open_db( self ):
+
+        if( self.db_path == None ):
+            return higu.init_default()
+        else:
+            return higu.Database( self.db_path )
+
     def index( self ):
 
         s = '<html>'
@@ -84,7 +95,7 @@ class Server:
 
         if( action == 'rename' ):
             if( args['rntag'] != '' and args['rnnew'] != '' ):
-                db = higu.init_default()
+                db = self.open_db()
                 db.rename_tag( args['rntag'], args['rnnew'] )
                 db.commit()
 
@@ -252,7 +263,7 @@ class Server:
         s = HEAD
         s += '<form><input type="hidden" name="fid" value="%d"/></form>' % ( id )
 
-        db = higu.init_default()
+        db = self.open_db()
         f = db.get_file_by_id( id )
 
         if( action != None ):
@@ -286,7 +297,7 @@ class Server:
 
     def list( self, mode = None, tags = None ):
 
-        db = higu.init_default()
+        db = self.open_db()
         s = [ HEAD ]
 
         if( mode == 'untagged' ):
@@ -341,7 +352,7 @@ class Server:
 
     def taglist( self ):
 
-        db = higu.init_default()
+        db = self.open_db()
         s = HEAD
 
         tags = db.all_tags()
@@ -358,7 +369,7 @@ class Server:
 
     def img( self, id = None ):
 
-        db = higu.init_default()
+        db = self.open_db()
 
         if( id == None ):
             raise cherrypy.HTTPError( 404 )
@@ -394,6 +405,9 @@ class Server:
 
 if( __name__ == '__main__' ):
 
-    cherrypy.quickstart( Server() )
+    if( len( sys.argv ) > 1 ):
+        cherrypy.quickstart( Server( sys.argv[1] ) )
+    else:
+        cherrypy.quickstart( Server() )
 
 # vim:sts=4:et:sw=4
