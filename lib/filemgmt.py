@@ -6,7 +6,7 @@ import re
 from hash import calculate_details
 
 VERSION = 1
-REVISION = 0
+REVISION = 1
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
 LFDB_NAME = '.lfdb'
@@ -87,11 +87,15 @@ class FileMgmtDb:
                     raise RuntimeError( 'Incompatible database version' )
             elif( self.dbi.get_revision() > REVISION ):
                 raise RuntimeError( 'Incompatible database revision' )
+            elif( self.dbi.get_revision() != REVISION ):
+                self.dbi.set_revision( REVISION )
+                self.commit()
 
             break
 
         self.mfl = MasterFileList( self.db.get_table( 'mfl' ) )
         self.naml = NameList( self.db.get_table( 'naml' ) )
+        self.coll = NameList( self.db.get_table( 'coll' ) )
         self.tagl = TagList( self.db.get_table( 'tagl' ) )
 
     def commit( self ):
@@ -111,6 +115,10 @@ class FileMgmtDb:
     def get_naml( self ):
 
         return self.naml
+
+    def get_coll( self ):
+
+        return self.coll
 
     def get_tagl( self ):
 
@@ -154,6 +162,10 @@ class DatabaseInfo:
     def get_revision( self ):
 
         return self.dbi.select( [ 'rev' ] ).eval( True, True )
+
+    def set_revision( self, rev ):
+
+        self.dbi.update( [ ( 'rev', rev, ) ] )
 
 class MasterFileList:
 
@@ -223,8 +235,11 @@ class MasterFileList:
 
     def register( self, length, crc32, md5, sha1 ):
 
-        if( len( self.lookup( length, crc32, md5, sha1 ) ) != 0 ):
+        try:
+            self.lookup( length, crc32, md5, sha1 ).next()
             return False
+        except StopIteration:
+            pass
 
         length = check_len( length )
         crc32 = check_crc32( crc32 )

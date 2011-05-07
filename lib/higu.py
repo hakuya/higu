@@ -8,6 +8,36 @@ DEFAULT_ENVIRON = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 HIGURASHI_DATA_PATH = 'imgdat'
 
+class Collection:
+
+    def __init__( self, db, id ):
+
+        self.db = db
+        self.id = id
+
+    def get_master( self ):
+
+        return File( self.db, self.id )
+
+    def get_name( self ):
+
+        try:
+            return self.get_names().next()
+        except StopIteration:
+            return None
+
+    def get_names( self ):
+
+        return self.db.db.get_coll().lookup_names( self.id )
+
+    def register_name( self, name ):
+
+        self.db.db.get_coll().register( id, name )
+
+    def register_file( self, f, order = None ):
+
+        pass
+
 class File:
 
     def __init__( self, db, id ):
@@ -18,6 +48,16 @@ class File:
     def get_id( self ):
 
         return self.id
+
+    def get_collection( self ):
+
+        parent = self.db.db.get_mfl().get_parent( self.id )
+
+        if( parent == None ):
+            return Collection( self.db, self.id )
+        else:
+            # TODO
+            return None
 
     def get_parent( self ):
 
@@ -73,12 +113,11 @@ class File:
             except StopIteration:
                 return name
         except StopIteration:
-            raise 'blah'
             p = self.get_path()
             if( p == None ):
-                name = 'unknown'
+                return 'unknown'
             else:
-                name = os.path.split( p )[-1]
+                return os.path.split( p )[-1]
 
     def get_names( self ):
 
@@ -258,7 +297,7 @@ class Database:
         tagl = self.db.get_tagl()
         return tagl.all_tags()
 
-    def register_file( self, path ):
+    def register_file( self, path, add_name = True ):
 
         name = os.path.split( path )[1]
 
@@ -273,7 +312,8 @@ class Database:
         except StopIteration:
             id = mfl.register( *details )
 
-        naml.register( id, name )
+        if( add_name ):
+            naml.register( id, name )
         self.commit()
 
         f = File( self, id )
