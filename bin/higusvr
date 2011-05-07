@@ -5,46 +5,171 @@ import cherrypy
 import sys
 import os
 
+CSS="""
+#sidebar{
+    float:left;
+    width:250px;
+    overflow:auto;
+}
+
+#main{
+    float:left;
+    overflow:auto;
+}
+
+#right{
+    float:left;
+    overflow:auto;
+    visibility:hidden;
+}
+
+.picture{
+    float:left;
+}
+"""
+
 JAVASCRIPT="""
 <!--
-function resize_image( im ) {
-    if( im.width > window.innerWidth ) {
-        h = im.height * window.innerWidth / im.width;
-        if( h > window.innerHeight ) {
-            im.height = window.innerHeight;
-        } else {
-            im.width = window.innerWidth;
+
+right_visible = 0;
+selected=-1;
+list_filelist = new Array();
+viewer_filelist = list_filelist;
+
+function clickfile( id, reset ) {
+    if( selected >= 0 ) {
+        sdiv = document.getElementById( 'list_div' + selected );
+        if( sdiv ) {
+            sdiv.style.background = '';
         }
-    } else if( im.height > window.innerHeight ) {
-        im.height = window.innerHeight;
     }
+
+    if( reset ) {
+        form = document.forms["list"];
+
+        for( i = 0; i < form.elements.length; i++ ) {
+            e = form.elements[i];
+            if( e.type == 'checkbox' ) {
+                e.checked = 0;
+            }
+        }
+    }
+
+    selected = id;
+    sdiv = document.getElementById( 'list_div' + id );
+    sdiv.style.background = 'yellow';
+    eval( 'document.forms["list"].list_check' + selected ).checked = true;
+
+    viewer_filelist = list_filelist;
+    load( 'viewer', '/view?id=' + id );
 }
 
-function open_in_viewer2( uri ) {
-    if( typeof parent.viewer2 === "undefined" ) {
-        create_2nd_viewer( uri );
+function nextfile( id, dir ) {
+    current = -1;
+
+    form = document.forms["list"];
+
+    for( i = 0; i < form.elements.length; i++ ) {
+        e = form.elements[i];
+        if( parseInt( e.value ) == id ) {
+            current = i;
+            break;
+        }
+    }
+
+    if( current < 0 ) {
+        alert( "Something went wrong" );
+        return;
+    }
+
+    next = current + dir;
+    if( next < 0 || next >= form.elements.length ) {
+        return;
+    }
+
+    clickfile( parseInt( form.elements[next].value ), true );
+}
+
+function open_view( view ) {
+    if( view == 'viewer2' ) {
+        right = document.getElementById( 'right' );
+        alert( right.style.visibility );
+        if( !right_visible ) {
+            main = document.getElementById( 'main' );
+            main.style.width = (window.innerWidth - 300)/2;
+            right.style.width = (window.innerWidth - 300)/2;
+            right.style.visibility = 'visible';
+            right_visible = 1;
+        }
+        return right;
+    } else if( view == 'viewer' ) {
+        return document.getElementById( 'main' );
+    } else if( view == 'main' ) {
+        main = document.getElementById( 'main' );
+        right = document.getElementById( 'right' );
+        if( right_visible ) {
+            right.style.visibility = 'hidden';
+            main.style.width = window.innerWidth - 300;
+            right_visible = 0;
+        }
+        return main
     } else {
-        parent.viewer2.location.href = uri;
+        return document.getElementById( view );
     }
 }
 
-function close_viewer2() {
-    v2 = parent.document.getElementById( "viewer2" );
-    fs = parent.document.getElementById( "mainfs" );
-
-    fs.removeChild( v2 );
-    fs.cols = "250,*";
+function close_view( view ) {
+    if( view == 'viewer2' && right_visible ) {
+        right.style.visibility = 'hidden';
+        main.style.width = window.innerWidth - 300;
+        right_visible = 0;
+    }
 }
 
-function create_2nd_viewer( uri ) {
-    f = document.createElement( "frame" );
-    f.id = "viewer2";
-    f.name = "viewer2";
-    f.src = uri;
+function load( div, page ) {
+    r = null;
+    if( !window.XMLHttpRequest ) {
+        alert( "Unsupported browser" );
+        return;
+    }
 
-    fs = parent.document.getElementById( "mainfs" );
-    fs.appendChild( f );
-    fs.cols = "250,*,500";
+    r = window.XMLHttpRequest();
+    r.onreadystatechange = function() {
+        if( r.readyState != 4 ) return;
+
+        if( r.status != 200 ) {
+            alert( "Request failed" );
+            return;
+        }
+
+        open_view( div ).innerHTML = r.responseText;
+    }
+
+    open_view( div ).innerHTML = '<h1>Loading...</h1>';
+
+    r.open( 'GET', page, true )
+    r.send( null );
+}
+
+function resize_image( im ) {
+    if( right_visible ) {
+        max_width = (window.innerWidth - 300) / 2;
+    } else {
+        max_width = window.innerWidth - 300;
+    }
+
+    max_height = window.innerHeight - 100;
+
+    if( im.width > max_width ) {
+        h = im.height * max_width / im.width;
+        if( h > max_height ) {
+            im.height = max_height;
+        } else {
+            im.width = max_width;
+        }
+    } else if( im.height > max_height ) {
+        im.height = max_height;
+    }
 }
 
 function make_group( type ) {
@@ -78,16 +203,26 @@ class Server:
 
     def index( self ):
 
-        s = '<html>'
-        s += '<frameset rows=35,*>'
-        s += '<frame src="/top"/>'
-        s += '<frameset id="mainfs" cols=250,*>'
-        s += '<frame src="/list?mode=all" name="list"/>'
-        s += '<frame src="about:blank" name="viewer"/>'
-        s += '</frameset></frameset>'
-        s += '</html>'
-    
-        return s
+        return """
+        <html><head><title>NextGen UI</title></head>
+        <body>
+        <script language="javascript">""" + JAVASCRIPT + """</script>
+        <style type="text/css">""" + CSS + """</style>
+        <div id='header'>
+            <form onsubmit="load( 'sidebar', '/list?mode=tags&tags=' + document.forms[0].tags.value ); return false;">
+            <a href="javascript:load( 'sidebar', '/list?mode=all' )">all</a> /
+            <a href="javascript:load( 'sidebar', '/list?mode=untagged' )">untagged</a> /
+            <a href="javascript:load( 'sidebar', '/taglist' )">taglist</a> /
+            <a href="javascript:load( 'main', '/admin' )">admin</a> /
+            <input type="text" name="tags"/></form>
+        </div>
+        <div id='sidebar'>
+        </div>
+        <div id='main'>
+        </div>
+        <div id='right'>
+        </div>
+        """
 
     def admin( self, action = None, **args ):
 
@@ -107,19 +242,6 @@ class Server:
 
         return s
 
-    def top( self ):
-
-        s = HEAD
-        s += '<form onsubmit="parent.list.location.href=\'/list?mode=tags&tags=\' + document.forms[0].tags.value; return false;">'
-        s += '<a href="/list?mode=all" target="list">all</a> /'
-        s += '<a href="/list?mode=untagged" target="list">untagged</a> /'
-        s += '<a href="/taglist" target="list">taglist</a> /'
-        s += '<a href="/admin" target="viewer">admin</a> /'
-        s += '<input type="text" name="tags"/></form>'
-        s += TAIL
-
-        return s
-
     def fillin_view( self, f, secondary ):
 
         s = ""
@@ -129,14 +251,15 @@ class Server:
         if( p == None ):
             s += 'Image not available<br/>'
         else:
-            s += '<img src="/img?id=%d" onload="resize_image( this )"/><br/>' % ( f.get_id() )
+            id = f.get_id()
+            s += '<img src="/img?id=%d" class="picture" onload="resize_image( this )" onclick="nextfile( %d, 1 )"/><br/>' % ( id, id )
 
         varient = f.is_varient()
         duplicate = f.is_duplicate()
         parent = f.get_parent()
 
         if( secondary ):
-            s += '<a href=\'javascript:close_viewer2()\'>Close</a> / '
+            s += """<a href="javascript:close_view( 'viewer2' )">Close</a> / """
             if( parent != None ):
                 s += 'Has parent'
             else:
@@ -298,7 +421,7 @@ class Server:
     def list( self, mode = None, tags = None ):
 
         db = self.open_db()
-        s = [ HEAD ]
+        s = []
 
         if( mode == 'untagged' ):
             files = db.lookup_files_by_tags_with_names( [], strict = True )
@@ -329,7 +452,7 @@ class Server:
 
         totidx = len( s )
         s.append( 'Total: %d files<br/>' )
-        s.append( '<ul>' )
+        s.append( '<form name="list">' )
 
         c = 0
         for f in files:
@@ -338,13 +461,12 @@ class Server:
             name = f[1]
             f = f[0]
 
-            s.append( '<li><a href="/view?id=%d" target="viewer">%s</a>'
-                    % ( f.get_id(), name, ) )
-            s.append( ' <a href=\'javascript:open_in_viewer2( "/view?id=%d&secondary=1" )\'>*</a></li>'
-                    % ( f.get_id() ) )
+            id = f.get_id()
+            s.append( ("""<div id="list_div%d"><input type="checkbox" name="list_check%d" """
+                    + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
+                    + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
+                    % ( id, id, id, id, id, name, ) )
         s.append( '</ul>' )
-
-        s.append( TAIL )
 
         s[totidx] = s[totidx] % ( c )
 
@@ -353,17 +475,15 @@ class Server:
     def taglist( self ):
 
         db = self.open_db()
-        s = HEAD
+        s = ''
 
         tags = db.all_tags()
 
         s += '<ul>'
         for t in tags:
-            s += '<li><a href="/list?mode=tags&tags=%s" target="list">%s</a></li>' \
+            s += """<li><a href="javascript:load( 'sidebar', '/list?mode=tags&tags=%s' )">%s</a></li>""" \
                     % ( t, t,)
         s += '</ul>'
-
-        s += TAIL
 
         return s
 
@@ -400,7 +520,6 @@ class Server:
     list.exposed = True
     taglist.exposed = True
     img.exposed = True
-    top.exposed = True
     admin.exposed = True
 
 if( __name__ == '__main__' ):
