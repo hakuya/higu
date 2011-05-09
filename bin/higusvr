@@ -8,7 +8,13 @@ import os
 CSS="""
 #sidebar{
     float:left;
-    width:250px;
+}
+
+#info{
+    overflow:auto;
+}
+
+#list{
     overflow:auto;
 }
 
@@ -36,6 +42,26 @@ selected=-1;
 list_filelist = new Array();
 viewer_filelist = list_filelist;
 
+function init() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+
+    info = document.getElementById( 'info' );
+    list = document.getElementById( 'list' );
+    main = document.getElementById( 'main' );
+
+    sidebar_w = width / 10;
+    if( sidebar_w < 250 ) sidebar_w = 250;
+
+    info.style.width = sidebar_w;
+    list.style.width = sidebar_w;
+    info.style.height = (height - 60)/2;
+    list.style.height = (height - 60)/2;
+
+    main.style.width = width - 20 - sidebar_w;
+    main.style.height = height - 60;
+}
+
 function clickfile( id, reset ) {
     if( selected >= 0 ) {
         sdiv = document.getElementById( 'list_div' + selected );
@@ -62,12 +88,15 @@ function clickfile( id, reset ) {
 
     viewer_filelist = list_filelist;
     load( 'viewer', '/view?id=' + id );
+    load( 'info', '/info?id=' + id );
 }
 
 function nextfile( id, dir ) {
     current = -1;
 
     form = document.forms["list"];
+
+    if( form.elements.length == 0 ) return;
 
     for( i = 0; i < form.elements.length; i++ ) {
         e = form.elements[i];
@@ -78,13 +107,12 @@ function nextfile( id, dir ) {
     }
 
     if( current < 0 ) {
-        alert( "Something went wrong" );
-        return;
-    }
-
-    next = current + dir;
-    if( next < 0 || next >= form.elements.length ) {
-        return;
+        next = 0;
+    } else {
+        next = current + dir;
+        if( next < 0 || next >= form.elements.length ) {
+            return;
+        }
     }
 
     clickfile( parseInt( form.elements[next].value ), true );
@@ -135,15 +163,17 @@ function load( div, page ) {
 
     r = window.XMLHttpRequest();
     r.onreadystatechange = function() {
-        if( r.readyState != 4 ) return;
+        if( this.readyState != 4 ) return;
 
-        if( r.status != 200 ) {
-            alert( "Request failed" );
+        if( this.status != 200 ) {
+            open_view( 'viewer' ).innerHTML = this.responseText;
             return;
         }
 
-        open_view( div ).innerHTML = r.responseText;
+        open_view( this.div ).innerHTML = this.responseText;
     }
+
+    r.div = div;
 
     open_view( div ).innerHTML = '<h1>Loading...</h1>';
 
@@ -182,10 +212,28 @@ function make_group( type ) {
 //-->
 """
 
-HEAD = """<html><head><body>
-<script language="javascript">""" + JAVASCRIPT + """</script>"""
-
-TAIL = "</body></html>"
+INDEX="""
+<html><head><title>NextGen UI</title></head>
+<body onload="init()">
+<script language="javascript">""" + JAVASCRIPT + """</script>
+<style type="text/css">""" + CSS + """</style>
+<div id='header'>
+    <form onsubmit="load( 'list', '/list?mode=tags&tags=' + document.forms[0].tags.value ); return false;">
+    <a href="javascript:load( 'list', '/list?mode=all' )">all</a> /
+    <a href="javascript:load( 'list', '/list?mode=untagged' )">untagged</a> /
+    <a href="javascript:load( 'main', '/taglist' )">taglist</a> /
+    <a href="javascript:load( 'main', '/admin' )">admin</a> /
+    <input type="text" name="tags"/></form>
+</div>
+<div id='sidebar'>
+    <div id='info'></div>
+    <div id='list'></div>
+</div>
+<div id='main'>
+</div>
+<div id='right'>
+</div>
+"""
 
 
 class Server:
@@ -203,30 +251,11 @@ class Server:
 
     def index( self ):
 
-        return """
-        <html><head><title>NextGen UI</title></head>
-        <body>
-        <script language="javascript">""" + JAVASCRIPT + """</script>
-        <style type="text/css">""" + CSS + """</style>
-        <div id='header'>
-            <form onsubmit="load( 'sidebar', '/list?mode=tags&tags=' + document.forms[0].tags.value ); return false;">
-            <a href="javascript:load( 'sidebar', '/list?mode=all' )">all</a> /
-            <a href="javascript:load( 'sidebar', '/list?mode=untagged' )">untagged</a> /
-            <a href="javascript:load( 'sidebar', '/taglist' )">taglist</a> /
-            <a href="javascript:load( 'main', '/admin' )">admin</a> /
-            <input type="text" name="tags"/></form>
-        </div>
-        <div id='sidebar'>
-        </div>
-        <div id='main'>
-        </div>
-        <div id='right'>
-        </div>
-        """
+        return INDEX
 
     def admin( self, action = None, **args ):
 
-        s = HEAD
+        s = ''
 
         if( action == 'rename' ):
             if( args['rntag'] != '' and args['rnnew'] != '' ):
@@ -238,27 +267,70 @@ class Server:
         s += '<form>'
         s += '<input type="hidden" name="action" value="rename"/>Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="submit">'
         s += '</form>'
-        s += TAIL
 
         return s
 
-    def fillin_view( self, f, secondary ):
+    def view( self, id = None ):
 
-        s = ""
+        if( id == None ):
+            raise cherrypy.HTTPError( 404 )
+        try:
+            id = int( id )
+        except:
+            raise cherrypy.HTTPError( 400 )
 
+        db = self.open_db()
+        f = db.get_file_by_id( id )
         p = f.get_path()
+        db.close()
 
         if( p == None ):
-            s += 'Image not available<br/>'
+            return 'Image not available<br/>'
         else:
-            id = f.get_id()
-            s += '<img src="/img?id=%d" class="picture" onload="resize_image( this )" onclick="nextfile( %d, 1 )"/><br/>' % ( id, id )
+            return '<img src="/img?id=%d" class="picture" onload="resize_image( this )" onclick="nextfile( %d, 1 )"/><br/>' % ( id, id )
+
+    def info( self, id = None, action = None ):
+
+        if( id == None ):
+            raise cherrypy.HTTPError( 404 )
+        try:
+            id = int( id )
+        except:
+            raise cherrypy.HTTPError( 400 )
+
+        db = self.open_db()
+        f = db.get_file_by_id( id )
+
+        # Process an action
+        if( action != None ):
+            cmd, parm = action.split( '|' )
+            parms = parm.split( ' ' )
+            if( cmd == 'tag' ):
+                for t in parms:
+                    f.tag( t )
+            elif( cmd == 'untag' ):
+                f.untag( parm )
+            elif( cmd == 'rempar' ):
+                f.set_parent( None )
+            elif( cmd == 'group' ):
+                parms = map( lambda x: int( x ), parms )
+
+                if( parms[0] == 0 ):
+                    f.set_parent( higu.File( f.db, parms[1] ) )
+                if( parms[0] == 1 ):
+                    f.set_varient_of( higu.File( f.db, parms[1] ) )
+                if( parms[0] == 2 ):
+                    f.set_duplicate_of( higu.File( f.db, parms[1] ) )
+
+            db.commit()
+
+        s = ''
 
         varient = f.is_varient()
         duplicate = f.is_duplicate()
         parent = f.get_parent()
 
-        if( secondary ):
+        if( 0 ):
             s += """<a href="javascript:close_view( 'viewer2' )">Close</a> / """
             if( parent != None ):
                 s += 'Has parent'
@@ -295,9 +367,9 @@ class Server:
 
             s += '<ul>'
             for t in tags:
-                s += '<li>%s (<a href="/view?id=%d&action=untag|%s">del</a>)</li>' \
+                s += """<li>%s (<a href="javascript:load( 'info', '/info?id=%d&action=untag|%s' )">del</a>)</li>""" \
                         % ( t, f.get_id(), t )
-            s += '<li><form onsubmit="location.href=\'/view?id=%d&action=tag|\' + document.forms[1].tag.value; return false;"><input type="text" name="tag"/></form></li>' \
+            s += """<li><form onsubmit="load( 'info', '/info?id=%d&action=tag|' + this.tag.value ); return false;"><input type="text" name="tag"/></form></li>""" \
                         % ( f.get_id() )
             s += '</ul>'
 
@@ -372,48 +444,6 @@ class Server:
                             % ( g.get_id(), g.get_name(), )
                 s += '</ul>'
 
-        return s
-
-    def view( self, id = None, action = None, secondary = 0 ):
-
-        if( id == None ):
-            raise cherrypy.HTTPError( 404 )
-        try:
-            id = int( id )
-        except:
-            raise cherrypy.HTTPError( 400 )
-
-        s = HEAD
-        s += '<form><input type="hidden" name="fid" value="%d"/></form>' % ( id )
-
-        db = self.open_db()
-        f = db.get_file_by_id( id )
-
-        if( action != None ):
-            cmd, parm = action.split( '|' )
-            parms = parm.split( ' ' )
-            if( cmd == 'tag' ):
-                for t in parms:
-                    f.tag( t )
-            elif( cmd == 'untag' ):
-                f.untag( parm )
-            elif( cmd == 'rempar' ):
-                f.set_parent( None )
-            elif( cmd == 'group' ):
-                parms = map( lambda x: int( x ), parms )
-
-                if( parms[0] == 0 ):
-                    f.set_parent( higu.File( f.db, parms[1] ) )
-                if( parms[0] == 1 ):
-                    f.set_varient_of( higu.File( f.db, parms[1] ) )
-                if( parms[0] == 2 ):
-                    f.set_duplicate_of( higu.File( f.db, parms[1] ) )
-
-            db.commit()
-
-        s += self.fillin_view( f, secondary )
-        s += TAIL
-
         db.close()
 
         return s
@@ -481,7 +511,7 @@ class Server:
 
         s += '<ul>'
         for t in tags:
-            s += """<li><a href="javascript:load( 'sidebar', '/list?mode=tags&tags=%s' )">%s</a></li>""" \
+            s += """<li><a href="javascript:load( 'list', '/list?mode=tags&tags=%s' )">%s</a></li>""" \
                     % ( t, t,)
         s += '</ul>'
 
@@ -517,6 +547,7 @@ class Server:
 
     index.exposed = True
     view.exposed = True
+    info.exposed = True
     list.exposed = True
     taglist.exposed = True
     img.exposed = True
