@@ -50,7 +50,6 @@ class Query:
     def __iter__( self ):
 
         q, k = self.build_query()
-        print q
 
         try:
             c = self.db.cursor()
@@ -351,7 +350,7 @@ class Table:
         except sqlite3.OperationalError, ex:
             raise QueryError( ex )
 
-    def insert( self, rows ):
+    def insert( self, rows, select = None ):
 
         s = ''
         t = ''
@@ -368,6 +367,8 @@ class Table:
         try:
             c = self.db.cursor()
             c.execute( 'INSERT INTO %s(%s) VALUES (%s)' % ( self.name, s, t ), map( lambda x: x[1], rows ) )
+
+            return self.select( rows = select, query = [ ( '_ROWID_', c.lastrowid, ) ] )
         except sqlite3.OperationalError, ex:
             raise QueryError( ex )
 
