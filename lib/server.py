@@ -4,8 +4,10 @@ import os
 
 CONFIG={
     'global' : {
-        'server.socket_host' : '0.0.0.0',
-        'server.socket_port' : 8080,
+        'server.socket_host'    : '0.0.0.0',
+        'server.socket_port'    : 8080,
+        'tools.encode.on'       : True,
+        'tools.encode.encoding' : 'utf-8',
     },
     '/static' : {
         'tools.staticdir.on' : True,
@@ -23,6 +25,7 @@ INDEX="""
     <form name='search' onsubmit="load( 'list', '/list?mode=tags&tags=' + document.forms[0].tags.value ); return false;">
     <a href="javascript:load( 'list', '/list?mode=all' )">all</a> /
     <a href="javascript:load( 'list', '/list?mode=untagged' )">untagged</a> /
+    <a href="javascript:load( 'list', '/list?mode=albums' )">albums</a> /
     <a href="javascript:load( 'main', '/taglist' )">taglist</a> /
     <a href="javascript:load( 'main', '/admin' )">admin</a> /
     <input type="text" name="tags"/></form>
@@ -67,7 +70,7 @@ class Server:
 
         s += '<h2>Rename tag</h2>'
         s += '<form>'
-        s += '<input type="hidden" name="action" value="rename"/>Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="submit">'
+        s += """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( 'main', '/admin?action=rename&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>"""
         s += '</form>'
 
         return s
@@ -82,47 +85,79 @@ class Server:
             raise cherrypy.HTTPError( 400 )
 
         db = self.open_db()
-        f = db.get_file_by_id( id )
-        p = f.get_path()
+        f = db.get_object_by_id( id )
+
+        if( isinstance( f, higu.Album ) ):
+            f = f.get_files()
+            
+            if( len( f ) == 0 ):
+                f = None
+            else:
+                f = f[0]
+            
+        if( f == None ):
+            p = None
+        else:
+            p = f.get_path()
+
         db.close()
 
         if( p == None ):
             return 'Image not available<br/>'
         else:
-            return '<img src="/img?id=%d" class="picture" onload="resize_image( this )" onclick="nextfile( %d, 1 )"/><br/>' % ( id, id )
+            return '<img src="/img?id=%d" class="picture" onload="resize_image( this )" onclick="nextfile( %d, 1 )"/><br/>' % ( f.get_id(), f.get_id() )
 
-    def info( self, id = None, action = None, multi = None ):
+    def info( self, id = None, action = None ):
 
         if( id == None ):
             raise cherrypy.HTTPError( 404 )
         try:
-            id = int( id )
+            ids = id.split( ' ' )
+            ids = map( lambda x: int( x ), ids )
         except:
             raise cherrypy.HTTPError( 400 )
 
         db = self.open_db()
-        f = db.get_file_by_id( id )
+        obj = db.get_object_by_id( ids[-1] )
 
         s = ''
 
         # Process an action
         if( action != None ):
-            cmd, parm = action.split( '|' )
+            try:
+                action.index( '|' )
+                cmd, parm = action.split( '|' )
+            except ValueError:
+                cmd = action
+                parm = ''
+
             parms = parm.split( ' ' )
             if( cmd == 'tag' ):
-                for t in parms:
-                    f.tag( t )
+                files = map( lambda x: higu.File( obj.db, x ), ids )
+
+                for fx in files:
+                    for t in parms:
+                        fx.tag( t )
             elif( cmd == 'untag' ):
-                f.untag( parm )
+                obj.untag( parm )
             elif( cmd == 'rempar' ):
-                f.set_parent( None )
+                obj.set_parent( None )
+            elif( cmd == 'rm' ):
+                db.delete_object( obj )
+            elif( cmd == 'album' ):
+                files = map( lambda x: higu.File( obj.db, x ), ids )
+                album = db.get_object_by_id( int( parm ) )
+
+                for fx in files:
+                    album.add_file( fx )
             elif( cmd == 'group' ):
-                files = map( lambda x: higu.File( f.db, int( x ) ), parms[1:] )
-                fn = int( parms[0] )
+                files = map( lambda x: higu.File( obj.db, x ), ids )
+                fn = int( parm )
 
                 if( fn == 0 ):
-                    for fx in files[:-1]:
-                        fx.set_parent( files[-1] )
+                    c = db.create_album()
+                    for fx in files:
+                        c.add_file( fx )
                 elif( fn == 1 ):
                     for fx in files[:-1]:
                         fx.set_varient_of( files[-1] )
@@ -132,117 +167,119 @@ class Server:
 
             db.commit()
 
-        varient = f.is_varient()
-        duplicate = f.is_duplicate()
-        parent = f.get_parent()
+        if( isinstance( obj, higu.Album ) ):
+            s += '<h2>Files</h2>'
 
-        if( varient ):
-            name = parent.get_name()
+            fs = obj.get_files()
 
-            s += """Varient of: <a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" \
-                    % ( parent.get_id(), name )
-        elif( duplicate ):
-            name = parent.get_name()
+            s += '<ul>'
+            for g in fs:
+                s += '<li><a href="javascript:selectfromalbum( %d, %d )">%s</a></li>' \
+                        % ( obj.get_id(), g.get_id(), g.get_name(), )
+            s += '</ul>'
 
-            s += """Duplicate of: <a href="javascript:clickfile( %d, true )">%s</a>""" \
-                    % ( parent.get_id(), name )
-        elif( parent != None ):
-            name = parent.get_name()
-
-            s += """Duplicate of: <a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" \
-                    % ( parent.get_id(), name )
         s += '<h2>Tags</h2>'
 
-        tags = f.get_tags()
+        tags = obj.get_tags()
 
         s += '<ul>'
         for t in tags:
             s += """<li>%s (<a href="javascript:load( 'info', '/info?id=%d&action=untag|%s' )">del</a>)</li>""" \
-                    % ( t, f.get_id(), t )
+                    % ( t, obj.get_id(), t )
         s += '</ul>'
 
         s += '<h2>Names</h2>'
 
-        names = f.get_names()
+        names = obj.get_names()
 
         s += '<ul>'
         for n in names:
             s += '<li>%s</li>' % ( n )
         s += '</ul>'
 
-        dups = []
-        vars = []
-        coll = []
+        if( isinstance( obj, higu.File ) ):
+            variants = obj.get_variants_of()
+            if( len( variants ) > 0 ):
+                links = map( lambda x:
+                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
+                            x.get_id(), x.get_name() ), variants )
+                links = ', '.join( links )
 
-        for c in f.child_iterator():
+                s += 'Varient of: ' + links + '<br/>'
 
-            if( c.is_duplicate() ):
-                dups.append( c )
-            elif( c.is_varient() ):
-                vars.append( c )
-            else:
-                coll.append( c )
+            duplicates = obj.get_duplicates_of()
+            if( len( duplicates ) > 0 ):
+                links = map( lambda x:
+                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
+                            x.get_id(), x.get_name() ), duplicates )
+                links = ', '.join( links )
 
-        if( len( dups ) > 0 ):
-            s += '<h2>Duplicates</h2>'
+                s += 'Duplicate of: ' + links + '<br/>'
 
-            s += '<ul>'
-            for g in dups:
-                name = g.get_name()
-                s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
-                % ( g.get_id(), name, )
-            s += '</ul>'
+            variants = obj.get_variants()
+            if( len( variants ) > 0 ):
+                links = map( lambda x:
+                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
+                            x.get_id(), x.get_name() ), variants )
+                links = ', '.join( links )
 
-        if( len( vars ) > 0 ):
-            s += '<h2>Varients</h2>'
+                s += 'Varients: ' + links + '<br/>'
 
-            s += '<ul>'
-            for g in vars:
-                name = g.get_name()
-                s += '<li><a href="/view?id=%d" target="viewer">%s</a></li>' \
-                % ( g.get_id(), name, )
-            s += '</ul>'
+            duplicates = obj.get_duplicates()
+            if( len( duplicates ) > 0 ):
+                links = map( lambda x:
+                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
+                            x.get_id(), x.get_name() ), duplicates )
+                links = ', '.join( links )
 
-        if( len( coll ) > 0 ):
-            s += '<h2>Collection</h2>'
+                s += 'Duplicates: ' + links + '<br/>'
 
-            s += '<ul>'
-            s += '<li><a href="javascript:selectfromcol( %d, %d )">%s</a></li>' \
-                    % ( f.get_id(), f.get_id(), f.get_name(), )
-            for g in coll:
-                s += '<li><a href="javascript:selectfromcol( %d, %d )">%s</a></li>' \
-                        % ( f.get_id(), g.get_id(), g.get_name(), )
-            s += '</ul>'
+            albums = obj.get_albums()
 
-        if( parent != None and not duplicate and not varient ):
-            coll = []
+            if( len( albums ) == 1 ):
+                s += '<h2>Album: %s</h2>' % ( albums[0].get_name() )
 
-            for c in parent.child_iterator():
+                fs = albums[0].get_files()
 
-                if( not c.is_duplicate() and not c.is_varient() ):
-                    coll.append( c )
+                s += '<ul>'
+                for g in fs:
+                    s += '<li><a href="javascript:selectfromalbum( %d, %d )">%s</a></li>' \
+                            % ( albums[0].get_id(), g.get_id(), g.get_name(), )
+                s += '</ul>'
 
-            s += '<h2>Collection</h2>'
-
-            s += '<ul>'
-            s += '<li><a href="javascript:selectfromcol( %d, %d )">%s</a></li>' \
-                    % ( parent.get_id(), parent.get_id(), parent.get_name(), )
-            for g in coll:
-                s += '<li><a href="javascript:selectfromcol( %d, %d )">%s</a></li>' \
-                        % ( parent.get_id(), g.get_id(), parent.get_name(), )
-            s += '</ul>'
-
-        db.close()
+            elif( len( albums ) > 1 ):
+                s += '<ul>'
+                for c in albums:
+                    s += '<li>%s</li>' % ( c.get_name() )
+                s += '</ul>'
 
         s += '<h2>Tools</h2>'
         s += '<ul>'
-        s += """<li>Tag: <form onsubmit="load( 'info', '/info?id=%d&action=tag|' + this.tag.value ); return false;"><input type="text" name="tag"/></form></li>""" \
-                    % ( f.get_id() )
-        if( multi == '1' ):
-            s += '<li><a href="javascript:group( 0 )">Collection</a></li>'
+        s += """<li>Tag: <form onsubmit="load( 'info', '/info?id=%s&action=tag|' + this.tag.value ); return false;"><input type="text" name="tag"/></form></li>""" \
+                    % ( id )
+        s += '<li><a href="javascript:rm()">Delete</a></li>'
+
+        if( isinstance( obj, higu.File ) and len( ids ) > 1 ):
+            albums = []
+
+            objs = map( lambda x: db.get_object_by_id( x ), ids )
+
+            for i in objs:
+                if( isinstance( i, higu.File ) ):
+                    fas = i.get_albums()
+                    for a in fas:
+                        if( not a in albums ):
+                            albums.append( a )
+
+            s += '<li><a href="javascript:group( 0 )">Create Album</a></li>'
+            for i in albums:
+                s += """<li><a href="javascript:load( 'info', '/info?id=%s&action=album|%d' )">Add to %s</a></li>""" % (
+                        id, i.get_id(), i.get_name() )
             s += '<li><a href="javascript:group( 1 )">Varient</a></li>'
             s += '<li><a href="javascript:group( 2 )">Duplicate</a></li>'
         s += '</ul>'
+
+        db.close()
 
         return s
 
@@ -255,7 +292,9 @@ class Server:
             selected = int( selected )
 
         if( mode == 'untagged' ):
-            files = db.lookup_files_by_tags_with_names( [], strict = True )
+            objects = db.lookup_objects_by_tags_with_names( [], strict = True, type = higu.TYPE_FILE )
+        elif( mode == 'albums' ):
+            objects = db.lookup_objects_by_tags_with_names( [], type = higu.TYPE_ALBUM )
         elif( mode == 'tags' ):
             if( tags[0] == '$' ):
                 strict = True
@@ -277,42 +316,49 @@ class Server:
                 else:
                     require.append( tag )
 
-            files = db.lookup_files_by_tags_with_names( require, add, sub, strict )
-        elif( mode == 'collection' ):
-            f = higu.File( db, int( id ) )
-
-            files = [ ( f, f.get_name(), ) ]
-
-            for c in f.child_iterator():
-
-                if( not c.is_duplicate() and not c.is_varient() ):
-                    files.append( ( c, c.get_name(), ) )
+            objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict )
+        elif( mode == 'album' ):
+            c = higu.Album( db, int( id ) )
+            objects = map( lambda x: ( x, x.get_name(), ), c.get_files() )
         else:
-            files = db.lookup_files_by_tags_with_names( [] )
+            objects = db.lookup_objects_by_tags_with_names( [], type = higu.TYPE_FILE )
 
         totidx = len( s )
-        s.append( 'Total: %d files<br/>' )
+        s.append( 'Total: %d objects<br/>' )
         s.append( '<form name="list">' )
 
         c = 0
-        for f in files:
+        for o in objects:
             c += 1
 
-            name = f[1]
-            f = f[0]
+            name = o[1]
+            o = o[0]
 
-            id = f.get_id()
-            if( f.id == selected ):
-                s.append( ("""<div style="background:yellow" id="list_div%d"><input """
-                        + """type="checkbox" name="list_check%d" checked """
-                        + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
-                        + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
-                        % ( id, id, id, id, id, name, ) )
+            id = o.get_id()
+            if( o.id == selected ):
+                if( isinstance( o, higu.File ) ):
+                    s.append( ("""<div style="background:yellow" id="list_div%d"><input """
+                            + """type="checkbox" name="list_check%d" checked """
+                            + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
+                            + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
+                            % ( id, id, id, id, id, name, ) )
+                else:
+                    s.append( ("""<div style="background:yellow" id="list_div%d"><input """
+                            + """type="checkbox" name="list_check%d" checked """
+                            + """value="%d" onclick="javascript:clickalbum( %d )"/>"""
+                            + """<a href="javascript:clickalbum( %d )"><i>%s</i></a></div>""")
+                            % ( id, id, id, id, id, name, ) )
             else:
-                s.append( ("""<div id="list_div%d"><input type="checkbox" name="list_check%d" """
-                        + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
-                        + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
-                        % ( id, id, id, id, id, name, ) )
+                if( isinstance( o, higu.File ) ):
+                    s.append( ("""<div id="list_div%d"><input type="checkbox" name="list_check%d" """
+                            + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
+                            + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
+                            % ( id, id, id, id, id, name, ) )
+                else:
+                    s.append( ("""<div id="list_div%d"><input type="checkbox" name="list_check%d" """
+                            + """value="%d" onclick="javascript:clickalbum( %d )"/>"""
+                            + """<a href="javascript:clickalbum( %d )"><i>%s</i></a></div>""")
+                            % ( id, id, id, id, id, name, ) )
         s.append( '</ul>' )
 
         s[totidx] = s[totidx] % ( c )
@@ -346,7 +392,7 @@ class Server:
         except:
             raise cherrypy.HTTPError( 400 )
 
-        f = db.get_file_by_id( id )
+        f = db.get_object_by_id( id )
         p = f.get_path()
 
         if( p == None ):

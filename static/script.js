@@ -81,30 +81,76 @@ function clickfile( id, reset ) {
     onselectionchanged( prev, id );
 }
 
+function clickalbum( id ) {
+
+    prev = selected;
+
+    form = document.forms["list"];
+    for( i = 0; i < form.elements.length; i++ ) {
+	e = form.elements[i];
+	if( e.type == 'checkbox' ) {
+	    e.checked = 0;
+	}
+    }
+
+    selection = Array();
+
+    if( selected >= 0 ) {
+	sdiv = document.getElementById( 'list_div' + selected );
+	if( sdiv ) {
+	    sdiv.style.background = '';
+	}
+    }
+
+
+    selected = id;
+    // id is always removed from the selection at the
+    // begining of this method so this is safe
+    selection.push( id );
+
+    sdiv = document.getElementById( 'list_div' + id );
+    sdiv.style.background = 'yellow';
+    eval( 'document.forms["list"].list_check' + selected ).checked = true;
+
+    viewer_filelist = list_filelist;
+    
+    onselectionchanged( prev, id );
+}
+
+function getselectionstring() {
+    if( selection.length == 0 ) {
+        return '';
+    }
+
+    selstr = '' + selection[0];
+
+    for( i = 1; i < selection.length; i++ ) {
+        selstr += ' ' + selection[i];
+    }
+
+    return selstr;
+}
+
 function onselectionchanged( prev, curr ) {
     load( 'viewer', '/view?id=' + curr );
-
-    if( selection.length > 1 ) {
-        load( 'info', '/info?id=' + curr + '&multi=1' );
-    } else {
-        load( 'info', '/info?id=' + curr );
-    }
+    load( 'info', '/info?id=' + getselectionstring() );
 }
 
 function group( type ) {
     action = 'group|' + type
-
-    for( i = 0; i < selection.length; i++ ) {
-        action += ' ' + selection[i];
-    }
-
-    load( 'info', '/info?id=' + selected + '&multi=1&action=' + action );
+    load( 'info', '/info?id=' + getselectionstring() + '&action=' + action );
 }
 
-function selectfromcol( cid, fid ) {
+function rm() {
+    if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
+        load( 'info', '/info?id=' + getselectionstring() + '&action=rm' );
+    }
+}
+
+function selectfromalbum( cid, fid ) {
     load( 'viewer', '/view?id=' + fid );
     load( 'info', '/info?id=' + fid );
-    load( 'list', '/list?mode=collection&id=' + cid + '&selected=' + fid );
+    load( 'list', '/list?mode=album&id=' + cid + '&selected=' + fid );
     selected = fid;
     selection = new Array();
     selection.push( fid );

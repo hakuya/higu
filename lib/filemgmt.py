@@ -5,8 +5,8 @@ import re
 
 from hash import calculate_details
 
-VERSION = 1
-REVISION = 1
+VERSION = 2
+REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
 LFDB_NAME = '.lfdb'
@@ -14,6 +14,15 @@ GFDB = None
 
 ORDER_VARIENT   = -1
 ORDER_DUPLICATE = -2
+
+TYPE_NILL       = 0
+TYPE_FILE       = 1000
+TYPE_GROUP      = 2000
+TYPE_ALBUM      = 2001
+
+REL_CHILD       = 0
+REL_DUPLICATE   = 1000
+REL_VARIANT     = 1001
 
 def check_len( length ):
 
@@ -54,6 +63,68 @@ def upgrade_from_0_to_1( db ):
 
     db.commit()
 
+def upgrade_from_1_to_2( db ):
+
+    print 'Database upgrade from VER 1 -> VER 2'
+
+    mfl = db.get_table( 'mfl' )
+    coll = db.get_table( 'coll' )
+    objl = db.get_table( 'objl' )
+    rell = db.get_table( 'rell' )
+    fchk = db.get_table( 'fchk' )
+    dbi = db.get_table( 'dbi' )
+
+    objl.create( [ ( 'id',     'INTEGER PRIMARY KEY', ),
+                   ( 'type',   'INTEGER NOT NULL', ), ] )
+
+    rell.create( [ ( 'id',     'INTEGER NOT NULL', ),
+                   ( 'parent', 'INTEGER NOT NULL', ),
+                   ( 'rel',    'INTEGER NOT NULL', ),
+                   ( 'sort',  'INTEGER', ), ] )
+
+    fchk.create( [ ( 'id',     'INTEGER PRIMARY KEY', ),
+                   ( 'len',    'INTEGER', ),
+                   ( 'crc32',  'TEXT', ),
+                   ( 'md5',    'TEXT', ),
+                   ( 'sha1',   'TEXT', ), ] )
+
+    cursor = mfl.select( order = 'id' )
+    coltbl = {}
+    collst = {}
+
+    # Note: this code uses the former naming scheme where albums were called collections
+
+    for item in cursor:
+        id, len, crc32, md5, sha1, parent, order = item
+        objl.insert( [ ( 'id', id, ), ( 'type', TYPE_FILE, ), ] )
+        fchk.insert( [ ( 'id', id, ), ( 'len', len, ), ( 'crc32', crc32, ), ( 'md5', md5, ), ( 'sha1', sha1, ) ] )
+
+        if( parent != None and order == ORDER_VARIENT ):
+            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', REL_VARIANT, ) ] )
+        elif( parent != None and order == ORDER_DUPLICATE ):
+            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', REL_DUPLICATE, ) ] )
+        elif( parent != None ):
+            coltbl[id] = [ parent, order ]
+            if( not collst.has_key( parent ) ):
+                collst[parent] = -1
+        # Create collections at the end so we don't mess up the ids
+
+    for collection in collst.keys():
+        colid = objl.insert( [ ( 'type', TYPE_ALBUM, ), ], [ 'id' ] ).eval( True, True )
+        collst[collection] = colid
+        rell.insert( [ ( 'id', collection, ), ( 'parent', colid, ), ( 'rel', REL_CHILD, ), ( 'sort', 0, ) ] )
+
+    for member in coltbl.keys():
+        collection, order = coltbl[member]
+        rell.insert( [ ( 'id', member, ), ( 'parent', collst[collection], ), ( 'rel', REL_CHILD, ), ( 'sort', order, ) ] )
+
+    mfl.drop()
+    # Note: naming of collections was never fully implemented in ver. 1 so it is not preserved
+    coll.drop()
+    dbi.update( [ ( 'ver', 2, ), ( 'rev', 0, ) ] )
+
+    db.commit()
+
 class ResultIterator:
 
     def __init__( self, rs, fn = lambda x: x ):
@@ -82,6 +153,10 @@ class FileMgmtDb:
             if( ver != VERSION ):
                 if( ver == 0 ): 
                     upgrade_from_0_to_1( self.db )
+                    upgrade_from_1_to_2( self.db )
+                    continue
+                elif( ver == 1 ):
+                    upgrade_from_1_to_2( self.db )
                     continue
                 else:
                     raise RuntimeError( 'Incompatible database version' )
@@ -93,9 +168,10 @@ class FileMgmtDb:
 
             break
 
-        self.mfl = MasterFileList( self.db.get_table( 'mfl' ) )
+        self.objl = MasterObjectList( self.db.get_table( 'objl' ) )
+        self.rell = RelationList( self.db.get_table( 'rell' ) )
+        self.fchk = FileChecksumList( self.db.get_table( 'fchk' ) )
         self.naml = NameList( self.db.get_table( 'naml' ) )
-        self.coll = NameList( self.db.get_table( 'coll' ) )
         self.tagl = TagList( self.db.get_table( 'tagl' ) )
 
     def commit( self ):
@@ -105,20 +181,27 @@ class FileMgmtDb:
     def close( self ):
 
         self.db.close()
-        self.mfl = None
+        self.objl = None
+        self.rell = None
+        self.fchk = None
         self.naml = None
+        self.tagl = None
 
-    def get_mfl( self ):
+    def get_objl( self ):
 
-        return self.mfl
+        return self.objl
+
+    def get_rell( self ):
+
+        return self.rell
+
+    def get_fchk( self ):
+
+        return self.fchk
 
     def get_naml( self ):
 
         return self.naml
-
-    def get_coll( self ):
-
-        return self.coll
 
     def get_tagl( self ):
 
@@ -167,52 +250,56 @@ class DatabaseInfo:
 
         self.dbi.update( [ ( 'rev', rev, ) ] )
 
-class MasterFileList:
+class MasterObjectList:
 
-    def __init__( self, mfl ):
+    def __init__( self, objl ):
 
-        self.mfl = mfl
+        self.objl = objl
 
         try:
-            self.mfl.create( [  ( 'id',     'INTEGER PRIMARY KEY', ),
+             self.objl.create( [    ( 'id',     'INTEGER PRIMARY KEY', ),
+                                    ( 'type',   'INTEGER NOT NULL', ), ] )
+        except db.QueryError:
+            pass
+
+    def get_type( self, id ):
+
+        return self.objl.select( [ 'type' ], [ ( 'id', id, ) ] ).eval( True, True )
+
+    def register( self, type ):
+
+        return self.objl.insert( [ ( 'type', type ) ], [ 'id' ] ).eval( True, True )
+
+    def unregister( self, id ):
+
+        self.objl.delete( [ ( 'id', id, ) ] )
+    
+    def restrict_by_type( self, tbl, type ):
+
+        invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
+            [ ( 'type', type, ) ] ), self.objl ) )
+
+        return db.Query( db.Selection( [ 'id' ], [ invalidate ] ), tbl )
+
+class FileChecksumList:
+
+    def __init__( self, fchk ):
+
+        self.fchk = fchk
+
+        try:
+            self.fchk.create( [ ( 'id',     'INTEGER PRIMARY KEY', ),
                                 ( 'len',    'INTEGER', ),
                                 ( 'crc32',  'TEXT', ),
                                 ( 'md5',    'TEXT', ),
-                                ( 'sha1',   'TEXT', ),
-                                ( 'parent', 'INTEGER', ),
-                                ( 'gorder',  'INTEGER', ), ] )
+                                ( 'sha1',   'TEXT', ), ] )
         except db.QueryError:
             pass
 
     def details( self, id ):
 
-        return self.mfl.select( [ 'len', 'crc32', 'md5', 'sha1' ],
+        return self.fchk.select( [ 'len', 'crc32', 'md5', 'sha1' ],
                 [ ( 'id', id ) ] ).eval( True, True )
-
-    def get_parent( self, id ):
-
-        return self.mfl.select( [ 'parent' ], [ ( 'id', id ) ] ).eval( True, True )
-
-    def set_parent( self, id, parent, order = 0 ):
-
-        if( parent == None ):
-            order = None
-
-        self.mfl.update( [ ( 'parent', parent, ), ( 'gorder', order, ) ],
-                [ ( 'id', id, ) ] )
-
-    def get_order( self, id ):
-
-        return self.mfl.select( [ 'gorder' ], [ ( 'id', id ) ] ).eval( True, True )
-
-    def set_order( self, id, order ):
-
-        self.mfl.update( [ ( 'gorder', order, ) ], [ ( 'id', id, ) ] )
-
-    def child_iterator( self, id ):
-
-        result = self.mfl.select( [ 'id' ], [ ( 'parent', id ) ], 'gorder' )
-        return ResultIterator( result.__iter__(), lambda x: x[0] )
 
     def lookup( self, length = None, crc32 = None, md5 = None, sha1 = None ):
 
@@ -227,35 +314,88 @@ class MasterFileList:
             query.append( ( 'sha1', sha1.lower(), ) )
 
         if( len( query ) == 0 ):
-            result = self.mfl.select( [ 'id' ] )
+            result = self.fchk.select( [ 'id' ] )
         else:
-            result = self.mfl.select( [ 'id' ], query )
+            result = self.fchk.select( [ 'id' ], query )
 
         return ResultIterator( result.__iter__(), lambda x: x[0] )
 
-    def register( self, length, crc32, md5, sha1 ):
-
-        try:
-            self.lookup( length, crc32, md5, sha1 ).next()
-            return False
-        except StopIteration:
-            pass
+    def register( self, id, length, crc32, md5, sha1 ):
 
         length = check_len( length )
         crc32 = check_crc32( crc32 )
         md5 = check_md5( md5 )
         sha1 = check_sha1( sha1 )
 
-        self.mfl.insert( [ ( 'len', length, ), ( 'crc32', crc32, ), ( 'md5', md5, ), ( 'sha1', sha1, ) ] )
+        self.fchk.insert( [ ( 'id', id, ), ( 'len', length, ), ( 'crc32', crc32, ), ( 'md5', md5, ), ( 'sha1', sha1, ) ] )
 
-        return self.lookup( length, crc32, md5, sha1 ).next()
+    def unregister( self, id ):
 
-    def select_no_collection( self, tbl ):
+        self.fchk.delete( [ ( 'id', id, ) ] )
 
-        invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
-            [ db.NullOperator( 'parent', False ) ] ), self.mfl ), True )
+class RelationList:
 
+    def __init__( self, rell ):
+
+        self.rell = rell
+
+        try:
+             self.rell.create( [    ( 'id',     'INTEGER NOT NULL', ),
+                                    ( 'parent', 'INTEGER NOT NULL', ),
+                                    ( 'rel',    'INTEGER NOT NULL', ),
+                                    ( 'sort',   'INTEGER', ), ] )
+        except db.QueryError:
+            pass
+
+    def get_parents( self, id, rel ):
+
+        return self.rell.select( [ 'parent' ], [ ( 'id', id, ), ( 'rel', rel, ), ] ).eval( True )
+
+    def get_children( self, id, rel ):
+
+        return self.rell.select( [ 'id' ], [ ( 'parent', id, ), ( 'rel', rel, ), ] ).eval( True )
+
+    def assign_parent( self, id, parent, rel, order = None ):
+
+        if( len( self.rell.select( query = [ ( 'id', id, ), ( 'parent', parent, ) ] ).eval() ) > 0 ):
+            self.rell.update(   [ ( 'rel', rel, ), ( 'sort', order, ), ],
+                                [ ( 'id', id, ), ( 'parent', parent, ) ] )
+        else:
+            self.rell.insert( [ ( 'id', id, ), ( 'parent', parent, ),
+                                ( 'rel', rel, ), ( 'sort', order, ), ] )
+
+    def clear_parent( self, id, parent ):
+
+        self.rell.delete( [ ( 'id', id, ), ( 'parent', parent, ) ] )
+
+        if( parent == None ):
+            order = None
+
+        self.rell.update( [ ( 'parent', parent, ), ( 'sort', order, ) ],
+                [ ( 'id', id, ) ] )
+
+    def get_order( self, id, parent ):
+
+        return self.rell.select( [ 'sort' ], [ ( 'id', id, ), ( 'parent', parent, ) ] ).eval( True, True )
+
+    def set_order( self, id, parent, order ):
+
+        self.rell.update( [ ( 'sort', order, ) ], [ ( 'id', id, ), ( 'parent', parent, ) ] )
+
+    def child_iterator( self, id, rel ):
+
+        result = self.rell.select( [ 'id' ], [ ( 'parent', id, ), ( 'rel', rel, ) ], 'sort' )
+        return ResultIterator( result.__iter__(), lambda x: x[0] )
+
+    def select_no_parent( self, tbl ):
+
+        invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ] ), self.rell ), True )
         return db.Query( db.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
+
+    def unregister( self, id ):
+
+        self.rell.delete( [ ( 'id', id, ) ] )
+        self.rell.delete( [ ( 'parent', id, ) ] )
 
 class TagList:
 
@@ -330,6 +470,10 @@ class TagList:
 
         self.tagl.update( [ ( 'tag', new_name, ) ], [ ( 'tag', tag, ) ] )
 
+    def unregister( self, id ):
+
+        self.tagl.delete( [ ( 'id', id, ) ] )
+
 class NameList:
 
     def __init__( self, naml ):
@@ -373,8 +517,11 @@ class NameList:
             self.naml.insert( [ ( 'id', id, ), ( 'name', name, ) ] )
             return True
 
-    def unregister( self, id, name ):
+    def unregister( self, id, name = None ):
 
-        self.naml.delete( [ ( 'id', id, ), ( 'name', name, ) ] )
+        if( name == None ):
+            self.naml.delete( [ ( 'id', id, ) ] )
+        else:
+            self.naml.delete( [ ( 'id', id, ), ( 'name', name, ) ] )
 
 # vim:sts=4:et

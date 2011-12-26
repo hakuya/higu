@@ -8,35 +8,77 @@ DEFAULT_ENVIRON = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 HIGURASHI_DATA_PATH = 'imgdat'
 
-class Collection:
+TYPE_FILE = filemgmt.TYPE_FILE
+TYPE_ALBUM = filemgmt.TYPE_ALBUM
+
+def make_unicode( s ):
+
+    if( not isinstance( s, unicode ) ):
+        return unicode( s, 'utf-8' )
+    else:
+        return s
+
+class Album:
 
     def __init__( self, db, id ):
 
         self.db = db
         self.id = id
 
-    def get_master( self ):
+    def get_id( self ):
 
-        return File( self.db, self.id )
+        return self.id
+
+    def get_files( self ):
+
+        return map( lambda x: File( self.db, x ),
+                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_CHILD ) )
+
+    def add_file( self, f, order = None ):
+
+        if( isinstance( f, File ) ):
+            f = f.id
+
+        self.db.db.get_rell().assign_parent( f, self.id, filemgmt.REL_CHILD, order )
+
+    def get_tags( self ):
+
+        return self.db.db.get_tagl().lookup_tags( self.id )
+
+    def tag( self, tag ):
+
+        return self.db.db.get_tagl().tag( self.id, tag )
+
+    def untag( self, tag ):
+
+        return self.db.db.get_tagl().untag( self.id, tag )
 
     def get_name( self ):
 
         try:
             return self.get_names().next()
         except StopIteration:
-            return None
+            return '%016x' % ( self.id )
 
     def get_names( self ):
 
-        return self.db.db.get_coll().lookup_names( self.id )
+        return self.db.db.get_naml().lookup_names( self.id )
 
     def register_name( self, name ):
 
-        self.db.db.get_coll().register( id, name )
+        self.db.db.get_naml().register( self.id, make_unicode( name ) )
 
     def register_file( self, f, order = None ):
 
         pass
+
+    def __eq__( self, o ):
+
+        if( o == None ):
+            return False
+        if( not isinstance( o, Album ) ):
+            return False
+        return self.db == o.db and self.id == o.id
 
 class File:
 
@@ -49,58 +91,54 @@ class File:
 
         return self.id
 
-    def get_collection( self ):
+    def get_parents( self ):
 
-        parent = self.db.db.get_mfl().get_parent( self.id )
+        return self.db.db.get_rell().get_parents( self.id, filemgmt.REL_CHILD )
 
-        if( parent == None ):
-            return Collection( self.db, self.id )
-        else:
-            # TODO
-            return None
+    def get_albums( self ):
 
-    def get_parent( self ):
+        parents = self.get_parents()
+        albums = []
 
-        parent = self.db.db.get_mfl().get_parent( self.id )
+        for parent in parents:
+            if( self.db.db.get_objl().get_type( parent ) == filemgmt.TYPE_ALBUM ):
+                albums.append( parent )
 
-        if( parent == None ):
-            return None
-        else:
-            return File( self.db, parent )
+        return map( lambda x: Album( self.db, x ), albums )
 
-    def set_parent( self, parent ):
+    def get_duplicates( self ):
 
-        if( isinstance( parent, File ) ):
-            parent = parent.id
+        return map( lambda x: File( self.db, x ),
+                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_DUPLICATE ) )
 
-        self.db.db.get_mfl().set_parent( self.id, parent )
+    def get_variants( self ):
+
+        return map( lambda x: File( self.db, x ),
+                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_VARIANT ) )
+
+    def get_duplicates_of( self ):
+
+        return map( lambda x: File( self.db, x ),
+                    self.db.db.get_rell().get_parents( self.id, filemgmt.REL_DUPLICATE ) )
+
+    def get_variants_of( self ):
+
+        return map( lambda x: File( self.db, x ),
+                    self.db.db.get_rell().get_parents( self.id, filemgmt.REL_VARIANT ) )
 
     def set_duplicate_of( self, parent ):
 
         if( isinstance( parent, File ) ):
             parent = parent.id
 
-        self.db.db.get_mfl().set_parent( self.id, parent, filemgmt.ORDER_DUPLICATE )
+        self.db.db.get_rell().assign_parent( self.id, parent, filemgmt.REL_DUPLICATE )
 
     def set_varient_of( self, parent ):
 
         if( isinstance( parent, File ) ):
             parent = parent.id
 
-        self.db.db.get_mfl().set_parent( self.id, parent, filemgmt.ORDER_VARIENT )
-
-    def is_duplicate( self ):
-
-        return self.db.db.get_mfl().get_order( self.id ) == filemgmt.ORDER_DUPLICATE
-
-    def is_varient( self ):
-
-        return self.db.db.get_mfl().get_order( self.id ) == filemgmt.ORDER_VARIENT
-
-    def child_iterator( self ):
-
-        return ResultIterator( self.db.db.get_mfl().child_iterator( self.id ),
-                lambda x: File( self.db, x ) )
+        self.db.db.get_rell().assign_parent( self.id, parent, filemgmt.REL_VARIANT )
 
     def get_name( self ):
 
@@ -125,11 +163,11 @@ class File:
 
     def get_length( self ):
 
-        return self.db.db.get_mfl().details( self.id )[0]
+        return self.db.db.get_fchk().details( self.id )[0]
 
     def get_hash( self ):
 
-        return self.db.db.get_mfl().details( self.id )[3]
+        return self.db.db.get_fchk().details( self.id )[3]
 
     def get_tags( self ):
 
@@ -137,11 +175,11 @@ class File:
 
     def tag( self, tag ):
 
-        return self.db.db.get_tagl().tag( self.id, tag )
+        return self.db.db.get_tagl().tag( self.id, make_unicode( tag ) )
 
     def untag( self, tag ):
 
-        return self.db.db.get_tagl().untag( self.id, tag )
+        return self.db.db.get_tagl().untag( self.id, make_unicode( tag ) )
 
     def get_path( self ):
 
@@ -163,6 +201,10 @@ class File:
 
     def __eq__( self, o ):
 
+        if( o == None ):
+            return False
+        if( not isinstance( o, File ) ):
+            return False
         return self.db == o.db and self.id == o.id
 
 class Database:
@@ -211,14 +253,26 @@ class Database:
 
         self.db.close()
 
-    def get_file_by_id( self, id ):
+    def create_album( self ):
 
-        return File( self, id )
+        id = self.db.get_objl().register( filemgmt.TYPE_ALBUM )
+        return Album( self, id )
+
+    def get_object_by_id( self, id ):
+
+        type = self.db.get_objl().get_type( id ) 
+
+        if( type == TYPE_FILE ):
+            return File( self, id )
+        elif( type == TYPE_ALBUM ):
+            return Album( self, id )
+        else:
+            return None
 
     def lookup_files_by_details( self, len = None, crc32 = None, md5 = None, sha1 = None ):
 
-        mfl = self.db.get_mfl()
-        return ResultIterator( mfl.lookup( len, crc32, md5, sha1 ),
+        fchk = self.db.get_fchk()
+        return ResultIterator( fchk.lookup( len, crc32, md5, sha1 ),
                 lambda x: File( self, x ) )
 
     def lookup_files_by_name( self, name ):
@@ -227,18 +281,23 @@ class Database:
 
     def lookup_files_by_tags( self, require, add = [], sub = [], strict = False ):
 
-        q = self.db.get_tagl().restrict_ids( self.db.get_mfl().mfl, require, add, sub, strict )
+        q = self.db.get_tagl().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
         if( strict ):
-            q = self.db.get_mfl().select_no_collection( q )        
+            q = self.db.get_rell().select_no_parent( q )        
 
         return ResultIterator( q.__iter__(), lambda x: File( self, x[0] ) )
 
-    def lookup_files_by_tags_with_names( self, require, add = [], sub = [], strict = False ):
+    def lookup_objects_by_tags_with_names( self, require, add = [], sub = [], strict = False, type = TYPE_FILE ):
 
-        q = self.db.get_tagl().restrict_ids( self.db.get_mfl().mfl, require, add, sub, strict )
+        q = self.db.get_tagl().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
+        q = self.db.get_objl().restrict_by_type( q, type )
         if( strict ):
-            q = self.db.get_mfl().select_no_collection( q )        
+            q = self.db.get_rell().select_no_parent( q )        
+
         q = self.db.get_naml().lookup_names_by_query( q )
+
+        if( type == None ):
+            q = self.db.get_objl().append_type( q )
 
         class ResultWithNameIterator:
 
@@ -253,7 +312,10 @@ class Database:
             def next( iself ):
 
                 id, name = iself.iter.next()
-                f = File( self, id )
+                if( type == TYPE_FILE ):
+                    f = File( self, id )
+                else:
+                    f = Album( self, id )
                 if( name == None ):
                     name = f.get_name()
                 return f, name
@@ -262,10 +324,10 @@ class Database:
 
     def lookup_untagged_files( self ):
 
-        mfl = self.db.get_mfl()
+        fchk = self.db.get_fchk()
         tagl = self.db.get_tagl()
         
-        all = mfl.lookup()
+        all = fchk.lookup()
         tagged = [i for i in tagl.lookup_ids( [] )]
 
         class UntaggedIterator:
@@ -289,8 +351,8 @@ class Database:
 
     def all_files( self ):
 
-        mfl = self.db.get_mfl()
-        return ResultIterator( mfl.lookup(), lambda x: File( self, x ) )
+        fchk = self.db.get_fchk()
+        return ResultIterator( fchk.lookup(), lambda x: File( self, x ) )
 
     def all_tags( self ):
 
@@ -304,13 +366,15 @@ class Database:
         details = calculate_details( path )
         results = self.lookup_files_by_details( *details )
 
-        mfl = self.db.get_mfl()
+        objl = self.db.get_objl()
+        fchk = self.db.get_fchk()
         naml = self.db.get_naml()
 
         try:
             id = results.next().get_id()
         except StopIteration:
-            id = mfl.register( *details )
+            id = objl.register( filemgmt.TYPE_FILE )
+            fchk.register( id, *details )
 
         if( add_name ):
             naml.register( id, name )
@@ -321,6 +385,22 @@ class Database:
             self._load_data( path, id )
 
         return f
+
+    def delete_object( self, obj ):
+
+        if( isinstance( obj, File ) ):
+            p = obj.get_path()
+        else:
+            p = None
+
+        self.db.get_naml().unregister( obj.get_id() )
+        self.db.get_tagl().unregister( obj.get_id() )
+        self.db.get_rell().unregister( obj.get_id() )
+        self.db.get_fchk().unregister( obj.get_id() )
+        self.db.get_objl().unregister( obj.get_id() )
+
+        if( p != None ):
+            os.remove( p )
 
     def rename_tag( self, tag, new_name ):
 
