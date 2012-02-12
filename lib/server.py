@@ -327,7 +327,7 @@ class Server:
             elif( len( albums ) > 1 ):
 
                 html.header( 'Albums:' )
-                html.list( '%s', albums )
+                html.list( '%s', map( lambda x: x.get_name(), albums ) )
 
         html.header( 'Tools' )
         html.begin_ul()
