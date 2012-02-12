@@ -81,6 +81,25 @@ function clickfile( id, reset ) {
     onselectionchanged( prev, id );
 }
 
+function select_all()
+{
+    selection = Array();
+
+    form = document.forms["list"];
+    for( i = 0; i < form.elements.length; i++ ) {
+        e = form.elements[i];
+        i_id = parseInt( e.value );
+        if( i_id != selected ) {
+            selection.push( i_id );
+            e.checked = 1;
+            idiv = document.getElementById( 'list_div' + i_id );
+            idiv.style.background = 'yellow';
+        }
+    }
+
+    selection.push( selected );
+}
+
 function clickalbum( id ) {
 
     prev = selected;
@@ -136,8 +155,7 @@ function onselectionchanged( prev, curr ) {
     load( 'info', '/info?id=' + getselectionstring() );
 }
 
-function group( type ) {
-    action = 'group|' + type
+function group( action ) {
     load( 'info', '/info?id=' + getselectionstring() + '&action=' + action );
 }
 
@@ -156,7 +174,7 @@ function selectfromalbum( cid, fid ) {
     selection.push( fid );
 }
 
-function nextfile( id, dir ) {
+function nextfile( dir ) {
     current = -1;
 
     form = document.forms["list"];
@@ -165,7 +183,7 @@ function nextfile( id, dir ) {
 
     for( i = 0; i < form.elements.length; i++ ) {
         e = form.elements[i];
-        if( parseInt( e.value ) == id ) {
+        if( parseInt( e.value ) == selected ) {
             current = i;
             break;
         }
@@ -219,7 +237,8 @@ function close_view( view ) {
     }
 }
 
-function load( div, page ) {
+function load( div, page )
+{
     r = null;
     if( !window.XMLHttpRequest ) {
         alert( "Unsupported browser" );
@@ -246,27 +265,6 @@ function load( div, page ) {
     r.send( null );
 }
 
-function resize_image( im ) {
-    if( right_visible ) {
-        max_width = (window.innerWidth - 300) / 2;
-    } else {
-        max_width = window.innerWidth - 300;
-    }
-
-    max_height = window.innerHeight - 100;
-
-    if( im.width > max_width ) {
-        h = im.height * max_width / im.width;
-        if( h > max_height ) {
-            im.height = max_height;
-        } else {
-            im.width = max_width;
-        }
-    } else if( im.height > max_height ) {
-        im.height = max_height;
-    }
-}
-
 function make_group( type ) {
     this_img = document.forms[0].fid.value;
     parent   = parent.viewer.document.forms[0].fid.value;
@@ -274,3 +272,40 @@ function make_group( type ) {
 
     location.href = "/view?id=" + this_img + "&secondary=1&action=" + action;
 }
+
+document.onkeypress = function( e )
+{
+    if( document.activeElement.type && document.activeElement.type == 'text' ) return;
+
+    e = window.event || e;
+
+    switch( e.charCode ) {
+        case 65: // A
+            select_all();
+            break;
+        case 97: // a
+            resize_image( 0.5 );
+            break;
+        case 115: // s
+            resize_image( 2.0 );
+            break;
+        case 122: // z
+            resize_image( 0 );
+            break;
+        case 120: // x
+            resize_image( -2 );
+            break;
+        case 99:  // c
+            resize_image( -1 );
+            break;
+        case 106: // j
+            nextfile( 1 );
+            break;
+        case 107: // k
+            nextfile( -1 );
+            break;
+        default:
+    }
+}
+
+// vim:sts=4:sw=4:et
