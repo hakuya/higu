@@ -382,6 +382,7 @@ class Database:
 
         objl = self.db.get_objl()
         fchk = self.db.get_fchk()
+        meta = self.db.get_meta()
 
         try:
             id = results.next().get_id()
@@ -390,7 +391,11 @@ class Database:
             fchk.register( id, *details )
 
         if( add_name ):
-            objl.set_name( id, name )
+            ename = objl.get_name( id )
+            if( ename is None ):
+                objl.set_name( id, name )
+            elif( ename != name ):
+                meta.set_single( id, 'altname', name )
         self.commit()
 
         f = File( self, id )
