@@ -5,7 +5,7 @@ import re
 
 from hash import calculate_details
 
-VERSION = 2
+VERSION = 3
 REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
@@ -125,6 +125,35 @@ def upgrade_from_1_to_2( db ):
 
     db.commit()
 
+def upgrade_from_2_to_3( db ):
+
+    objl = db.get_table( 'objl' )
+    meta = db.get_table( 'meta' )
+    naml = db.get_table( 'naml' )
+    dbi = db.get_table( 'dbi' )
+
+    meta.create( [ ( 'id',     'INTEGER NOT NULL', ),
+                   ( 'tag',    'TEXT NOT NULL', ),
+                   ( 'value',  'TEXT' ), ] )
+
+    objl.add_col( 'name', 'TEXT' )
+
+    cursor = naml.select( order = 'id' )
+
+    # Note: this code uses the former naming scheme where albums were called collections
+
+    nameset_last = None
+    for id, name in cursor:
+        if( id == nameset_last ):
+            meta.insert( [ ( 'id', id, ), ( 'tag' , 'altname' ), ( 'value', name, ), ] )
+        else:
+            objl.update( [ ( 'name', name, ), ], [ ( 'id', id, ) ] )
+
+    naml.drop()
+    dbi.update( [ ( 'ver', 3, ), ( 'rev', 0, ) ] )
+
+    db.commit()
+
 class ResultIterator:
 
     def __init__( self, rs, fn = lambda x: x ):
@@ -151,12 +180,34 @@ class FileMgmtDb:
             ver = self.dbi.get_version()
          
             if( ver != VERSION ):
+
+                # Back-up the dbfile
+                f = file( dbfile, 'rb' )
+                n = 0
+                while( 1 ):
+                    if( not os.path.isfile( dbfile + '.bak' + str( n ) ) ):
+                        break
+                    n += 1
+                g = file( dbfile + '.bak' + str( n ), 'wb' )
+                while( 1 ):
+                    buff = f.read( 1024 )
+                    if( len( buff ) == 0 ):
+                        f.close()
+                        g.close()
+                        break
+                    g.write( buff )
+
                 if( ver == 0 ): 
                     upgrade_from_0_to_1( self.db )
                     upgrade_from_1_to_2( self.db )
+                    upgrade_from_2_to_3( self.db )
                     continue
                 elif( ver == 1 ):
                     upgrade_from_1_to_2( self.db )
+                    upgrade_from_2_to_3( self.db )
+                    continue
+                elif( ver == 2 ):
+                    upgrade_from_2_to_3( self.db )
                     continue
                 else:
                     raise RuntimeError( 'Incompatible database version' )
@@ -171,8 +222,8 @@ class FileMgmtDb:
         self.objl = MasterObjectList( self.db.get_table( 'objl' ) )
         self.rell = RelationList( self.db.get_table( 'rell' ) )
         self.fchk = FileChecksumList( self.db.get_table( 'fchk' ) )
-        self.naml = NameList( self.db.get_table( 'naml' ) )
         self.tagl = TagList( self.db.get_table( 'tagl' ) )
+        self.meta = MetaList( self.db.get_table( 'meta' ) )
 
     def commit( self ):
 
@@ -199,13 +250,13 @@ class FileMgmtDb:
 
         return self.fchk
 
-    def get_naml( self ):
-
-        return self.naml
-
     def get_tagl( self ):
 
         return self.tagl
+
+    def get_meta( self ):
+
+        return self.meta
 
     def get_uuid( self ):
 
@@ -266,9 +317,18 @@ class MasterObjectList:
 
         return self.objl.select( [ 'type' ], [ ( 'id', id, ) ] ).eval( True, True )
 
-    def register( self, type ):
+    def get_name( self, id ):
 
-        return self.objl.insert( [ ( 'type', type ) ], [ 'id' ] ).eval( True, True )
+        return self.objl.select( [ 'name' ], [ ( 'id', id, ) ] ).eval( True, True )
+
+    def set_name( self, id, name ):
+
+        self.objl.update( [ ( 'name', name, ), ], [ ( 'id', id, ), ] )
+
+    def register( self, type, name = None ):
+
+        return self.objl.insert( [ ( 'type', type, ), ( 'name', name, ) ],
+                                 [ 'id' ] ).eval( True, True )
 
     def unregister( self, id ):
 
@@ -280,6 +340,13 @@ class MasterObjectList:
             [ ( 'type', type, ) ] ), self.objl ) )
 
         return db.Query( db.Selection( [ 'id' ], [ invalidate ] ), tbl )
+
+    def lookup_names_by_query( self, query ):
+
+        q = db.Query( db.Selection( [ 'a.id', 'b.name' ], group = 'a.id' ),
+                db.LeftOuterJoinOperator( query, self.objl, 'a', 'b', 'id' ) )
+
+        return q
 
 class FileChecksumList:
 
@@ -474,54 +541,73 @@ class TagList:
 
         self.tagl.delete( [ ( 'id', id, ) ] )
 
-class NameList:
+class MetaList:
 
-    def __init__( self, naml ):
+    def __init__( self, meta ):
 
-        self.naml = naml
+        self.meta = meta
 
         try:
-            self.naml.create( [ ( 'id',     'INTEGER', ),
-                                ( 'name',   'TEXT', ) ] )
+            self.meta.create( [ ( 'id',     'INTEGER NOT NULL', ),
+                                ( 'tag',    'TEXT NOT NULL', ),
+                                ( 'value',  'TEXT', ), ] )
         except db.QueryError:
             pass
 
-    def lookup_names_by_query( self, query ):
+    def all_tags( self ):
 
-        q = db.Query( db.Selection( [ 'a.id', 'b.name' ], group = 'a.id' ),
-                db.LeftOuterJoinOperator( query, self.naml, 'a', 'b', 'id' ) )
-
-        return q
-
-    def lookup_names( self, id ):
-
-        return ResultIterator( self.naml.select( [ 'name' ], [ ( 'id', id, ) ] ).__iter__(),
+        return ResultIterator( self.meta.select( [ 'tag' ], distinct = True ).__iter__(),
                 lambda x: x[0] )
 
-    def lookup_ids( self, name ):
+    def lookup_tags( self, id ):
 
-        return ResultIterator( self.naml.select( [ 'id' ], [ ( 'name', name, ) ] ).__iter__(),
-                lambda x: x[0] )
+        return ResultIterator( self.meta.select( [ 'tag' ], [ ( 'id', id, ) ],
+                distinct = True ).__iter__(), lambda x: x[0] )
 
-    def all_names( self ):
+    def clear_tag( self, id, tag ):
 
-        return ReultIterator( self.naml.select( [ 'name' ], distinct = True ).__iter__(),
-                lambda x: x[0] )
+        self.tagl.delete( [ ( 'id', id, ), ( 'tag', tag, ) ] )
 
-    def register( self, id, name ):
+    def clear_single( self, id, tag, value ):
+
+        self.tagl.delete( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )
+
+    def set_tag( self, id, tag, value ):
 
         try:
-            self.naml.select( query = [ ( 'id', id, ), ( 'name', name, ) ] ).__iter__().next()
-            return False
+            ovalue = self.meta.select( [ 'value' ],
+                    [ ( 'id', id, ), ( 'tag', tag, ) ] ).eval( True, True )
+            self.meta.update( [ ( 'value', value, ) ],
+                    [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', ovalue, ) ] )
         except StopIteration:
-            self.naml.insert( [ ( 'id', id, ), ( 'name', name, ) ] )
+            self.meta.insert( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )
             return True
 
-    def unregister( self, id, name = None ):
+    def set_single( self, id, tag, value ):
 
-        if( name == None ):
-            self.naml.delete( [ ( 'id', id, ) ] )
-        else:
-            self.naml.delete( [ ( 'id', id, ), ( 'name', name, ) ] )
+        try:
+            self.meta.select( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] ).next()
+            self.meta.update( [ ( 'value', value, ) ], [ ( 'id', id, ), ( 'tag', tag, ) ] )
+        except StopIteration:
+            self.meta.insert( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )
+            return True
+
+    def get_value( self, id, tag ):
+
+        return self.meta.select( [ 'value' ],
+                [ ( 'id', id, ), ( 'tag', tag, ) ] ).eval( True, True )
+
+    def get_values( self, id, tag ):
+
+        return self.meta.select( [ 'value' ],
+                [ ( 'id', id, ), ( 'tag', tag, ) ] ).eval( True )
+
+    def rename_tag( self, tag, new_name ):
+
+        self.meta.update( [ ( 'tag', new_name, ) ], [ ( 'tag', tag, ) ] )
+
+    def unregister( self, id ):
+
+        self.meta.delete( [ ( 'id', id, ) ] )
 
 # vim:sts=4:et

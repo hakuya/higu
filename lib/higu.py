@@ -55,18 +55,26 @@ class Album:
 
     def get_name( self ):
 
-        try:
-            return self.get_names().next()
-        except StopIteration:
+        name = self.db.db.get_objl().get_name( self.id )
+        if( name is not None ):
+            return name
+        else:
             return '%016x' % ( self.id )
 
     def get_names( self ):
 
-        return self.db.db.get_naml().lookup_names( self.id )
+        names = []
+        names.append( self.get_name() )
+        for value in self.db.db.get_meta().get_values( self.id, 'altname' ):
+            names.append( value )
+        return names
 
     def register_name( self, name ):
 
-        self.db.db.get_naml().register( self.id, make_unicode( name ) )
+        if( self.db.db.get_objl().get_name( self.id ) is None ):
+            self.db.db.get_objl().set_name( self.id, name )
+        else:
+            self.db.db.get_meta().set_single( self.id, 'altname', name )
 
     def register_file( self, f, order = None ):
 
@@ -142,15 +150,10 @@ class File:
 
     def get_name( self ):
 
-        try:
-            iter = self.get_names()
-            name = iter.next()
-            try:
-                while 1:
-                    iter.next()
-            except StopIteration:
-                return name
-        except StopIteration:
+        name = self.db.db.get_objl().get_name( self.id )
+        if( name is not None ):
+            return name
+        else:
             p = self.get_path()
             if( p == None ):
                 return 'unknown'
@@ -159,7 +162,18 @@ class File:
 
     def get_names( self ):
 
-        return self.db.db.get_naml().lookup_names( self.id )
+        names = []
+        names.append( self.get_name() )
+        for value in self.db.db.get_meta().get_values( self.id, 'altname' ):
+            names.append( value )
+        return names
+
+    def register_name( self, name ):
+
+        if( self.db.db.get_objl().get_name( self.id ) is None ):
+            self.db.db.get_objl().set_name( self.id, name )
+        else:
+            self.db.db.get_meta().set_single( self.id, 'altname', name )
 
     def get_length( self ):
 
@@ -294,7 +308,7 @@ class Database:
         if( strict ):
             q = self.db.get_rell().select_no_parent( q )        
 
-        q = self.db.get_naml().lookup_names_by_query( q )
+        q = self.db.get_objl().lookup_names_by_query( q )
 
         if( type == None ):
             q = self.db.get_objl().append_type( q )
@@ -368,7 +382,6 @@ class Database:
 
         objl = self.db.get_objl()
         fchk = self.db.get_fchk()
-        naml = self.db.get_naml()
 
         try:
             id = results.next().get_id()
@@ -377,7 +390,7 @@ class Database:
             fchk.register( id, *details )
 
         if( add_name ):
-            naml.register( id, name )
+            objl.set_name( id, name )
         self.commit()
 
         f = File( self, id )
@@ -393,7 +406,7 @@ class Database:
         else:
             p = None
 
-        self.db.get_naml().unregister( obj.get_id() )
+        self.db.get_meta().unregister( obj.get_id() )
         self.db.get_tagl().unregister( obj.get_id() )
         self.db.get_rell().unregister( obj.get_id() )
         self.db.get_fchk().unregister( obj.get_id() )

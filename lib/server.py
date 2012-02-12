@@ -1,6 +1,7 @@
 import higu
 import cherrypy
 import os
+import time
 
 CONFIG={
     'global' : {
@@ -19,6 +20,7 @@ CONFIG={
 INDEX="""
 <html><head><title>NextGen UI</title></head>
 <body onload="init()">
+<script src="static/image.js" type="text/javascript"></script>
 <script src="static/script.js" type="text/javascript"></script>
 <link rel="stylesheet" href="static/style.css" type="text/css"/>
 <div id='header'>
@@ -40,6 +42,91 @@ INDEX="""
 </div>
 """
 
+class TextFormatter:
+
+    def __init__( self, text ):
+
+        self.text = text
+        self.data = None
+
+    def set_data( self, *args ):
+
+        self.data = args
+
+    def __str__( self ):
+
+        if( self.data == None ):
+            return self.text
+        else:
+            return self.text % self.data
+
+class HtmlGenerator:
+
+    def __init__( self ):
+
+        self.content = []
+
+    def header( self, text, level = 2 ):
+
+        self.content.append( '<h%d>%s</h%d>' % ( level, text, level, ) )
+
+    def begin_form( self, name = None ):
+
+        args = ''
+
+        if( name is not None ):
+            args += ' name="' + name + '"'
+
+        self.content.append( '<form' + args + '>' )
+
+    def end_form( self ):
+    
+        self.content.append( '</form>' )
+
+    def begin_ul( self ):
+
+        self.content.append( '<ul>' )
+
+    def end_ul( self ):
+
+        self.content.append( '</ul>' )
+
+    def item( self, text, *args ):
+
+        self.content.append( ('<li>' + text + '</li>') % args )
+
+    def list( self, text, iterable, argfn = None ):
+
+        self.begin_ul()
+        if( argfn is None ):
+            for i in iterable:
+                if( not isinstance( i, tuple ) ):
+                    i = ( i, )
+                self.item( text, *i )
+        else:
+            for i in iterable:
+                self.item( text, *argfn( i ) )
+        self.end_ul()
+
+    def text( self, text, *args ):
+
+        self.content.append( text % args )
+
+    def generator( self, generator ):
+
+        self.content.append( generator )
+
+    def format( self ):
+
+        def stringify( x ):
+
+            if( not isinstance( x, str ) and not isinstance( x, unicode ) ):
+                return str( x )
+            else:
+                return x
+
+        return ''.join( map( stringify, self.content ) )
+
 class Server:
 
     def __init__( self, database_path = None ):
@@ -57,23 +144,63 @@ class Server:
 
         return INDEX
 
+    def process_action( self, db, objs, action, **args ):
+
+        if( action is None ):
+            return
+
+        elif( action == 'rename' ):
+            if( args['rntag'] != '' and args['rnnew'] != '' ):
+                db.rename_tag( args['rntag'], args['rnnew'] )
+        elif( action == 'tag' ):
+            tags = args['tags'].split( ' ' )
+
+            for obj in objs:
+                for t in tags:
+                    obj.tag( t )
+        elif( action == 'untag' ):
+            if( len( objs ) > 1 ):
+                return
+            objs[0].untag( args['tag'] )
+        elif( action == 'rempar' ):
+            for obj in objs:
+                obj.set_parent( None )
+        elif( action == 'rm' ):
+            for obj in objs:
+                db.delete_object( obj )
+        elif( action == 'album_append' ):
+            album = db.get_object_by_id( args['album'] )
+
+            for obj in objs:
+                album.add_file( obj )
+        elif( action == 'create_album' ):
+            c = db.create_album()
+            for obj in objs:
+                c.add_file( obj )
+        elif( action == 'group' ):
+            if( args['create'] == 'varient' ):
+                for obj in objs[:-1]:
+                    obj.set_varient_of( objs[-1] )
+            elif( args['create'] == 'duplicate' ):
+                for obj in objs[:-1]:
+                    obj.set_duplicate_of( objs[-1] )
+
+        db.commit()
+
     def admin( self, action = None, **args ):
+
         cherrypy.response.headers['Content-Type'] = "text/html; charset=utf-8" 
 
-        s = ''
+        html = HtmlGenerator()
 
-        if( action == 'rename' ):
-            if( args['rntag'] != '' and args['rnnew'] != '' ):
-                db = self.open_db()
-                db.rename_tag( args['rntag'], args['rnnew'] )
-                db.commit()
+        process_action( self, db, [], action, **args )
 
-        s += '<h2>Rename tag</h2>'
-        s += '<form>'
-        s += """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( 'main', '/admin?action=rename&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>"""
-        s += '</form>'
+        html.header( 'Rename tag' )
+        html.begin_form()
+        html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( 'main', '/admin?action=rename&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
+        html.end_form()
 
-        return s
+        return html.format()
 
     def view( self, id = None ):
 
@@ -105,9 +232,21 @@ class Server:
         if( p == None ):
             return 'Image not available<br/>'
         else:
-            return '<img src="/img?id=%d" class="picture" onload="resize_image( this )" onclick="nextfile( %d, 1 )"/><br/>' % ( f.get_id(), f.get_id() )
+            return '<img src="/img?id=%d" class="picture" onload="register_image( this )" onclick="nextfile( 1 )"/><br/>' % ( f.get_id(), )
 
-    def info( self, id = None, action = None ):
+    def link_load( self, text, pane, target, action = None, **args ):
+
+        if( action is None ):
+            return """<a href="javascript:load( '%s', '/info?id=%d' )">%s</a>""" % (
+                    pane, target, text )
+        else:
+            extra = ''
+            for arg in args:
+                extra += '&%s=%s' % ( arg, args[arg], )
+            return """<a href="javascript:load( '%s', '/info?id=%d&action=%s%s' )">%s</a>""" % (
+                    pane, target, action, extra, text )
+
+    def info( self, id = None, action = None, **args ):
 
         if( id == None ):
             raise cherrypy.HTTPError( 404 )
@@ -120,144 +259,80 @@ class Server:
         db = self.open_db()
         obj = db.get_object_by_id( ids[-1] )
 
-        s = ''
+        self.process_action( db, map( lambda x: db.get_object_by_id( x ), ids ), action, **args )
 
-        # Process an action
-        if( action != None ):
-            try:
-                action.index( '|' )
-                cmd, parm = action.split( '|' )
-            except ValueError:
-                cmd = action
-                parm = ''
+        html = HtmlGenerator()
 
-            parms = parm.split( ' ' )
-            if( cmd == 'tag' ):
-                files = map( lambda x: higu.File( obj.db, x ), ids )
-
-                for fx in files:
-                    for t in parms:
-                        fx.tag( t )
-            elif( cmd == 'untag' ):
-                obj.untag( parm )
-            elif( cmd == 'rempar' ):
-                obj.set_parent( None )
-            elif( cmd == 'rm' ):
-                db.delete_object( obj )
-            elif( cmd == 'album' ):
-                files = map( lambda x: higu.File( obj.db, x ), ids )
-                album = db.get_object_by_id( int( parm ) )
-
-                for fx in files:
-                    album.add_file( fx )
-            elif( cmd == 'group' ):
-                files = map( lambda x: higu.File( obj.db, x ), ids )
-                fn = int( parm )
-
-                if( fn == 0 ):
-                    c = db.create_album()
-                    for fx in files:
-                        c.add_file( fx )
-                elif( fn == 1 ):
-                    for fx in files[:-1]:
-                        fx.set_varient_of( files[-1] )
-                elif( fn == 2 ):
-                    for fx in files[:-1]:
-                        fx.set_duplicate_of( files[-1] )
-
-            db.commit()
+        html.text( obj.get_name() + '<br/>' )
 
         if( isinstance( obj, higu.Album ) ):
-            s += '<h2>Files</h2>'
 
+            html.header( 'Files' )
             fs = obj.get_files()
+            html.list( '<a href="javascript:selectfromalbum( %d, %d )">%s</a>', fs,
+                    lambda x: ( obj.get_id(), x.get_id(), x.get_name(), ) )
 
-            s += '<ul>'
-            for g in fs:
-                s += '<li><a href="javascript:selectfromalbum( %d, %d )">%s</a></li>' \
-                        % ( obj.get_id(), g.get_id(), g.get_name(), )
-            s += '</ul>'
-
-        s += '<h2>Tags</h2>'
-
+        html.header( 'Tags' )
         tags = obj.get_tags()
+        html.list( """%s (%s)""",
+                tags, lambda x: ( x, self.link_load( 'del', 'info', obj.get_id(), 'untag', tag = x ), ) )
 
-        s += '<ul>'
-        for t in tags:
-            s += """<li>%s (<a href="javascript:load( 'info', '/info?id=%d&action=untag|%s' )">del</a>)</li>""" \
-                    % ( t, obj.get_id(), t )
-        s += '</ul>'
-
-        s += '<h2>Names</h2>'
-
+        html.header( 'Names' )
         names = obj.get_names()
-
-        s += '<ul>'
-        for n in names:
-            s += '<li>%s</li>' % ( n )
-        s += '</ul>'
+        html.list( '%s', names )
 
         if( isinstance( obj, higu.File ) ):
+
             variants = obj.get_variants_of()
             if( len( variants ) > 0 ):
                 links = map( lambda x:
-                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
-                            x.get_id(), x.get_name() ), variants )
+                        self.link_load( x.get_name(), 'viewer', x.get_id() ), variants )
                 links = ', '.join( links )
 
-                s += 'Varient of: ' + links + '<br/>'
+                html.text( 'Varient of: ' + links + '<br/>' )
 
             duplicates = obj.get_duplicates_of()
             if( len( duplicates ) > 0 ):
                 links = map( lambda x:
-                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
-                            x.get_id(), x.get_name() ), duplicates )
+                        self.link_load( x.get_name(), 'viewer', x.get_id() ), duplicates )
                 links = ', '.join( links )
 
-                s += 'Duplicate of: ' + links + '<br/>'
+                html.text( 'Duplicate of: ' + links + '<br/>' )
 
             variants = obj.get_variants()
             if( len( variants ) > 0 ):
                 links = map( lambda x:
-                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
-                            x.get_id(), x.get_name() ), variants )
+                        self.link_load( x.get_name(), 'viewer', x.get_id() ), variants )
                 links = ', '.join( links )
 
-                s += 'Varients: ' + links + '<br/>'
+                html.text( 'Varients: ' + links + '<br/>' )
 
             duplicates = obj.get_duplicates()
             if( len( duplicates ) > 0 ):
                 links = map( lambda x:
-                        """<a href="javascript:load( 'viewer', '/view?id=%d' )">%s</a>""" % (
-                            x.get_id(), x.get_name() ), duplicates )
+                        self.link_load( x.get_name(), 'viewer', x.get_id() ), duplicates )
                 links = ', '.join( links )
 
-                s += 'Duplicates: ' + links + '<br/>'
+                html.text( 'Duplicates: ' + links + '<br/>' )
 
             albums = obj.get_albums()
 
             if( len( albums ) == 1 ):
-                s += '<h2>Album: %s</h2>' % ( albums[0].get_name() )
 
+                html.header( 'Album: %s' % ( albums[0].get_name() ) )
                 fs = albums[0].get_files()
-
-                s += '<ul>'
-                for g in fs:
-                    s += '<li><a href="javascript:selectfromalbum( %d, %d )">%s</a></li>' \
-                            % ( albums[0].get_id(), g.get_id(), g.get_name(), )
-                s += '</ul>'
+                html.list( '<a href="javascript:selectfromalbum( %d, %d )">%s</a>', fs,
+                        lambda x: ( albums[0].get_id(), x.get_id(), x.get_name(), ) )
 
             elif( len( albums ) > 1 ):
-                s += '<ul>'
-                for c in albums:
-                    s += '<li>%s</li>' % ( c.get_name() )
-                s += '</ul>'
 
-        s += '<h2>Tools</h2>'
-        s += '<ul>'
-        s += """<li>Tag: <form onsubmit="load( 'info', '/info?id=%s&action=tag|' + this.tag.value ); return false;"><input type="text" name="tag"/></form></li>""" \
-                    % ( id )
-        s += '<li><a href="javascript:rm()">Delete</a></li>'
+                html.header( 'Albums:' )
+                html.list( '%s', albums )
+
+        html.header( 'Tools' )
+        html.begin_ul()
+        html.item( """Tag: <form onsubmit="load( 'info', '/info?id=%s&action=tag&tags=' + this.tag.value ); return false;"><input type="text" name="tag"/></form></li>""", id )
+        html.item( '<a href="javascript:rm()">Delete</a>' )
 
         if( isinstance( obj, higu.File ) and len( ids ) > 1 ):
             albums = []
@@ -271,22 +346,22 @@ class Server:
                         if( not a in albums ):
                             albums.append( a )
 
-            s += '<li><a href="javascript:group( 0 )">Create Album</a></li>'
+            html.item( """<a href="javascript:group( 'create_album' )">Create Album</a>""" )
             for i in albums:
-                s += """<li><a href="javascript:load( 'info', '/info?id=%s&action=album|%d' )">Add to %s</a></li>""" % (
+                html.item( """<a href="javascript:load( 'info', '/info?id=%s&action=album_append&album=%d' )">Add to %s</a>""",
                         id, i.get_id(), i.get_name() )
-            s += '<li><a href="javascript:group( 1 )">Varient</a></li>'
-            s += '<li><a href="javascript:group( 2 )">Duplicate</a></li>'
-        s += '</ul>'
+            html.item( '<a href="javascript:group( 1 )">Varient</a>' )
+            html.item( '<a href="javascript:group( 2 )">Duplicate</a>' )
+        html.end_ul()
 
         db.close()
 
-        return s
+        return html.format()
 
     def list( self, mode = None, tags = None, id = None, selected = None ):
 
         db = self.open_db()
-        s = []
+        html = HtmlGenerator()
 
         if( selected != None ):
             selected = int( selected )
@@ -306,9 +381,15 @@ class Server:
             require = []
             add = []
             sub = []
+            t = None
+
             for tag in ls:
                 if( len( tag ) == 0 ):
                     continue
+                elif( tag == '~a' ):
+                    t = higu.TYPE_ALBUM
+                elif( tag == '~f' ):
+                    t = higu.TYPE_FILE
                 elif( tag[0] == '?' ):
                     add.append( tag[1:] )
                 elif( tag[0] == '!' ):
@@ -316,16 +397,50 @@ class Server:
                 else:
                     require.append( tag )
 
-            objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict )
+            if( t == None ):
+                objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_FILE )
+            else:
+                objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = t )
         elif( mode == 'album' ):
             c = higu.Album( db, int( id ) )
             objects = map( lambda x: ( x, x.get_name(), ), c.get_files() )
         else:
             objects = db.lookup_objects_by_tags_with_names( [], type = higu.TYPE_FILE )
 
-        totidx = len( s )
-        s.append( 'Total: %d objects<br/>' )
-        s.append( '<form name="list">' )
+        total_count = TextFormatter( 'Total: %d objects<br/>' )
+        html.generator( total_count )
+        html.begin_form( 'list' )
+
+        FILE_SELECTED_ITEM = [  '<div style="background:yellow" id="list_div',
+                                '"><input type="checkbox" name="list_check',
+                                '" checked value="',
+                                '" onclick="javascript:clickfile( ',
+                                ', false )"/><a href="javascript:clickfile( ',
+                                ', true )">' ]
+
+        ALBUM_SELECTED_ITEM = [ '<div style="background:yellow" id="list_div',
+                                '"><input type="checkbox" name="list_check',
+                                '" checked value="',
+                                '" onclick="javascript:clickalbum( ',
+                                ' )"/><a href="javascript:clickalbum( ',
+                                ' )"><i>' ]
+
+        FILE_ITEM = [           '<div id="list_div',
+                                '"><input type="checkbox" name="list_check',
+                                '" value="',
+                                '" onclick="javascript:clickfile( ',
+                                ', false )"/><a href="javascript:clickfile( ',
+                                ', true )">' ]
+
+        ALBUM_ITEM = [          '<div id="list_div',
+                                '"><input type="checkbox" name="list_check',
+                                '" value="',
+                                '" onclick="javascript:clickalbum( ',
+                                ' )"/><a href="javascript:clickalbum( ',
+                                ' )"><i>' ]
+
+        FILE_ITEM_CLOSE = '</a></div>'
+        ALBUM_ITEM_CLOSE = '</i></a></div>'
 
         c = 0
         for o in objects:
@@ -335,35 +450,24 @@ class Server:
             o = o[0]
 
             id = o.get_id()
+            id_str = str( id )
             if( o.id == selected ):
+
                 if( isinstance( o, higu.File ) ):
-                    s.append( ("""<div style="background:yellow" id="list_div%d"><input """
-                            + """type="checkbox" name="list_check%d" checked """
-                            + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
-                            + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
-                            % ( id, id, id, id, id, name, ) )
+                    html.text( id_str.join( FILE_SELECTED_ITEM ) + (name + FILE_ITEM_CLOSE) )
                 else:
-                    s.append( ("""<div style="background:yellow" id="list_div%d"><input """
-                            + """type="checkbox" name="list_check%d" checked """
-                            + """value="%d" onclick="javascript:clickalbum( %d )"/>"""
-                            + """<a href="javascript:clickalbum( %d )"><i>%s</i></a></div>""")
-                            % ( id, id, id, id, id, name, ) )
+                    html.text( id_str.join( ALBUM_SELECTED_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
             else:
                 if( isinstance( o, higu.File ) ):
-                    s.append( ("""<div id="list_div%d"><input type="checkbox" name="list_check%d" """
-                            + """value="%d" onclick="javascript:clickfile( %d, false )"/>"""
-                            + """<a href="javascript:clickfile( %d, true )">%s</a></div>""")
-                            % ( id, id, id, id, id, name, ) )
+                    html.text( id_str.join( FILE_ITEM ) + (name + FILE_ITEM_CLOSE) )
                 else:
-                    s.append( ("""<div id="list_div%d"><input type="checkbox" name="list_check%d" """
-                            + """value="%d" onclick="javascript:clickalbum( %d )"/>"""
-                            + """<a href="javascript:clickalbum( %d )"><i>%s</i></a></div>""")
-                            % ( id, id, id, id, id, name, ) )
-        s.append( '</ul>' )
+                    html.text( id_str.join( ALBUM_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
 
-        s[totidx] = s[totidx] % ( c )
+        html.end_form()
 
-        return ''.join( s )
+        total_count.set_data( c )
+
+        return html.format()
 
     def taglist( self ):
 
