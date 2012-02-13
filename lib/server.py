@@ -177,13 +177,12 @@ class Server:
             c = db.create_album()
             for obj in objs:
                 c.add_file( obj )
-        elif( action == 'group' ):
-            if( args['create'] == 'varient' ):
-                for obj in objs[:-1]:
-                    obj.set_varient_of( objs[-1] )
-            elif( args['create'] == 'duplicate' ):
-                for obj in objs[:-1]:
-                    obj.set_duplicate_of( objs[-1] )
+        elif( action == 'mark_varient' ):
+            for obj in objs[:-1]:
+                obj.set_varient_of( objs[-1] )
+        elif( action == 'mark_duplicate' ):
+            for obj in objs[:-1]:
+                obj.set_duplicate_of( objs[-1] )
 
         db.commit()
 
@@ -350,8 +349,8 @@ class Server:
             for i in albums:
                 html.item( """<a href="javascript:load( 'info', '/info?id=%s&action=album_append&album=%d' )">Add to %s</a>""",
                         id, i.get_id(), i.get_name() )
-            html.item( '<a href="javascript:group( 1 )">Varient</a>' )
-            html.item( '<a href="javascript:group( 2 )">Duplicate</a>' )
+            html.item( """<a href="javascript:group( 'mark_varient' )">Varient</a>""" )
+            html.item( """<a href="javascript:group( 'mark_duplicate' )">Duplicate</a>""" )
         html.end_ul()
 
         db.close()
