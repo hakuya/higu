@@ -309,7 +309,8 @@ class MasterObjectList:
 
         try:
              self.objl.create( [    ( 'id',     'INTEGER PRIMARY KEY', ),
-                                    ( 'type',   'INTEGER NOT NULL', ), ] )
+                                    ( 'type',   'INTEGER NOT NULL', ),
+                                    ( 'name',   'TEXT', ), ] )
         except db.QueryError:
             pass
 
