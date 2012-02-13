@@ -587,7 +587,8 @@ class MetaList:
     def set_single( self, id, tag, value ):
 
         try:
-            self.meta.select( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] ).next()
+            self.meta.select( [ 'value' ],
+                    [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] ).__iter__().next()
             self.meta.update( [ ( 'value', value, ) ], [ ( 'id', id, ), ( 'tag', tag, ) ] )
         except StopIteration:
             self.meta.insert( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )

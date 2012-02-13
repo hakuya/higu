@@ -192,7 +192,7 @@ class Server:
 
         html = HtmlGenerator()
 
-        process_action( self, db, [], action, **args )
+        self.process_action( self.open_db(), [], action, **args )
 
         html.header( 'Rename tag' )
         html.begin_form()
