@@ -1,5 +1,6 @@
 import filemgmt
 import os
+import shutil
 
 from hash import calculate_details
 from filemgmt import ResultIterator
@@ -257,7 +258,7 @@ class Database:
 
         tgt = os.path.join( tgt_path, '%016x%s' % ( id, ext ) )
 
-        os.rename( path, tgt )
+        shutil.move( path, tgt )
 
     def commit( self ):
 
