@@ -92,8 +92,6 @@ function select_all()
         if( i_id != selected ) {
             selection.push( i_id );
             e.checked = 1;
-            idiv = document.getElementById( 'list_div' + i_id );
-            idiv.style.background = 'yellow';
         }
     }
 
@@ -141,7 +139,7 @@ function getselectionstring() {
         return '';
     }
 
-    selstr = '' + selection[0];
+    selstr = '&selection=' + selection[0];
 
     for( i = 1; i < selection.length; i++ ) {
         selstr += ' ' + selection[i];
@@ -152,16 +150,16 @@ function getselectionstring() {
 
 function onselectionchanged( prev, curr ) {
     load( 'viewer', '/view?id=' + curr );
-    load( 'info', '/info?id=' + getselectionstring() );
+    load( 'info', '/info?id=' + curr );
 }
 
 function group( action ) {
-    load( 'info', '/info?id=' + getselectionstring() + '&action=' + action );
+    load( 'info', '/info?id=' + selected + '&action=' + action );
 }
 
 function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
-        load( 'info', '/info?id=' + getselectionstring() + '&action=rm' );
+        load( 'info', '/info?id=' + selected + '&action=rm' );
     }
 }
 
@@ -202,28 +200,8 @@ function nextfile( dir ) {
 }
 
 function open_view( view ) {
-    if( view == 'viewer2' ) {
-        right = document.getElementById( 'right' );
-        alert( right.style.visibility );
-        if( !right_visible ) {
-            main = document.getElementById( 'main' );
-            main.style.width = (window.innerWidth - 300)/2;
-            right.style.width = (window.innerWidth - 300)/2;
-            right.style.visibility = 'visible';
-            right_visible = 1;
-        }
-        return right;
-    } else if( view == 'viewer' ) {
+    if( view == 'viewer' ) {
         return document.getElementById( 'main' );
-    } else if( view == 'main' ) {
-        main = document.getElementById( 'main' );
-        right = document.getElementById( 'right' );
-        if( right_visible ) {
-            right.style.visibility = 'hidden';
-            main.style.width = window.innerWidth - 300;
-            right_visible = 0;
-        }
-        return main
     } else {
         return document.getElementById( view );
     }
@@ -237,8 +215,45 @@ function close_view( view ) {
     }
 }
 
+function show_dialog( title, width, height )
+{
+    overlay = document.getElementById( 'overlay' );
+    box = document.getElementById( 'dialogbox' );
+
+    box.style.width = width;
+    box.style.height = height;
+
+    box.style.left = (window.innerWidth - width) / 2;
+    box.style.top = (window.innerHeight - height) / 2;
+
+    document.getElementById( 'dialogtitle' ).innerHTML = title;
+
+    overlay.style.visibility = 'visible';
+
+    return document.getElementById( 'dialog' );
+}
+
+function dismiss_dialog()
+{
+    overlay.style.visibility = 'hidden';
+}
+
+function show_and_load( title, width, height, page )
+{
+    show_dialog( title, width, height );
+    load( 'dialog', page );
+}
+
+function dismiss_and_load( div, page )
+{
+    dismiss_dialog();
+    load( div, page );
+}
+
 function load( div, page )
 {
+    page = page + getselectionstring();
+
     r = null;
     if( !window.XMLHttpRequest ) {
         alert( "Unsupported browser" );
@@ -250,7 +265,7 @@ function load( div, page )
         if( this.readyState != 4 ) return;
 
         if( this.status != 200 ) {
-            open_view( 'viewer' ).innerHTML = this.responseText;
+            show_dialog( 'Error', 800, 400 ).innerHTML = this.responseText;
             return;
         }
 
@@ -279,7 +294,21 @@ document.onkeypress = function( e )
 
     e = window.event || e;
 
+    if( document.getElementById( 'overlay' ).style.visibility == 'visible' ) {
+        return;
+    }
+
     switch( e.charCode ) {
+        case 116: // t
+            if( selection.length > 0 ) {
+                show_and_load( 'Tag', 300, 70, '/dialog?kind=tag' );
+            }
+            break;
+        case 114: // r
+            if( selection.length == 1 ) {
+                show_and_load( 'Rename', 300, 80, '/dialog?kind=rename' );
+            }
+            break;
         case 65: // A
             select_all();
             break;

@@ -19,7 +19,7 @@ def make_unicode( s ):
     else:
         return s
 
-class Album:
+class Obj:
 
     def __init__( self, db, id ):
 
@@ -29,18 +29,6 @@ class Album:
     def get_id( self ):
 
         return self.id
-
-    def get_files( self ):
-
-        return map( lambda x: File( self.db, x ),
-                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_CHILD ) )
-
-    def add_file( self, f, order = None ):
-
-        if( isinstance( f, File ) ):
-            f = f.id
-
-        self.db.db.get_rell().assign_parent( f, self.id, filemgmt.REL_CHILD, order )
 
     def get_tags( self ):
 
@@ -56,7 +44,16 @@ class Album:
 
     def get_name( self ):
 
-        name = self.db.db.get_objl().get_name( self.id )
+        return self.db.db.get_objl().get_name( self.id )
+
+    def set_name( self, name ):
+
+        name = make_unicode( name )
+        self.db.db.get_objl().set_name( self.id, name )
+
+    def get_repr( self ):
+
+        name = self.get_name()
         if( name is not None ):
             return name
         else:
@@ -65,40 +62,54 @@ class Album:
     def get_names( self ):
 
         names = []
-        names.append( self.get_name() )
+        names.append( self.get_repr() )
         for value in self.db.db.get_meta().get_values( self.id, 'altname' ):
             names.append( value )
         return names
 
     def register_name( self, name ):
 
-        if( self.db.db.get_objl().get_name( self.id ) is None ):
-            self.db.db.get_objl().set_name( self.id, name )
+        name = make_unicode( name )
+        if( self.get_name() is None ):
+            self.set_name( name )
         else:
             self.db.db.get_meta().set_single( self.id, 'altname', name )
-
-    def register_file( self, f, order = None ):
-
-        pass
 
     def __eq__( self, o ):
 
         if( o == None ):
             return False
-        if( not isinstance( o, Album ) ):
+        if( not isinstance( o, self.__class__ ) ):
             return False
         return self.db == o.db and self.id == o.id
 
-class File:
+class Album( Obj ):
 
     def __init__( self, db, id ):
 
-        self.db = db
-        self.id = id
+        Obj.__init__( self, db, id )
 
-    def get_id( self ):
+    def get_files( self ):
 
-        return self.id
+        return map( lambda x: File( self.db, x ),
+                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_CHILD ) )
+
+    def add_file( self, f, order = None ):
+
+        if( isinstance( f, File ) ):
+            f = f.id
+
+        self.db.db.get_rell().assign_parent( f, self.id, filemgmt.REL_CHILD, order )
+
+    def register_file( self, f, order = None ):
+
+        pass
+
+class File( Obj ):
+
+    def __init__( self, db, id ):
+
+        Obj.__init__( self, db, id )
 
     def get_parents( self ):
 
@@ -149,9 +160,9 @@ class File:
 
         self.db.db.get_rell().assign_parent( self.id, parent, filemgmt.REL_VARIANT )
 
-    def get_name( self ):
+    def get_repr( self ):
 
-        name = self.db.db.get_objl().get_name( self.id )
+        name = self.get_name()
         if( name is not None ):
             return name
         else:
@@ -161,21 +172,6 @@ class File:
             else:
                 return os.path.split( p )[-1]
 
-    def get_names( self ):
-
-        names = []
-        names.append( self.get_name() )
-        for value in self.db.db.get_meta().get_values( self.id, 'altname' ):
-            names.append( value )
-        return names
-
-    def register_name( self, name ):
-
-        if( self.db.db.get_objl().get_name( self.id ) is None ):
-            self.db.db.get_objl().set_name( self.id, name )
-        else:
-            self.db.db.get_meta().set_single( self.id, 'altname', name )
-
     def get_length( self ):
 
         return self.db.db.get_fchk().details( self.id )[0]
@@ -183,18 +179,6 @@ class File:
     def get_hash( self ):
 
         return self.db.db.get_fchk().details( self.id )[3]
-
-    def get_tags( self ):
-
-        return self.db.db.get_tagl().lookup_tags( self.id )
-
-    def tag( self, tag ):
-
-        return self.db.db.get_tagl().tag( self.id, make_unicode( tag ) )
-
-    def untag( self, tag ):
-
-        return self.db.db.get_tagl().untag( self.id, make_unicode( tag ) )
 
     def get_path( self ):
 
@@ -213,14 +197,6 @@ class File:
                 pass
 
         return None
-
-    def __eq__( self, o ):
-
-        if( o == None ):
-            return False
-        if( not isinstance( o, File ) ):
-            return False
-        return self.db == o.db and self.id == o.id
 
 class Database:
 
@@ -332,7 +308,7 @@ class Database:
                 else:
                     f = Album( self, id )
                 if( name == None ):
-                    name = f.get_name()
+                    name = f.get_repr()
                 return f, name
 
         return ResultWithNameIterator( q.__iter__() )

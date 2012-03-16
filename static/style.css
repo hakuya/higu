@@ -12,8 +12,7 @@
 
 #main{
     float:left;
-    overflow:auto;
-}
+    overflow:auto; }
 
 #right{
     float:left;
@@ -21,8 +20,67 @@
     visibility:hidden;
 }
 
+#overlay{
+    position:absolute;
+    left:0px;
+    top:0px;
+    width:100%;
+    height:100%;
+    z-index:1;
+    visibility:hidden;
+}
+
+#grey{
+    position:absolute;
+    left:0px;
+    top:0px;
+    width:100%;
+    height:100%;
+    background-color:#000000;
+    opacity:0.2;
+}
+
+#dialogbox{
+    position:absolute;
+    left:0px;
+    top:0px;
+    width:100px;
+    height:100px;
+}
+
+#dialoghead{
+    float:left;
+    padding:4px;
+    background-color:#eeeeee;
+    width:100%;
+}
+
+#dialogtitle{
+    float:left;
+    font-weight:bold;
+}
+
+#dialogcontrols{
+    float:right;
+    text-align:right;
+}
+
+#dialog{
+    float:left;
+    padding:4px;
+    width:100%;
+    height:100%;
+    background-color:#ffffff;
+    overflow:auto;
+}
+
 .picture{
     float:left;
+}
+
+.description{
+    font-size:12px;
+    color:#666666;
 }
 
 h1{
@@ -47,3 +105,6 @@ a{
 a:hover{
     text-decoration:underline;
 }
+
+/* vim:sts=4:sw=4:et
+ */

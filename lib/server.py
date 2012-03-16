@@ -3,6 +3,10 @@ import cherrypy
 import os
 import time
 
+from html import TextFormatter, HtmlGenerator
+
+import dialog
+
 CONFIG={
     'global' : {
         'server.socket_host'    : '0.0.0.0',
@@ -28,8 +32,8 @@ INDEX="""
     <a href="javascript:load( 'list', '/list?mode=all' )">all</a> /
     <a href="javascript:load( 'list', '/list?mode=untagged' )">untagged</a> /
     <a href="javascript:load( 'list', '/list?mode=albums' )">albums</a> /
-    <a href="javascript:load( 'main', '/taglist' )">taglist</a> /
-    <a href="javascript:load( 'main', '/admin' )">admin</a> /
+    <a href="javascript:load( 'main', '/taglist?' )">taglist</a> /
+    <a href="javascript:load( 'main', '/admin?' )">admin</a> /
     <input type="text" name="tags"/></form>
 </div>
 <div id='sidebar'>
@@ -38,100 +42,26 @@ INDEX="""
 </div>
 <div id='main'>
 </div>
-<div id='right'>
+<div id='overlay'>
+ <div id='grey'></div>
+ <div id='dialogbox'>
+  <div id='dialoghead'>
+   <div id='dialogtitle'></div>
+   <div id='dialogcontrols'><a href='javascript:dismiss_dialog()'>x</a></div>
+  </div><div id='dialog'></div>
+ </div>
 </div>
 """
-
-class TextFormatter:
-
-    def __init__( self, text ):
-
-        self.text = text
-        self.data = None
-
-    def set_data( self, *args ):
-
-        self.data = args
-
-    def __str__( self ):
-
-        if( self.data == None ):
-            return self.text
-        else:
-            return self.text % self.data
-
-class HtmlGenerator:
-
-    def __init__( self ):
-
-        self.content = []
-
-    def header( self, text, level = 2 ):
-
-        self.content.append( '<h%d>%s</h%d>' % ( level, text, level, ) )
-
-    def begin_form( self, name = None ):
-
-        args = ''
-
-        if( name is not None ):
-            args += ' name="' + name + '"'
-
-        self.content.append( '<form' + args + '>' )
-
-    def end_form( self ):
-    
-        self.content.append( '</form>' )
-
-    def begin_ul( self ):
-
-        self.content.append( '<ul>' )
-
-    def end_ul( self ):
-
-        self.content.append( '</ul>' )
-
-    def item( self, text, *args ):
-
-        self.content.append( ('<li>' + text + '</li>') % args )
-
-    def list( self, text, iterable, argfn = None ):
-
-        self.begin_ul()
-        if( argfn is None ):
-            for i in iterable:
-                if( not isinstance( i, tuple ) ):
-                    i = ( i, )
-                self.item( text, *i )
-        else:
-            for i in iterable:
-                self.item( text, *argfn( i ) )
-        self.end_ul()
-
-    def text( self, text, *args ):
-
-        self.content.append( text % args )
-
-    def generator( self, generator ):
-
-        self.content.append( generator )
-
-    def format( self ):
-
-        def stringify( x ):
-
-            if( not isinstance( x, str ) and not isinstance( x, unicode ) ):
-                return str( x )
-            else:
-                return x
-
-        return ''.join( map( stringify, self.content ) )
 
 class Server:
 
     def __init__( self, database_path = None ):
 
         self.db_path = database_path
+        self.dialogs = {
+            'tag' : dialog.TagDialog(),
+            'rename' : dialog.RenameDialog(),
+        }
 
     def open_db( self ):
 
@@ -149,15 +79,9 @@ class Server:
         if( action is None ):
             return
 
-        elif( action == 'rename' ):
+        elif( action == 'rename_tag' ):
             if( args['rntag'] != '' and args['rnnew'] != '' ):
                 db.rename_tag( args['rntag'], args['rnnew'] )
-        elif( action == 'tag' ):
-            tags = args['tags'].split( ' ' )
-
-            for obj in objs:
-                for t in tags:
-                    obj.tag( t )
         elif( action == 'untag' ):
             if( len( objs ) > 1 ):
                 return
@@ -183,6 +107,8 @@ class Server:
         elif( action == 'mark_duplicate' ):
             for obj in objs[:-1]:
                 obj.set_duplicate_of( objs[-1] )
+        elif( self.dialogs.has_key( action ) ):
+            self.dialogs[action].process_input( db, objs, **args )
 
         db.commit()
 
@@ -196,12 +122,12 @@ class Server:
 
         html.header( 'Rename tag' )
         html.begin_form()
-        html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( 'main', '/admin?action=rename&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
+        html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( 'main', '/admin?action=rename_tag&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
         html.end_form()
 
         return html.format()
 
-    def view( self, id = None ):
+    def view( self, id = None, selection = None ):
 
         if( id == None ):
             raise cherrypy.HTTPError( 404 )
@@ -245,12 +171,36 @@ class Server:
             return """<a href="javascript:load( '%s', '/info?id=%d&action=%s%s' )">%s</a>""" % (
                     pane, target, action, extra, text )
 
-    def info( self, id = None, action = None, **args ):
+    def dialog( self, kind, selection = None ):
 
-        if( id == None ):
+        db = self.open_db()
+        html = HtmlGenerator()
+
+        if( not self.dialogs.has_key( kind ) ):
+            html.span( 'Invalid dialog', cls = 'error' )
+            return html.format()
+
+        dialog = self.dialogs[kind]
+        selection = map( lambda x: int( x ), selection.split( ' ' ) )
+
+        url = "'/info?id=%d&action=%s'"
+        for parm in dialog.get_parameters():
+            url += " + '&" + parm[0] + "=' + this." + parm[0] + "." + parm[1]
+
+        url = url % ( selection[-1], kind )
+
+        html.begin_form( onsubmit = "dismiss_and_load( 'info', " + url + " ); return false;" )
+        dialog.format_dialog( html, db, selection )
+        html.end_form()
+
+        return html.format()
+
+    def info( self, id = None, action = None, selection = None, **args ):
+
+        if( selection == None ):
             raise cherrypy.HTTPError( 404 )
         try:
-            ids = id.split( ' ' )
+            ids = selection.split( ' ' )
             ids = map( lambda x: int( x ), ids )
         except:
             raise cherrypy.HTTPError( 400 )
@@ -262,14 +212,14 @@ class Server:
 
         html = HtmlGenerator()
 
-        html.text( obj.get_name() + '<br/>' )
+        html.text( obj.get_repr() + '<br/>' )
 
         if( isinstance( obj, higu.Album ) ):
 
             html.header( 'Files' )
             fs = obj.get_files()
             html.list( '<a href="javascript:selectfromalbum( %d, %d )">%s</a>', fs,
-                    lambda x: ( obj.get_id(), x.get_id(), x.get_name(), ) )
+                    lambda x: ( obj.get_id(), x.get_id(), x.get_repr(), ) )
 
         html.header( 'Tags' )
         tags = obj.get_tags()
@@ -285,7 +235,7 @@ class Server:
             variants = obj.get_variants_of()
             if( len( variants ) > 0 ):
                 links = map( lambda x:
-                        self.link_load( x.get_name(), 'viewer', x.get_id() ), variants )
+                        self.link_load( x.get_repr(), 'viewer', x.get_id() ), variants )
                 links = ', '.join( links )
 
                 html.text( 'Varient of: ' + links + '<br/>' )
@@ -293,7 +243,7 @@ class Server:
             duplicates = obj.get_duplicates_of()
             if( len( duplicates ) > 0 ):
                 links = map( lambda x:
-                        self.link_load( x.get_name(), 'viewer', x.get_id() ), duplicates )
+                        self.link_load( x.get_repr(), 'viewer', x.get_id() ), duplicates )
                 links = ', '.join( links )
 
                 html.text( 'Duplicate of: ' + links + '<br/>' )
@@ -301,7 +251,7 @@ class Server:
             variants = obj.get_variants()
             if( len( variants ) > 0 ):
                 links = map( lambda x:
-                        self.link_load( x.get_name(), 'viewer', x.get_id() ), variants )
+                        self.link_load( x.get_repr(), 'viewer', x.get_id() ), variants )
                 links = ', '.join( links )
 
                 html.text( 'Varients: ' + links + '<br/>' )
@@ -309,7 +259,7 @@ class Server:
             duplicates = obj.get_duplicates()
             if( len( duplicates ) > 0 ):
                 links = map( lambda x:
-                        self.link_load( x.get_name(), 'viewer', x.get_id() ), duplicates )
+                        self.link_load( x.get_repr(), 'viewer', x.get_id() ), duplicates )
                 links = ', '.join( links )
 
                 html.text( 'Duplicates: ' + links + '<br/>' )
@@ -318,19 +268,18 @@ class Server:
 
             if( len( albums ) == 1 ):
 
-                html.header( 'Album: %s' % ( albums[0].get_name() ) )
+                html.header( 'Album: %s' % ( albums[0].get_repr() ) )
                 fs = albums[0].get_files()
                 html.list( '<a href="javascript:selectfromalbum( %d, %d )">%s</a>', fs,
-                        lambda x: ( albums[0].get_id(), x.get_id(), x.get_name(), ) )
+                        lambda x: ( albums[0].get_id(), x.get_id(), x.get_repr(), ) )
 
             elif( len( albums ) > 1 ):
 
                 html.header( 'Albums:' )
-                html.list( '%s', map( lambda x: x.get_name(), albums ) )
+                html.list( '%s', map( lambda x: x.get_repr(), albums ) )
 
         html.header( 'Tools' )
         html.begin_ul()
-        html.item( """Tag: <form onsubmit="load( 'info', '/info?id=%s&action=tag&tags=' + this.tag.value ); return false;"><input type="text" name="tag"/></form></li>""", id )
         html.item( '<a href="javascript:rm()">Delete</a>' )
 
         if( isinstance( obj, higu.File ) and len( ids ) > 1 ):
@@ -348,7 +297,7 @@ class Server:
             html.item( """<a href="javascript:group( 'create_album' )">Create Album</a>""" )
             for i in albums:
                 html.item( """<a href="javascript:load( 'info', '/info?id=%s&action=album_append&album=%d' )">Add to %s</a>""",
-                        id, i.get_id(), i.get_name() )
+                        id, i.get_id(), i.get_repr() )
             html.item( """<a href="javascript:group( 'mark_varient' )">Varient</a>""" )
             html.item( """<a href="javascript:group( 'mark_duplicate' )">Duplicate</a>""" )
         html.end_ul()
@@ -357,7 +306,7 @@ class Server:
 
         return html.format()
 
-    def list( self, mode = None, tags = None, id = None, selected = None ):
+    def list( self, mode = None, tags = None, id = None, selected = None, selection = None ):
 
         db = self.open_db()
         html = HtmlGenerator()
@@ -402,13 +351,13 @@ class Server:
                 objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = t )
         elif( mode == 'album' ):
             c = higu.Album( db, int( id ) )
-            objects = map( lambda x: ( x, x.get_name(), ), c.get_files() )
+            objects = map( lambda x: ( x, x.get_repr(), ), c.get_files() )
         else:
             objects = db.lookup_objects_by_tags_with_names( [], type = higu.TYPE_FILE )
 
         total_count = TextFormatter( 'Total: %d objects<br/>' )
         html.generator( total_count )
-        html.begin_form( 'list' )
+        html.begin_form( name = 'list' )
 
         FILE_SELECTED_ITEM = [  '<div style="background:yellow" id="list_div',
                                 '"><input type="checkbox" name="list_check',
@@ -468,7 +417,7 @@ class Server:
 
         return html.format()
 
-    def taglist( self ):
+    def taglist( self, selection = None ):
 
         db = self.open_db()
         s = ''
@@ -504,12 +453,11 @@ class Server:
         name = os.path.split( p )[-1]
         ext = name[name.rindex( '.' )+1:]
 
-        name = f.get_name()
+        name = f.get_repr()
 
         db.close()
 
-        return cherrypy.lib.static.serve_file( p, 'image/' + ext, \
-                'filename=%s' % ( name )  )
+        return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
 
     index.exposed = True
     view.exposed = True
@@ -518,6 +466,7 @@ class Server:
     taglist.exposed = True
     img.exposed = True
     admin.exposed = True
+    dialog.exposed = True
 
 if( __name__ == '__main__' ):
 
