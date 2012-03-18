@@ -149,24 +149,21 @@ function getselectionstring() {
 }
 
 function onselectionchanged( prev, curr ) {
-    load( 'viewer', '/view?id=' + curr );
-    load( 'info', '/info?id=' + curr );
+    load( '/callback?action=select&id=' + curr );
 }
 
 function group( action ) {
-    load( 'info', '/info?id=' + selected + '&action=' + action );
+    load( '/callback?id=' + selected + '&action=' + action );
 }
 
 function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
-        load( 'info', '/info?id=' + selected + '&action=rm' );
+        load( '/callback?id=' + selected + '&action=rm' );
     }
 }
 
 function selectfromalbum( cid, fid ) {
-    load( 'viewer', '/view?id=' + fid );
-    load( 'info', '/info?id=' + fid );
-    load( 'list', '/list?mode=album&id=' + cid + '&selected=' + fid );
+    load( '/callback?action=selalbum&fid=' + fid + '&cid=' + cid );
     selected = fid;
     selection = new Array();
     selection.push( fid );
@@ -241,16 +238,16 @@ function dismiss_dialog()
 function show_and_load( title, width, height, page )
 {
     show_dialog( title, width, height );
-    load( 'dialog', page );
+    //load( 'dialog', page );
 }
 
-function dismiss_and_load( div, page )
+function dismiss_and_load( page )
 {
     dismiss_dialog();
-    load( div, page );
+    load( page );
 }
 
-function load( div, page )
+function load( page )
 {
     page = page + getselectionstring();
 
@@ -269,12 +266,19 @@ function load( div, page )
             return;
         }
 
-        open_view( this.div ).innerHTML = this.responseText;
+        var response = eval( '(' + this.responseText + ')' );
+        if( response.action == 'update-divs' ) {
+            for( i = 0; i < response.data.length; i++ ) {
+                open_view( response.data[i].id ).innerHTML = response.data[i].content;
+            }
+        } else if( response.action == 'display-dialog' ) {
+            open_view( 'dialog' ).innerHTML = response.data.content;
+            show_dialog( response.data.title, response.data.width, response.data.height );
+        }
     }
 
-    r.div = div;
-
-    open_view( div ).innerHTML = '<h1>Loading...</h1>';
+    //r.div = div;
+    //open_view( div ).innerHTML = '<h1>Loading...</h1>';
 
     r.open( 'GET', page, true )
     r.send( null );
@@ -301,12 +305,12 @@ document.onkeypress = function( e )
     switch( e.charCode ) {
         case 116: // t
             if( selection.length > 0 ) {
-                show_and_load( 'Tag', 300, 70, '/dialog?kind=tag' );
+                load( '/dialog?kind=tag' );
             }
             break;
         case 114: // r
             if( selection.length == 1 ) {
-                show_and_load( 'Rename', 300, 80, '/dialog?kind=rename' );
+                load( '/dialog?kind=rename' );
             }
             break;
         case 65: // A
