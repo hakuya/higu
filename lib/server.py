@@ -88,12 +88,6 @@ class Server:
             if( len( objs ) > 0 ):
                 result = [ ( 'info', self.generate_info_pane( objs ) ) ]
 
-        elif( action == 'untag' ):
-            if( len( objs ) > 1 ):
-                return []
-            objs[0].untag( args['tag'] )
-            result = [ ( 'info', self.generate_info_pane( objs ) ) ]
-
         elif( action == 'rempar' ):
             for obj in objs:
                 obj.set_parent( None )
@@ -107,13 +101,13 @@ class Server:
             album = db.get_object_by_id( args['album'] )
 
             for obj in objs:
-                album.add_file( obj )
+                obj.assign( album )
             result = [ ( 'info', self.generate_info_pane( objs ) ) ]
 
         elif( action == 'create_album' ):
             c = db.create_album()
             for obj in objs:
-                c.add_file( obj )
+                obj.assign( c )
             result = [ ( 'info', self.generate_info_pane( objs ) ) ]
 
         elif( action == 'mark_varient' ):
@@ -127,8 +121,9 @@ class Server:
             result = [ ( 'info', self.generate_info_pane( objs ) ) ]
 
         elif( action == 'select' ):
-            return [ ( 'info', self.generate_info_pane( objs ) ),
+            result = [ ( 'info', self.generate_info_pane( objs ) ),
                      ( 'main', self.generate_image_pane( objs[-1] ) ) ]
+            return result
 
         elif( action == 'selalbum' ):
             f = higu.File( db, int( args['fid'] ) )
@@ -233,8 +228,7 @@ class Server:
 
         html.header( 'Tags' )
         tags = obj.get_tags()
-        html.list( """%s (%s)""",
-                tags, lambda x: ( x, self.link_load( 'del', obj.get_id(), action = 'untag', tag = x ), ) )
+        html.list( """%s""", tags, lambda x: ( x.get_name(), ) )
 
         html.header( 'Names' )
         names = obj.get_names()
@@ -524,11 +518,14 @@ class Server:
                 elif( tag == '~f' ):
                     t = higu.TYPE_FILE
                 elif( tag[0] == '?' ):
-                    add.append( tag[1:] )
+                    c = db.get_tag( tag[1:] )
+                    add.append( c )
                 elif( tag[0] == '!' ):
-                    sub.append( tag[1:] )
+                    c = db.get_tag( tag[1:] )
+                    sub.append( c )
                 else:
-                    require.append( tag )
+                    c = db.get_tag( tag )
+                    require.append( c )
 
             if( t == None ):
                 objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_FILE )
@@ -549,12 +546,14 @@ class Server:
         s += '<ul>'
         for t in tags:
             s += """<li><a href="javascript:load( '/search?mode=tags&tags=%s' )">%s</a></li>""" \
-                    % ( t, t,)
+                    % ( t.get_name(), t.get_name(),)
         s += '</ul>'
 
         return self.do_update_divs( [ ( 'main', s, ) ] )
 
     def img( self, id = None ):
+
+        from PIL import Image
 
         db = self.open_db()
 
@@ -567,7 +566,7 @@ class Server:
             raise cherrypy.HTTPError( 400 )
 
         f = db.get_object_by_id( id )
-        p = f.get_path()
+        p = f.get_thumb( 10 )
 
         if( p == None ):
             raise cherrypy.HTTPError( 404 )
@@ -576,6 +575,9 @@ class Server:
         ext = name[name.rindex( '.' )+1:]
 
         name = f.get_repr()
+
+        img_obj = Image.open( p )
+        print img_obj.size
 
         db.close()
 

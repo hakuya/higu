@@ -16,7 +16,7 @@ def create_album( name, tags, files, order ):
         album.register_name( name )
 
     for t in tags:
-        album.tag( t )
+        album.assign( t )
 
     for f in files:
         album.add_file( f[1], order )
@@ -87,7 +87,7 @@ if( __name__ == '__main__' ):
 
             if( album == None ):
                 for t in taglist:
-                    x.tag( t )
+                    x.assign( t )
 
             files.append( ( argv[0], x, ) )
 

@@ -39,9 +39,19 @@ class TagDialog:
 
         tags = args['tags'].split( ' ' )
 
+        add = [t for t in tags if t[0] != '-' and t[0] != '!']
+        new = [t[1:] for t in tags if t[0] == '!']
+        sub = [t[1:] for t in tags if t[0] == '-']
+
+        add = map( db.get_tag, add )
+        sub = map( db.get_tag, sub )
+        add += map( db.make_tag, new )
+
         for obj in selection:
-            for t in tags:
-                obj.tag( t )
+            for t in sub:
+                obj.unassign( t )
+            for t in add:
+                obj.assign( t )
 
         return [ ( 'info', server.generate_info_pane( selection ) ) ]
 
