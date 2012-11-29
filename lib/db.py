@@ -277,7 +277,7 @@ class Selection:
 
             q += ' ORDER BY %s' % ( self.order )
 
-            if( self.descending != None ):
+            if( self.descending ):
                 q += ' DESC'
 
         return q, k

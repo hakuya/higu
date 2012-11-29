@@ -5,7 +5,7 @@ import re
 
 from hash import calculate_details
 
-VERSION = 3
+VERSION = 4
 REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
@@ -19,10 +19,12 @@ TYPE_NILL       = 0
 TYPE_FILE       = 1000
 TYPE_GROUP      = 2000
 TYPE_ALBUM      = 2001
+TYPE_CLASSIFIER = 2002
 
 REL_CHILD       = 0
 REL_DUPLICATE   = 1000
 REL_VARIANT     = 1001
+REL_CLASS       = 2000
 
 def check_len( length ):
 
@@ -127,6 +129,8 @@ def upgrade_from_1_to_2( db ):
 
 def upgrade_from_2_to_3( db ):
 
+    print 'Database upgrade from VER 2 -> VER 3'
+
     objl = db.get_table( 'objl' )
     meta = db.get_table( 'meta' )
     naml = db.get_table( 'naml' )
@@ -151,6 +155,32 @@ def upgrade_from_2_to_3( db ):
 
     naml.drop()
     dbi.update( [ ( 'ver', 3, ), ( 'rev', 0, ) ] )
+
+    db.commit()
+
+def upgrade_from_3_to_4( db ):
+
+    print 'Database upgrade from VER 3 -> VER 4'
+
+    objl = db.get_table( 'objl' )
+    tagl = db.get_table( 'tagl' )
+    rell = db.get_table( 'rell' )
+    dbi = db.get_table( 'dbi' )
+
+    tagmap = {}
+
+    for item in tagl.select( [ 'tag' ], distinct = True ):
+
+        tagmap[item[0]] = objl.insert( [ ( 'type', TYPE_CLASSIFIER, ),
+                ( 'name', item[0], ) ], [ 'id' ] ).eval( True, True )        
+
+    for item in tagl.select():
+
+        rell.insert( [ ( 'id', item[0], ), ( 'parent', tagmap[item[1]], ),
+                ( 'rel', REL_CLASS, ), ] )
+
+    tagl.drop()
+    dbi.update( [ ( 'ver', 4, ), ( 'rev', 0, ) ] )
 
     db.commit()
 
@@ -201,13 +231,19 @@ class FileMgmtDb:
                     upgrade_from_0_to_1( self.db )
                     upgrade_from_1_to_2( self.db )
                     upgrade_from_2_to_3( self.db )
+                    upgrade_from_3_to_4( self.db )
                     continue
                 elif( ver == 1 ):
                     upgrade_from_1_to_2( self.db )
                     upgrade_from_2_to_3( self.db )
+                    upgrade_from_3_to_4( self.db )
                     continue
                 elif( ver == 2 ):
                     upgrade_from_2_to_3( self.db )
+                    upgrade_from_3_to_4( self.db )
+                    continue
+                elif( ver == 3 ):
+                    upgrade_from_3_to_4( self.db )
                     continue
                 else:
                     raise RuntimeError( 'Incompatible database version' )
@@ -222,7 +258,6 @@ class FileMgmtDb:
         self.objl = MasterObjectList( self.db.get_table( 'objl' ) )
         self.rell = RelationList( self.db.get_table( 'rell' ) )
         self.fchk = FileChecksumList( self.db.get_table( 'fchk' ) )
-        self.tagl = TagList( self.db.get_table( 'tagl' ) )
         self.meta = MetaList( self.db.get_table( 'meta' ) )
 
     def commit( self ):
@@ -236,7 +271,6 @@ class FileMgmtDb:
         self.rell = None
         self.fchk = None
         self.naml = None
-        self.tagl = None
 
     def get_objl( self ):
 
@@ -249,10 +283,6 @@ class FileMgmtDb:
     def get_fchk( self ):
 
         return self.fchk
-
-    def get_tagl( self ):
-
-        return self.tagl
 
     def get_meta( self ):
 
@@ -313,6 +343,21 @@ class MasterObjectList:
                                     ( 'name',   'TEXT', ), ] )
         except db.QueryError:
             pass
+
+    def lookup( self, type = None, name = None, sortby = None ):
+
+        query = []
+        if( type is not None ):
+            query.append( ( 'type', type, ) )
+        if( name is not None ):
+            query.append( ( 'name', name, ) )
+
+        if( sortby != None ):
+            result = self.objl.select( [ 'id' ], query, order = sortby )
+        else:
+            result = self.objl.select( [ 'id' ], query )
+
+        return ResultIterator( result.__iter__(), lambda x: x[0] )
 
     def get_type( self, id ):
 
@@ -432,15 +477,20 @@ class RelationList:
             self.rell.insert( [ ( 'id', id, ), ( 'parent', parent, ),
                                 ( 'rel', rel, ), ( 'sort', order, ), ] )
 
+    def transfer_parent( self, old_parent, new_parent ):
+
+        self.rell.update( [ ( 'parent', new_parent, ) ],
+                          [ ( 'parent', old_parent, ) ] )
+
     def clear_parent( self, id, parent ):
 
         self.rell.delete( [ ( 'id', id, ), ( 'parent', parent, ) ] )
 
-        if( parent == None ):
-            order = None
-
-        self.rell.update( [ ( 'parent', parent, ), ( 'sort', order, ) ],
-                [ ( 'id', id, ) ] )
+#        if( parent == None ):
+#            order = None
+#
+#        self.rell.update( [ ( 'parent', parent, ), ( 'sort', order, ) ],
+#                [ ( 'id', id, ) ] )
 
     def get_order( self, id, parent ):
 
@@ -465,38 +515,16 @@ class RelationList:
         self.rell.delete( [ ( 'id', id, ) ] )
         self.rell.delete( [ ( 'parent', id, ) ] )
 
-class TagList:
-
-    def __init__( self, tagl ):
-
-        self.tagl = tagl
-
-        try:
-            self.tagl.create( [ ( 'id',     'INTEGER', ),
-                                ( 'tag',    'TEXT', ) ] )
-        except db.QueryError:
-            pass
-
-    def all_tags( self ):
-
-        return ResultIterator( self.tagl.select( [ 'tag' ], distinct = True ).__iter__(),
-                lambda x: x[0] )
-
-    def lookup_tags( self, id ):
-
-        return ResultIterator( self.tagl.select( [ 'tag' ], [ ( 'id', id, ) ] ).__iter__(),
-                lambda x: x[0] )
-
     def restrict_ids( self, tbl, require, add = [], sub = [], strict = False ):
 
-        def require_tag( tag, neg = False ):
+        def require_parent( parent, neg = False ):
 
             return db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
-                    [ ( 'tag', tag, ) ] ), self.tagl ), neg )
+                    [ ( 'parent', parent, ) ] ), self.rell ), neg )
 
-        req_c = [require_tag( t, False ) for t in require]
-        add_c = [require_tag( t, False ) for t in add]
-        sub_c = [require_tag( t, True ) for t in sub]
+        req_c = [require_parent( p, False ) for p in require]
+        add_c = [require_parent( p, False ) for p in add]
+        sub_c = [require_parent( p, True ) for p in sub]
 
         if( len( add_c ) > 0 ):
             add_op = db.OrOperator( add_c )
@@ -506,41 +534,20 @@ class TagList:
             sub_op = db.AndOperator( sub_c )
             req_c.append( sub_op )
 
-        if( strict ):
-            all_tags = require + add + sub
-            others = map( lambda x: db.InequalityOperator( 'tag', x ), all_tags )
-            if( len( others ) > 0 ):
-                others_op = [ db.AndOperator( others ) ]
-            else:
-                others_op = []
+        #if( strict ):
+        #    all_tags = require + add + sub
+        #    others = map( lambda x: db.InequalityOperator( 'tag', x ), all_tags )
+        #    if( len( others ) > 0 ):
+        #        others_op = [ db.AndOperator( others ) ]
+        #    else:
+        #        others_op = []
 
-            invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
-                    others_op ), self.tagl ), True )
+        #    invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
+        #            others_op ), self.tagl ), True )
 
-            req_c.append( invalidate )
+        #    req_c.append( invalidate )
 
         return db.Query( db.Selection( [ 'id' ], req_c, distinct = True ), tbl )
-
-    def tag( self, id, tag ):
-
-        try:
-            self.tagl.select( query = [ ( 'id', id, ), ( 'tag', tag, ) ] ).__iter__().next()
-            return False
-        except StopIteration:
-            self.tagl.insert( [ ( 'id', id, ), ( 'tag', tag, ) ] )
-            return True
-
-    def untag( self, id, tag ):
-
-        self.tagl.delete( [ ( 'id', id, ), ( 'tag', tag, ) ] )
-
-    def rename_tag( self, tag, new_name ):
-
-        self.tagl.update( [ ( 'tag', new_name, ) ], [ ( 'tag', tag, ) ] )
-
-    def unregister( self, id ):
-
-        self.tagl.delete( [ ( 'id', id, ) ] )
 
 class MetaList:
 

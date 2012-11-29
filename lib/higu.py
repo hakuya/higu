@@ -32,16 +32,21 @@ class Obj:
 
     def get_tags( self ):
 
-        return self.db.db.get_tagl().lookup_tags( self.id )
+        return map( lambda x: Tag( self.db, x ), self.db.db.get_rell().get_parents( self.id, filemgmt.REL_CLASS ) )
 
-    def tag( self, tag ):
+    def assign( self, group ):
 
-        return self.db.db.get_tagl().tag( self.id, tag )
+        if( isinstance( group, Tag ) ):
+            return self.db.db.get_rell().assign_parent( self.id, group.id, filemgmt.REL_CLASS )
+        elif( isinstance( group, Album ) ):
+            return self.db.db.get_rell().assign_parent( self.id, group.id, filemgmt.REL_CHILD )
 
-    def untag( self, tag ):
+        assert False
 
-        return self.db.db.get_tagl().untag( self.id, tag )
+    def unassign( self, group ):
 
+        self.db.db.get_rell().clear_parent( self.id, group.id )
+        
     def get_name( self ):
 
         return self.db.db.get_objl().get_name( self.id )
@@ -75,6 +80,10 @@ class Obj:
         else:
             self.db.db.get_meta().set_single( self.id, 'altname', name )
 
+    def __hash__( self ):
+
+        return self.id
+
     def __eq__( self, o ):
 
         if( o == None ):
@@ -83,7 +92,7 @@ class Obj:
             return False
         return self.db == o.db and self.id == o.id
 
-class Album( Obj ):
+class Group( Obj ):
 
     def __init__( self, db, id ):
 
@@ -94,16 +103,17 @@ class Album( Obj ):
         return map( lambda x: File( self.db, x ),
                     self.db.db.get_rell().get_children( self.id, filemgmt.REL_CHILD ) )
 
-    def add_file( self, f, order = None ):
+class Tag( Group ):
 
-        if( isinstance( f, File ) ):
-            f = f.id
+    def __init__( self, db, id ):
 
-        self.db.db.get_rell().assign_parent( f, self.id, filemgmt.REL_CHILD, order )
+        Group.__init__( self, db, id )
 
-    def register_file( self, f, order = None ):
+class Album( Group ):
 
-        pass
+    def __init__( self, db, id ):
+
+        Group.__init__( self, db, id )
 
 class File( Obj ):
 
@@ -185,7 +195,7 @@ class File( Obj ):
         try:
             d = self.db._get_path_for_id( self.id )
             ls = os.listdir( d )
-            ids = '%016x' % ( self.id )
+            ids = '%016x.' % ( self.id )
         except OSError:
             return None
 
@@ -197,6 +207,69 @@ class File( Obj ):
                 pass
 
         return None
+
+    def get_thumb( self, exp ):
+
+        from PIL import Image
+
+        t = self.db._get_fname_base( self.id ) + '_%02d.jpg' % ( exp, )
+        if( os.path.isfile( t ) ):
+            return t
+
+        f = self.get_path()
+        if( f is None ):
+            return None
+
+        i = Image.open( f )
+        s = 2**exp
+        w, h = i.size
+
+        if( w < s and h < s ):
+            return f
+
+        if( w > h ):
+            tw = s
+            th = h * s / w
+        else:
+            tw = w * s / h
+            th = s
+
+        r = i.resize( ( tw, th, ), Image.ANTIALIAS )
+        r.save( t )
+        return t
+
+    def make_thumb( self, exp ):
+
+        from PIL import Image
+
+        i = Image.open( self.get_path() )
+        s = 2**exp
+        w, h = i.size
+
+        if( w < s and h < s ):
+            return
+
+        if( w > h ):
+            tw = s
+            ht = h * s / w
+        else:
+            tw = w * s / h
+            th = s
+
+        r = i.resize( ( tw, th, ), Image.ANTIALIAS )
+        
+        t = self.db._get_fname_base( self.id ) + '_%02d.jpg' % ( exp, )
+        if( os.path.isfile( t ) ):
+            os.remove( t )
+        r.save( t )
+
+    def purge_thumbs( self ):
+
+        from glob import glob
+    
+        fs = glob( self.db._get_fname_base( self.id ) + '_*.jpg' )
+        for f in fs:
+            os.remove( f )
 
 class Database:
 
@@ -219,6 +292,11 @@ class Database:
 
         return os.path.join( self.environ, HIGURASHI_DATA_PATH, '%03x' % ( lv3 ), \
                                                                 '%03x' % ( lv2 ) )
+
+    def _get_fname_base( self, id ):
+
+        fname = '%016x' % ( id, )
+        return os.path.join( self._get_path_for_id( id ), fname )
 
     def _load_data( self, path, id ):
 
@@ -272,7 +350,7 @@ class Database:
 
     def lookup_files_by_tags( self, require, add = [], sub = [], strict = False ):
 
-        q = self.db.get_tagl().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
+        q = self.db.get_rell().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
         if( strict ):
             q = self.db.get_rell().select_no_parent( q )        
 
@@ -280,7 +358,11 @@ class Database:
 
     def lookup_objects_by_tags_with_names( self, require, add = [], sub = [], strict = False, type = TYPE_FILE ):
 
-        q = self.db.get_tagl().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
+        add = map( lambda x: x.id, add )
+        sub = map( lambda x: x.id, sub )
+        require = map( lambda x: x.id, require )
+
+        q = self.db.get_rell().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
         q = self.db.get_objl().restrict_by_type( q, type )
         if( strict ):
             q = self.db.get_rell().select_no_parent( q )        
@@ -316,28 +398,9 @@ class Database:
     def lookup_untagged_files( self ):
 
         fchk = self.db.get_fchk()
-        tagl = self.db.get_tagl()
-        
-        all = fchk.lookup()
-        tagged = [i for i in tagl.lookup_ids( [] )]
+        rell = self.db.get_rell()
 
-        class UntaggedIterator:
-
-            def __init__( self, all_iter, tagged ):
-
-                self.all_iter = all_iter
-                self.tagged = tagged
-
-            def next( self ):
-
-                while( 1 ):
-                    n = self.all_iter.next()
-                    if( n not in self.tagged ):
-                        return n
-
-        untagged = [f for f in all if f not in tagged]
-
-        return ResultIterator( UntaggedIterator( all, tagged ),
+        return ResultIterator( rell.select_no_parent( fchk.fchk ).__iter__(),
                 lambda x: File( self, x ) )
 
     def all_files( self ):
@@ -347,8 +410,34 @@ class Database:
 
     def all_tags( self ):
 
-        tagl = self.db.get_tagl()
-        return tagl.all_tags()
+        return [Tag( self, c )
+                for c in self.db.get_objl().lookup( filemgmt.TYPE_CLASSIFIER,
+                sortby = "name" )]
+
+    def get_tag( self, name ):
+
+        c = self.db.get_objl().lookup( filemgmt.TYPE_CLASSIFIER, name ).next()
+        return Tag( self, c )
+
+    def make_tag( self, name ):
+
+        try:
+            return self.get_tag( name )
+        except StopIteration:
+            c = self.db.get_objl().register( filemgmt.TYPE_CLASSIFIER, name )
+            return Tag( self, c )
+
+    def rename_tag( self, tag, new_name ):
+
+        c = self.get_tag( tag )
+
+        try:
+            d = self.get_tag( new_name )
+            self.db.get_rell().transfer_parent( c.id, d.id )
+            self.delete_object( c )
+
+        except StopIteration:
+            c.set_name( new_name )
 
     def register_file( self, path, add_name = True ):
 
@@ -384,23 +473,18 @@ class Database:
     def delete_object( self, obj ):
 
         if( isinstance( obj, File ) ):
+            obj.purge_thumbs()
             p = obj.get_path()
         else:
             p = None
 
         self.db.get_meta().unregister( obj.get_id() )
-        self.db.get_tagl().unregister( obj.get_id() )
         self.db.get_rell().unregister( obj.get_id() )
         self.db.get_fchk().unregister( obj.get_id() )
         self.db.get_objl().unregister( obj.get_id() )
 
         if( p != None ):
             os.remove( p )
-
-    def rename_tag( self, tag, new_name ):
-
-        tagl = self.db.get_tagl()
-        return tagl.rename_tag( tag, new_name )
 
 def init_default():
 
