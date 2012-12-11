@@ -23,8 +23,29 @@ CONFIG={
 
 
 INDEX="""
-<html><head><title>NextGen UI</title></head>
+<html><head>
+  <title>Future UI</title>
+  <link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/dojo/1.8/dijit/themes/claro/claro.css" media="screen">
+</head>
+
 <body onload="init()">
+
+<!-- load dojo -->
+<script>
+<!--
+// This corrects local custom package location for remote loading of dojo
+var dojoConfig = {
+    async : true,
+    packages : [{
+        name : 'demo',
+        location : location.pathname.replace( /\/[^/]*$/, '' )
+    }]
+};
+//-->
+</script>
+<script src="//ajax.googleapis.com/ajax/libs/dojo/1.8.1/dojo/dojo.js"></script>
+
+<script src='static/modtest.js' type='text/javascript'></script>
 <script src="static/image.js" type="text/javascript"></script>
 <script src="static/script.js" type="text/javascript"></script>
 <link rel="stylesheet" href="static/style.css" type="text/css"/>
