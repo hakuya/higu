@@ -505,6 +505,11 @@ class RelationList:
         result = self.rell.select( [ 'id' ], [ ( 'parent', id, ), ( 'rel', rel, ) ], 'sort' )
         return ResultIterator( result.__iter__(), lambda x: x[0] )
 
+    def select_no_album( self, tbl ):
+
+        invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ] ), self.rell ), True )
+        return db.Query( db.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
+
     def select_no_parent( self, tbl ):
 
         invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ] ), self.rell ), True )
@@ -515,7 +520,7 @@ class RelationList:
         self.rell.delete( [ ( 'id', id, ) ] )
         self.rell.delete( [ ( 'parent', id, ) ] )
 
-    def restrict_ids( self, tbl, require, add = [], sub = [], strict = False ):
+    def restrict_ids( self, tbl, require, add = [], sub = [], random = False ):
 
         def require_parent( parent, neg = False ):
 
@@ -534,20 +539,12 @@ class RelationList:
             sub_op = db.AndOperator( sub_c )
             req_c.append( sub_op )
 
-        #if( strict ):
-        #    all_tags = require + add + sub
-        #    others = map( lambda x: db.InequalityOperator( 'tag', x ), all_tags )
-        #    if( len( others ) > 0 ):
-        #        others_op = [ db.AndOperator( others ) ]
-        #    else:
-        #        others_op = []
+        if( random ):
+            order = 'RANDOM()'
+        else:
+            order = None
 
-        #    invalidate = db.InOperator( 'id', db.Query( db.Selection( [ 'id' ],
-        #            others_op ), self.tagl ), True )
-
-        #    req_c.append( invalidate )
-
-        return db.Query( db.Selection( [ 'id' ], req_c, distinct = True ), tbl )
+        return db.Query( db.Selection( [ 'id' ], req_c, order = order, distinct = True ), tbl )
 
 class MetaList:
 

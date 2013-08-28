@@ -80,6 +80,14 @@ class HtmlGenerator:
 
         self.tag( 'input', 0, **args )
 
+    def begin_div( self, **args ):
+
+        self.tag( 'div', 1, **args )
+
+    def end_div( self ):
+
+        self.tag( 'div', -1 )
+
     def begin_ul( self, **args ):
 
         self.tag( 'ul', 1, **args )
@@ -94,17 +102,17 @@ class HtmlGenerator:
                            + text % fmt
                            + self.make_tag( 'li', -1 ) )
 
-    def list( self, text, iterable, argfn = None ):
+    def list( self, text, iterable, argfn = None, li_args = {}, **args ):
 
-        self.begin_ul()
+        self.begin_ul( **args )
         if( argfn is None ):
             for i in iterable:
                 if( not isinstance( i, tuple ) ):
                     i = ( i, )
-                self.item( text, *i )
+                self.item( text, *i, **li_args )
         else:
             for i in iterable:
-                self.item( text, *argfn( i ) )
+                self.item( text, *argfn( i ), **li_args )
         self.end_ul()
 
     def span( self, text, *fmt, **args ):
