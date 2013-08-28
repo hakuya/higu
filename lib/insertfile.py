@@ -2,6 +2,7 @@
 
 import higu
 import sys
+import os
 
 def create_album( name, tags, files, order ):
 
@@ -19,16 +20,17 @@ def create_album( name, tags, files, order ):
         album.assign( t )
 
     for f in files:
-        album.add_file( f[1], order )
-        if( order != None ):
-            order += 1
+        f[1].assign( album )
+        #album.add_file( f[1], order )
+        #if( order != None ):
+        #    order += 1
 
 if( __name__ == '__main__' ):
 
     argv = sys.argv[1:]
 
     if( len( argv ) < 1 ):
-        print 'Usage: insertfile.py [-d database] [-a album] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
+        print 'Usage: insertfile.py [-d database] [-r] [-a album] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
 
     if( argv[0] == '-d' ):
         h = higu.Database( argv[1] )
@@ -41,6 +43,8 @@ if( __name__ == '__main__' ):
     taglist = []
     order = False
     sort = False
+    recovery = False
+    pretend = False
 
     files = []
 
@@ -53,7 +57,9 @@ if( __name__ == '__main__' ):
             return 0
 
     while( len( argv ) > 0 ):
-        if( argv[0] == '-a' ):
+        if( argv[0] == '-r' ):
+            recovery = True
+        elif( argv[0] == '-a' ):
             if( album != None ):
                 if( sort ):
                     files.sort( sortfn )
@@ -82,6 +88,13 @@ if( __name__ == '__main__' ):
             sort = False
         elif( argv[0] == '-S' ):
             sort = True
+        elif( not os.path.isfile( argv[0] ) ):
+            print argv[0] + ' is a directory and was skipped'
+        elif( pretend ):
+            pass
+        elif( recovery ):
+            if( not h.recover_file( argv[0] ) ):
+                print argv[0] + ' was not found in the db and was ignored'
         else:
             x = h.register_file( argv[0], add_name )
 
@@ -92,6 +105,9 @@ if( __name__ == '__main__' ):
             files.append( ( argv[0], x, ) )
 
         argv = argv[1:]
+
+    if( recovery or pretend ):
+        sys.exit( 0 )
 
     if( sort ):
         files.sort( sortfn )

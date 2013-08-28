@@ -1,6 +1,7 @@
 import higu
 import cherrypy
 import os
+import uuid
 import time
 import json
 
@@ -15,65 +16,40 @@ CONFIG={
         'tools.encode.on'       : True,
         'tools.encode.encoding' : 'utf-8',
     },
+    '/index' : {
+        'tools.staticfile.on' : True,
+        'tools.staticfile.filename' : os.path.join( os.getcwd(), 'static/index.html' ),
+        },
     '/static' : {
         'tools.staticdir.on' : True,
         'tools.staticdir.dir' : os.path.join( os.getcwd(), 'static' ),
     },
 }
 
+class ResultSet:
 
-INDEX="""
-<html><head>
-  <title>Future UI</title>
-  <link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/dojo/1.8/dijit/themes/claro/claro.css" media="screen">
-</head>
+    def __init__( self, results ):
 
-<body onload="init()">
+        self.loaded = []
+        self.preload( results )
 
-<!-- load dojo -->
-<script>
-<!--
-// This corrects local custom package location for remote loading of dojo
-var dojoConfig = {
-    async : true,
-    packages : [{
-        name : 'demo',
-        location : location.pathname.replace( /\/[^/]*$/, '' )
-    }]
-};
-//-->
-</script>
-<script src="//ajax.googleapis.com/ajax/libs/dojo/1.8.1/dojo/dojo.js"></script>
+    def preload( self, results ):
 
-<script src='static/modtest.js' type='text/javascript'></script>
-<script src="static/image.js" type="text/javascript"></script>
-<script src="static/script.js" type="text/javascript"></script>
-<link rel="stylesheet" href="static/style.css" type="text/css"/>
-<div id='header'>
-    <form name='search' onsubmit="load( '/search?mode=tags&tags=' + document.forms[0].tags.value ); return false;">
-    <a href="javascript:load( '/search?mode=all' )">all</a> /
-    <a href="javascript:load( '/search?mode=untagged' )">untagged</a> /
-    <a href="javascript:load( '/search?mode=albums' )">albums</a> /
-    <a href="javascript:load( '/taglist?' )">taglist</a> /
-    <a href="javascript:load( '/admin?' )">admin</a> /
-    <input type="text" name="tags"/></form>
-</div>
-<div id='sidebar'>
-    <div id='info'></div>
-    <div id='list'></div>
-</div>
-<div id='main'>
-</div>
-<div id='overlay'>
- <div id='grey'></div>
- <div id='dialogbox'>
-  <div id='dialoghead'>
-   <div id='dialogtitle'></div>
-   <div id='dialogcontrols'><a href='javascript:dismiss_dialog()'>x</a></div>
-  </div><div id='dialog'></div>
- </div>
-</div>
-"""
+        i = 0
+
+        try:
+            self.loaded = [ 0 ] * 10000
+            for i in range( 10000 ):
+                self.loaded[i] = results.next()
+        except StopIteration:
+            self.loaded = self.loaded[:i]
+
+    def fetch( self, idx ):
+
+        if( idx < 0 or idx >= len( self.loaded ) ):
+            raise StopIteration
+
+        return self.loaded[idx][0]
 
 class Server:
 
@@ -81,9 +57,9 @@ class Server:
 
         self.db_path = database_path
         self.dialogs = {
-            'tag' : dialog.TagDialog(),
             'rename' : dialog.RenameDialog(),
         }
+        self.searches = {}
 
     def open_db( self ):
 
@@ -92,9 +68,36 @@ class Server:
         else:
             return higu.Database( self.db_path )
 
-    def index( self ):
+    def flush_searches( self ):
 
-        return INDEX
+        clear_list = []
+
+        for search in self.searches:
+            ot, rs = self.searches[search]
+            if( time.time() > ot + 3600 ):
+                clear_list.append( search )
+
+        for search in clear_list:
+            del self.searches[search]
+
+    def close_search( self, search_id ):
+
+        del self.searches[search_id]
+
+    def register_search( self, rs ):
+
+        self.flush_searches()
+        search_id = uuid.uuid4().hex
+        self.searches[search_id] = ( time.time(), rs, )
+        return search_id
+
+    def fetch_search( self, search_id ):
+
+        self.flush_searches()
+        ot, search = self.searches[search_id]
+        self.searches[search_id] = ( time.time(), search, )
+
+        return search
 
     def process_action( self, db, objs, action, **args ):
 
@@ -156,11 +159,79 @@ class Server:
                      ( 'main', self.generate_image_pane( f ) ),
                      ( 'list', self.generate_search_pane( objects, [ f ] ) ) ]
 
+        elif( action == 'tag' ):
+
+            tags = args['tags'].split( ' ' )
+
+            add = [t for t in tags if t[0] != '-' and t[0] != '!']
+            new = [t[1:] for t in tags if t[0] == '!']
+            sub = [t[1:] for t in tags if t[0] == '-']
+
+            add = map( db.get_tag, add )
+            sub = map( db.get_tag, sub )
+            add += map( db.make_tag, new )
+
+            for obj in objs:
+                for t in sub:
+                    obj.unassign( t )
+                for t in add:
+                    obj.assign( t )
+
+            return [ ( 'info', self.generate_info_pane( objs ) ) ]
+
         elif( self.dialogs.has_key( action ) ):
             result = self.dialogs[action].process_input( self, db, objs, **args )
 
         db.commit()
         return result
+
+    def generate_content_for_object( self, obj ):
+
+        html = HtmlGenerator()
+
+        html.begin_div( cls = 'info' )
+        html.text( self.generate_info_pane( [ obj ] ) )
+        html.end_div()
+
+        html.begin_div( cls = 'img' )
+        html.text( self.generate_image_pane( obj ) )
+        html.end_div()
+
+        return html.format()
+
+    def do_content_by_new_search( self, db, rs ):
+
+        search_id = self.register_search( rs )
+        oid = rs.fetch( 0 )
+        obj = db.get_object_by_id( oid )
+        data = self.generate_content_for_object( obj )
+
+        db.close()
+
+        return json.dumps( {
+            'action' : 'begin-display',
+            'search_id' : search_id,
+            'object_id' : oid,
+            'index' : 0,
+            'data' : data,
+        } );
+
+    def do_content_by_step_search( self, db, search_id, idx ):
+
+        rs = self.fetch_search( search_id )
+        oid = rs.fetch( idx )
+        obj = db.get_object_by_id( oid )
+        data = self.generate_content_for_object( obj )
+
+        db.close()
+
+        return json.dumps( {
+            'action' : 'step-display',
+            'search_id' : search_id,
+            'object_id' : oid,
+            'index' : idx,
+            'data' : data,
+        } );
 
     def do_update_divs( self, divs ):
 
@@ -191,7 +262,10 @@ class Server:
         html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( '/admin?action=rename_tag&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
         html.end_form()
 
-        return self.do_update_divs( [ ( 'main', html.format(), ) ] )
+        return json.dumps( {
+            'action' : 'show-html',
+            'data' : html.format(),
+        } );
 
     def view( self, id = None, selection = None ):
 
@@ -307,20 +381,21 @@ class Server:
         html.begin_ul()
         html.item( '<a href="javascript:rm()">Delete</a>' )
 
+        albums = []
+
+        for i in objs:
+            if( isinstance( i, higu.File ) ):
+                fas = i.get_albums()
+                for a in fas:
+                    if( not a in albums ):
+                        albums.append( a )
+
+        html.item( """<a href="javascript:group( 'create_album' )">Create Album</a>""" )
+        for i in albums:
+            html.item( """<a href="javascript:load( '/callback?id=%s&action=album_append&album=%d' )">Add to %s</a>""",
+                    id, i.get_id(), i.get_repr() )
+
         if( isinstance( obj, higu.File ) and len( objs ) > 1 ):
-            albums = []
-
-            for i in objs:
-                if( isinstance( i, higu.File ) ):
-                    fas = i.get_albums()
-                    for a in fas:
-                        if( not a in albums ):
-                            albums.append( a )
-
-            html.item( """<a href="javascript:group( 'create_album' )">Create Album</a>""" )
-            for i in albums:
-                html.item( """<a href="javascript:load( '/callback?id=%s&action=album_append&album=%d' )">Add to %s</a>""",
-                        id, i.get_id(), i.get_repr() )
             html.item( """<a href="javascript:group( 'mark_varient' )">Varient</a>""" )
             html.item( """<a href="javascript:group( 'mark_duplicate' )">Duplicate</a>""" )
         html.end_ul()
@@ -418,9 +493,13 @@ class Server:
             id = o.get_id()
             id_str = str( id )
 
+            if( isinstance( o, higu.Album ) ):
+                name = "<i>" + name + "</i>"
+
             try:
                 selection.remove( o )
-                if( isinstance( o, higu.File ) ):
+                #if( isinstance( o, higu.File ) ):
+                if( 1 ):
                     if( o == primary ):
                         html.text( id_str.join( FILE_PRIMARY_ITEM ) + (name + FILE_ITEM_CLOSE) )
                     else:
@@ -431,7 +510,8 @@ class Server:
                     else:
                         html.text( id_str.join( ALBUM_SELECTED_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
             except ValueError:
-                if( isinstance( o, higu.File ) ):
+                #if( isinstance( o, higu.File ) ):
+                if( 1 ):
                     html.text( id_str.join( FILE_ITEM ) + (name + FILE_ITEM_CLOSE) )
                 else:
                     html.text( id_str.join( ALBUM_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
@@ -488,6 +568,27 @@ class Server:
         width, height = dialog.get_dimensions()
         return self.do_show_dialog( dialog.get_title(), html.format(), width, height )
 
+    def update_info( self, action, objs, **args ):
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+
+        try:
+            ids = objs.split( ' ' )
+            ids = map( lambda x: int( x ), ids )
+        except:
+            raise cherrypy.HTTPError( 400 )
+
+        db = self.open_db()
+        objs = map( lambda x: db.get_object_by_id( x ), ids )
+        self.process_action( db, objs, action, **args )
+
+        info = self.generate_info_pane( objs )
+        db.commit()
+
+        return json.dumps( {
+            'action' : 'show-html',
+            'data' : info,
+        } );
+
     def callback( self, action = None, selection = None, **args ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
@@ -503,6 +604,75 @@ class Server:
 
         return self.do_update_divs( self.process_action( db, map( lambda x: db.get_object_by_id( x ), ids ), action, **args ) )
 
+    def perform_search( self, db, mode, tags = None ):
+
+        if( mode == 'all' ):
+            rs = db.all_albums_or_free_files()
+
+        elif( mode == 'untagged' ):
+            rs = db.unowned_files()
+
+        elif( mode == 'albums' ):
+            rs = db.all_albums()
+
+        elif( mode == 'tags' ):
+            if( tags[0] == '$' ):
+                strict = True
+                tags = tags[1:]
+            else:
+                strict = False
+
+            ls = tags.split( ' ' )
+            require = []
+            add = []
+            sub = []
+            t = None
+
+            for tag in ls:
+                if( len( tag ) == 0 ):
+                    continue
+                elif( tag == '~a' ):
+                    t = higu.TYPE_ALBUM
+                elif( tag == '~f' ):
+                    t = higu.TYPE_FILE
+                elif( tag[0] == '?' ):
+                    c = db.get_tag( tag[1:] )
+                    add.append( c )
+                elif( tag[0] == '!' ):
+                    c = db.get_tag( tag[1:] )
+                    sub.append( c )
+                else:
+                    c = db.get_tag( tag )
+                    require.append( c )
+
+            
+            rs = db.lookup_ids_by_tags( require, add, sub, strict, random_order = True )
+
+        return rs
+
+    def search_new( self, mode, tags = None ):
+
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        db = self.open_db()
+
+        rs = ResultSet( self.perform_search( db, mode, tags ) )
+        return self.do_content_by_new_search( db, rs )
+
+    def search_step( self, search_id, idx ):
+
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        db = self.open_db()
+
+        idx = int( idx )
+        return self.do_content_by_step_search( db, search_id, idx )
+
+    def search_close( self, search_id ):
+
+        self.close_search( search_id )
+        return json.dumps( {
+            'action' : 'nop',
+        } );
+
     def search( self, mode = None, tags = None, id = None, selection = [] ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
@@ -517,7 +687,7 @@ class Server:
         if( mode == 'untagged' ):
             objects = db.lookup_objects_by_tags_with_names( [], strict = True, type = higu.TYPE_FILE )
         elif( mode == 'albums' ):
-            objects = db.lookup_objects_by_tags_with_names( [], type = higu.TYPE_ALBUM )
+            objects = db.lookup_objects_by_tags_with_names( [], strict = True, type = higu.TYPE_ALBUM )
         elif( mode == 'tags' ):
             if( tags[0] == '$' ):
                 strict = True
@@ -549,7 +719,9 @@ class Server:
                     require.append( c )
 
             if( t == None ):
-                objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_FILE )
+                obj1 = [o for o in db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_ALBUM )]
+                obj2 = [o for o in db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_FILE )]
+                objects = obj1 + obj2
             else:
                 objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = t )
         else:
@@ -560,17 +732,20 @@ class Server:
     def taglist( self, selection = None ):
 
         db = self.open_db()
-        s = ''
-
         tags = db.all_tags()
 
-        s += '<ul>'
-        for t in tags:
-            s += """<li><a href="javascript:load( '/search?mode=tags&tags=%s' )">%s</a></li>""" \
-                    % ( t.get_name(), t.get_name(),)
-        s += '</ul>'
+        html = HtmlGenerator()
+        html.list( """<a class='taglink' href='#%s'>%s</a></li>""",
+                tags, lambda t: ( t.get_name(), t.get_name(), ),
+                cls = 'taglist' )
+        #html.list( """<a href="javascript:load( '/search?mode=tags&tags=%s' )">%s</a></li>""",
+        #        tags, lambda t: ( t.get_name(), t.get_name(), ),
+        #        cls = 'taglist' )
 
-        return self.do_update_divs( [ ( 'main', s, ) ] )
+        return json.dumps( {
+            'action' : 'show-html',
+            'data' : html.format(),
+        } );
 
     def img( self, id = None ):
 
@@ -604,9 +779,12 @@ class Server:
 
         return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
 
-    index.exposed = True
     callback.exposed = True
+    update_info.exposed = True
     search.exposed = True
+    search_new.exposed = True
+    search_step.exposed = True
+    search_close.exposed = True
     taglist.exposed = True
     img.exposed = True
     admin.exposed = True

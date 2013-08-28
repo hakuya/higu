@@ -2,6 +2,8 @@ import filemgmt
 import os
 import shutil
 
+import db as dblib
+
 from hash import calculate_details
 from filemgmt import ResultIterator
 
@@ -338,23 +340,54 @@ class Database:
         else:
             return None
 
+    def all_albums( self ):
+
+        objl = self.db.get_objl().objl
+        rell = self.db.get_rell().rell
+        albums = dblib.Query( dblib.Selection( [ 'id' ], [ ( 'type', TYPE_ALBUM, ) ], order = 'RANDOM()' ), objl )
+        return albums.__iter__()
+
+    def all_albums_or_free_files( self ):
+
+        objl = self.db.get_objl().objl
+        rell = self.db.get_rell().rell
+        albums = dblib.Query( dblib.Selection( [ 'id' ], [ ( 'type', TYPE_ALBUM, ) ] ), objl )
+        albums_n_files = dblib.Query( dblib.Selection( [ 'id' ], [ dblib.OrOperator( [ ( 'type', TYPE_ALBUM, ), ( 'type', TYPE_FILE, ) ] ) ] ), objl )
+        files_with_alb = dblib.Query( dblib.Selection( [ 'a.id' ] ), dblib.InnerJoinOperator( rell, albums, 'a', 'b', 'a.parent', 'b.id' ) )
+        invalidate = dblib.InOperator( 'id', files_with_alb, True )
+        files_with_noalb = dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ], order = 'RANDOM()' ), albums_n_files )
+        return files_with_noalb.__iter__()
+
+    def unowned_files( self ):
+
+        objl = self.db.get_objl().objl
+        rell = self.db.get_rell().rell
+
+        files = dblib.Query( dblib.Selection( [ 'id' ], [ ( 'type', TYPE_FILE, ) ] ), objl )
+        owned_objects = dblib.Query( dblib.Selection( [ 'id' ] ), rell )
+        invalidate = dblib.InOperator( 'id', owned_objects, True )
+        files_with_noown = dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ], order = 'RANDOM()' ), files )
+        return files_with_noown.__iter__()
+
     def lookup_files_by_details( self, len = None, crc32 = None, md5 = None, sha1 = None ):
 
         fchk = self.db.get_fchk()
         return ResultIterator( fchk.lookup( len, crc32, md5, sha1 ),
                 lambda x: File( self, x ) )
 
-    def lookup_files_by_name( self, name ):
+    def lookup_ids_by_tags( self, require, add = [], sub = [], strict = False, type = None, random_order = False ):
 
-        return [].__iter__()
+        add = map( lambda x: x.id, add )
+        sub = map( lambda x: x.id, sub )
+        require = map( lambda x: x.id, require )
 
-    def lookup_files_by_tags( self, require, add = [], sub = [], strict = False ):
-
-        q = self.db.get_rell().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
+        q = self.db.get_rell().restrict_ids( self.db.get_objl().objl, require, add, sub, random_order )
+        if( type is not None ):
+            q = self.db.get_objl().restrict_by_type( q, type )
         if( strict ):
             q = self.db.get_rell().select_no_parent( q )        
 
-        return ResultIterator( q.__iter__(), lambda x: File( self, x[0] ) )
+        return q.__iter__()
 
     def lookup_objects_by_tags_with_names( self, require, add = [], sub = [], strict = False, type = TYPE_FILE ):
 
@@ -469,6 +502,25 @@ class Database:
             self._load_data( path, id )
 
         return f
+
+    def recover_file( self, path ):
+
+        name = os.path.split( path )[1]
+
+        details = calculate_details( path )
+        results = self.lookup_files_by_details( *details )
+
+        objl = self.db.get_objl()
+        fchk = self.db.get_fchk()
+        meta = self.db.get_meta()
+
+        try:
+            id = results.next().get_id()
+        except StopIteration:
+            return False
+
+        self._load_data( path, id )
+        return True
 
     def delete_object( self, obj ):
 

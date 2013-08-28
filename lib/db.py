@@ -173,6 +173,46 @@ class InOperator( Operator ):
         else:
             return '%s in (%s)' % ( self.col, q ), k
 
+class InnerJoinOperator( Operator ):
+
+    def __init__( self, table_a, table_b, name_a, name_b, var_a, var_b = None ):
+
+        self.db = table_a.db
+        self.table_a = table_a
+        self.table_b = table_b
+        self.name_a = name_a
+        self.name_b = name_b
+        self.var_a = var_a
+        if( var_b == None ):
+            self.var_b = var_a
+        else:
+            self.var_b = var_b
+
+    def make_query( self ):
+
+        q = ''
+        k = []
+
+        if( isinstance( self.table_a, Query ) ):
+            qt, kt = self.table_a.build_query()
+            q += '(%s) %s' % ( qt, self.name_a )
+            k.extend( kt )
+        else:
+            q += '%s %s' % ( self.table_a.name, self.name_a )
+
+        q += ' INNER JOIN '
+
+        if( isinstance( self.table_b, Query ) ):
+            qt, kt = self.table_b.build_query()
+            q += '(%s) %s' % ( qt, self.name_b )
+            k.extend( kt )
+        else:
+            q += '%s %s' % ( self.table_b.name, self.name_b )
+
+        q += ' ON %s.%s = %s.%s' % ( self.name_a, self.var_a, self.name_b, self.var_b, )
+
+        return q, k
+
 class LeftOuterJoinOperator( Operator ):
 
     def __init__( self, table_a, table_b, name_a, name_b, var_a, var_b = None ):

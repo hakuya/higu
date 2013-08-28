@@ -7,24 +7,17 @@ viewer_filelist = list_filelist;
 
 selection = new Array();
 
-function init() {
-    width = window.innerWidth;
-    height = window.innerHeight;
+function search( tags ) {
+    load( '/search_new?tags=' + tags );
+}
 
-    info = document.getElementById( 'info' );
-    list = document.getElementById( 'list' );
-    main = document.getElementById( 'main' );
+function step_display( tab, offset ) {
+    if( offset == 0 ) return;
 
-    sidebar_w = width / 10;
-    if( sidebar_w < 250 ) sidebar_w = 250;
+    search_id = tab.data( 'search_id' );
+    display_idx = tab.data( 'display_idx' );
 
-    info.style.width = sidebar_w;
-    list.style.width = sidebar_w;
-    info.style.height = (height - 60)/2;
-    list.style.height = (height - 60)/2;
-
-    main.style.width = width - 20 - sidebar_w;
-    main.style.height = height - 60;
+    load_new( '/search_step?search_id=' + search_id + '&idx=' + (display_idx + offset), tab );
 }
 
 function clickfile( id, reset ) {
@@ -212,39 +205,70 @@ function close_view( view ) {
     }
 }
 
-function show_dialog( title, width, height )
-{
-    overlay = document.getElementById( 'overlay' );
-    box = document.getElementById( 'dialogbox' );
-
-    box.style.width = width;
-    box.style.height = height;
-
-    box.style.left = (window.innerWidth - width) / 2;
-    box.style.top = (window.innerHeight - height) / 2;
-
-    document.getElementById( 'dialogtitle' ).innerHTML = title;
-
-    overlay.style.visibility = 'visible';
-
-    return document.getElementById( 'dialog' );
-}
-
 function dismiss_dialog()
 {
     overlay.style.visibility = 'hidden';
-}
-
-function show_and_load( title, width, height, page )
-{
-    show_dialog( title, width, height );
-    //load( 'dialog', page );
 }
 
 function dismiss_and_load( page )
 {
     dismiss_dialog();
     load( page );
+}
+
+function do_begin_display( target, response )
+{
+    target.data( 'search_id', response.search_id );
+    target.data( 'object_id', response.object_id );
+    target.data( 'display_idx', response.index );
+    load_html( target, response.data );
+}
+
+function do_step_display( target, response )
+{
+    target.data( 'object_id', response.object_id );
+    target.data( 'display_idx', response.index );
+    load_html( target, response.data );
+}
+
+function do_show_html( target, response )
+{
+    load_html( target, response.data );
+}
+
+function load_new( page, target )
+{
+    r = null;
+    if( !window.XMLHttpRequest ) {
+        alert( "Unsupported browser" );
+        return;
+    }
+
+    r = window.XMLHttpRequest();
+    r.onreadystatechange = function() {
+        if( this.readyState != 4 ) return;
+
+        if( this.status != 200 ) {
+            open_error_dialog( this.responseText );
+            return;
+        }
+
+        var response = eval( '(' + this.responseText + ')' );
+
+        if( response.action == 'begin-display' ) {
+            do_begin_display( target, response )
+        } else if( response.action == 'step-display' ) {
+            do_step_display( target, response )
+        } else if( response.action == 'show-html' ) {
+            do_show_html( target, response )
+        }
+    }
+
+    //r.div = div;
+    //open_view( div ).innerHTML = '<h1>Loading...</h1>';
+
+    r.open( 'GET', page, true )
+    r.send( null );
 }
 
 function load( page )
@@ -262,18 +286,25 @@ function load( page )
         if( this.readyState != 4 ) return;
 
         if( this.status != 200 ) {
-            show_dialog( 'Error', 800, 400 ).innerHTML = this.responseText;
+            open_error_dialog( this.responseText );
             return;
         }
 
         var response = eval( '(' + this.responseText + ')' );
-        if( response.action == 'update-divs' ) {
+
+        if( response.action == 'begin-display' ) {
+            search_id = response.search_id;
+            selected = response.object_id;
+            display_idx = response.index;
+        } else if( response.action == 'step-display' ) {
+            selected = response.object_id;
+            display_idx = response.index;
+        }
+
+        if( response.data ) {
             for( i = 0; i < response.data.length; i++ ) {
                 open_view( response.data[i].id ).innerHTML = response.data[i].content;
             }
-        } else if( response.action == 'display-dialog' ) {
-            open_view( 'dialog' ).innerHTML = response.data.content;
-            show_dialog( response.data.title, response.data.width, response.data.height );
         }
     }
 
@@ -292,53 +323,5 @@ function make_group( type ) {
     location.href = "/view?id=" + this_img + "&secondary=1&action=" + action;
 }
 
-document.onkeypress = function( e )
-{
-    if( document.activeElement.type && document.activeElement.type == 'text' ) return;
-
-    e = window.event || e;
-
-    if( document.getElementById( 'overlay' ).style.visibility == 'visible' ) {
-        return;
-    }
-
-    switch( e.charCode ) {
-        case 116: // t
-            if( selection.length > 0 ) {
-                load( '/dialog?kind=tag' );
-            }
-            break;
-        case 114: // r
-            if( selection.length == 1 ) {
-                load( '/dialog?kind=rename' );
-            }
-            break;
-        case 65: // A
-            select_all();
-            break;
-        case 97: // a
-            resize_image( 0.5 );
-            break;
-        case 115: // s
-            resize_image( 2.0 );
-            break;
-        case 122: // z
-            resize_image( 0 );
-            break;
-        case 120: // x
-            resize_image( -2 );
-            break;
-        case 99:  // c
-            resize_image( -1 );
-            break;
-        case 106: // j
-            nextfile( 1 );
-            break;
-        case 107: // k
-            nextfile( -1 );
-            break;
-        default:
-    }
-}
 
 // vim:sts=4:sw=4:et

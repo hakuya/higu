@@ -1,55 +1,66 @@
-selected_im=null;
-selected_width=-1;
-selected_height=-1;
-
-selected_zoom=1.0;
-
-function set_image_zoom( zoom )
+function set_image_zoom( tab, zoom )
 {
-    selected_zoom = zoom;
-    selected_im.width = selected_width * zoom;
-    selected_im.height = selected_height * zoom;
+    im = tab.data( 'im' );
+
+    if( !im ) return;
+
+    tab.data( 'im-zoom', zoom );
+
+    im.width = tab.data( 'im-width' ) * zoom;
+    im.height = tab.data( 'im-height' ) * zoom;
 }
 
-function resize_image( zoom )
+function resize_image( tab, zoom )
 {
+    im = tab.data( 'im' );
+    if( !im ) return;
+
     switch( zoom ) {
         case 0:
-            set_image_zoom( 1.0 );
+            set_image_zoom( tab, 1.0 );
             break;
         case -1:
         case -2:
-            container_width = parseInt( selected_im.parentNode.style.width );
-            container_height = parseInt( selected_im.parentNode.style.height );
+            img_div = tab.find( '.img' )
 
-            width_ratio = 1.0 * container_width / selected_width;
-            height_ratio = 1.0 * container_height / selected_height;
+            container_width = img_div.width();
+            container_height = img_div.height();
+
+            img_width = tab.data( 'im-width' );
+            img_height = tab.data( 'im-height' );
+
+            width_ratio = 1.0 * container_width / img_width;
+            height_ratio = 1.0 * container_height / img_height;
 
             if( zoom == -1 ) {
                 if( width_ratio < height_ratio ) {
-                    set_image_zoom( width_ratio );
+                    set_image_zoom( tab, width_ratio );
                 } else {
-                    set_image_zoom( height_ratio );
+                    set_image_zoom( tab, height_ratio );
                 }
             } else {
                 if( width_ratio < height_ratio ) {
-                    set_image_zoom( height_ratio );
+                    set_image_zoom( tab, height_ratio );
                 } else {
-                    set_image_zoom( width_ratio );
+                    set_image_zoom( tab, width_ratio );
                 }
             }
             break;
         default:
-            set_image_zoom( selected_zoom * zoom );
+            set_image_zoom( tab, tab.data( 'im-zoom' ) * zoom );
             break;
     }
 }
 
 function register_image( im )
 {
-    selected_im = im;
-    selected_width = im.width;
-    selected_height = im.height;
+    elem = $( im );
+    tab = elem.closest( '.tab' );
 
-    resize_image( -1 );
+    tab.data( 'im', im );
+    tab.data( 'im-width', im.width );
+    tab.data( 'im-height', im.height );
+    tab.data( 'im-zoom', 1.0 );
+
+    resize_image( tab, -1 );
 }
