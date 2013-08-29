@@ -37,6 +37,22 @@ html body {
     display: inline;
 }
 
+.thumbslist {
+    overflow: hidden;
+}
+
+.thumbslist li {
+    float: left;
+    width: 130px;
+    height: 130px;
+    text-align: center;
+    display: inline;
+}
+
+.thumbslist li img {
+    vertical-align: middle;
+}
+
 #list{
     overflow:auto;
 }

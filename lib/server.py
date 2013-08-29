@@ -30,8 +30,11 @@ class ResultSet:
 
     def __init__( self, results ):
 
-        self.loaded = []
-        self.preload( results )
+        if( isinstance( results, list ) ):
+            self.loaded = results
+        else:
+            self.loaded = []
+            self.preload( results )
 
     def preload( self, results ):
 
@@ -40,7 +43,7 @@ class ResultSet:
         try:
             self.loaded = [ 0 ] * 10000
             for i in range( 10000 ):
-                self.loaded[i] = results.next()
+                self.loaded[i] = results.next()[0]
         except StopIteration:
             self.loaded = self.loaded[:i]
 
@@ -49,7 +52,7 @@ class ResultSet:
         if( idx < 0 or idx >= len( self.loaded ) ):
             raise StopIteration
 
-        return self.loaded[idx][0]
+        return self.loaded[idx]
 
 class Server:
 
@@ -193,16 +196,21 @@ class Server:
         html.text( self.generate_info_pane( [ obj ] ) )
         html.end_div()
 
-        html.begin_div( cls = 'img' )
-        html.text( self.generate_image_pane( obj ) )
-        html.end_div()
+        if( isinstance( obj, higu.File ) ):
+            html.begin_div( cls = 'img' )
+            html.text( self.generate_image_pane( obj ) )
+            html.end_div()
+        elif( isinstance( obj, higu.Album ) ):
+            html.begin_div( cls = 'thumbs' )
+            html.text( self.generate_album_pane( obj ) )
+            html.end_div()
 
         return html.format()
 
-    def do_content_by_new_search( self, db, rs ):
+    def do_content_by_new_search( self, db, rs, idx = 0 ):
 
         search_id = self.register_search( rs )
-        oid = rs.fetch( 0 )
+        oid = rs.fetch( idx )
         obj = db.get_object_by_id( oid )
         data = self.generate_content_for_object( obj )
 
@@ -212,7 +220,7 @@ class Server:
             'action' : 'begin-display',
             'search_id' : search_id,
             'object_id' : oid,
-            'index' : 0,
+            'index' : idx,
             'data' : data,
         } );
 
@@ -423,6 +431,15 @@ class Server:
             return 'Image not available<br/>'
         else:
             return '<img src="/img?id=%d" class="picture" onload="register_image( this )" onclick="nextfile( 1 )"/><br/>' % ( f.get_id(), )
+
+    def generate_album_pane( self, album ):
+
+        files = album.get_files()
+
+        html = HtmlGenerator()
+        html.list( '<a class="albumlink" href="#%d-%d"><img src="/img?id=%d&exp=7"/></a>',
+                enumerate( files ), lambda x: ( album.get_id(), x[0], x[1].get_id() ), cls = 'thumbslist' )
+        return html.format()
 
     def generate_search_pane( self, objs, selection ):
 
@@ -658,6 +675,23 @@ class Server:
         rs = ResultSet( self.perform_search( db, mode, tags ) )
         return self.do_content_by_new_search( db, rs )
 
+    def search_album( self, album, idx = None ):
+
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        db = self.open_db()
+
+        obj = db.get_object_by_id( album )
+        if( not isinstance( obj, higu.Album ) ):
+            raise cherrypy.HTTPError( 404 )
+
+        if( idx is None ):
+            idx = 0
+        else:
+            idx = int( idx )
+
+        rs = ResultSet( map( lambda x: x.get_id(), obj.get_files() ) ) 
+        return self.do_content_by_new_search( db, rs, idx )
+
     def search_step( self, search_id, idx ):
 
         cherrypy.response.headers['Content-Type'] = 'application/json'
@@ -673,62 +707,6 @@ class Server:
             'action' : 'nop',
         } );
 
-    def search( self, mode = None, tags = None, id = None, selection = [] ):
-        cherrypy.response.headers['Content-Type'] = 'application/json'
-
-        db = self.open_db()
-
-        try:
-            ids = selection.split( ' ' )
-            selection = map( lambda x: db.get_object_by_id( x ), map( lambda x: int( x ), ids ) )
-        except:
-            selection = []
-
-        if( mode == 'untagged' ):
-            objects = db.lookup_objects_by_tags_with_names( [], strict = True, type = higu.TYPE_FILE )
-        elif( mode == 'albums' ):
-            objects = db.lookup_objects_by_tags_with_names( [], strict = True, type = higu.TYPE_ALBUM )
-        elif( mode == 'tags' ):
-            if( tags[0] == '$' ):
-                strict = True
-                tags = tags[1:]
-            else:
-                strict = False
-
-            ls = tags.split( ' ' )
-            require = []
-            add = []
-            sub = []
-            t = None
-
-            for tag in ls:
-                if( len( tag ) == 0 ):
-                    continue
-                elif( tag == '~a' ):
-                    t = higu.TYPE_ALBUM
-                elif( tag == '~f' ):
-                    t = higu.TYPE_FILE
-                elif( tag[0] == '?' ):
-                    c = db.get_tag( tag[1:] )
-                    add.append( c )
-                elif( tag[0] == '!' ):
-                    c = db.get_tag( tag[1:] )
-                    sub.append( c )
-                else:
-                    c = db.get_tag( tag )
-                    require.append( c )
-
-            if( t == None ):
-                obj1 = [o for o in db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_ALBUM )]
-                obj2 = [o for o in db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = higu.TYPE_FILE )]
-                objects = obj1 + obj2
-            else:
-                objects = db.lookup_objects_by_tags_with_names( require, add, sub, strict, type = t )
-        else:
-            objects = db.lookup_objects_by_tags_with_names( [], type = higu.TYPE_FILE )
-
-        return self.do_update_divs( [ ( 'list', self.generate_search_pane( objects, selection ), ) ] )
-
     def taglist( self, selection = None ):
 
         db = self.open_db()
@@ -738,18 +716,13 @@ class Server:
         html.list( """<a class='taglink' href='#%s'>%s</a></li>""",
                 tags, lambda t: ( t.get_name(), t.get_name(), ),
                 cls = 'taglist' )
-        #html.list( """<a href="javascript:load( '/search?mode=tags&tags=%s' )">%s</a></li>""",
-        #        tags, lambda t: ( t.get_name(), t.get_name(), ),
-        #        cls = 'taglist' )
 
         return json.dumps( {
             'action' : 'show-html',
             'data' : html.format(),
         } );
 
-    def img( self, id = None ):
-
-        from PIL import Image
+    def img( self, id = None, exp = None ):
 
         db = self.open_db()
 
@@ -761,8 +734,13 @@ class Server:
         except:
             raise cherrypy.HTTPError( 400 )
 
+        if( exp is None ):
+            exp = 10
+        else:
+            exp = int( exp )
+
         f = db.get_object_by_id( id )
-        p = f.get_thumb( 10 )
+        p = f.get_thumb( exp )
 
         if( p == None ):
             raise cherrypy.HTTPError( 404 )
@@ -772,18 +750,15 @@ class Server:
 
         name = f.get_repr()
 
-        img_obj = Image.open( p )
-        print img_obj.size
-
         db.close()
 
         return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
 
     callback.exposed = True
     update_info.exposed = True
-    search.exposed = True
     search_new.exposed = True
     search_step.exposed = True
+    search_album.exposed = True
     search_close.exposed = True
     taglist.exposed = True
     img.exposed = True

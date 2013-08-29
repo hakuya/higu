@@ -244,4 +244,12 @@ function activate_links( par )
             load_into_new_tab( tag, '/search_new?mode=tags&tags=' + tag );
         });
     });
+
+    par.find( '.albumlink' ).each( function( idx ) {
+        $( this ).click( function() {
+            target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
+            load_into_new_tab( 'Album', '/search_album?album=' + target[0]
+                + '&idx=' + target[1] );
+        });
+    });
 }
