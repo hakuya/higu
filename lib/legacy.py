@@ -5,7 +5,7 @@ import re
 
 from hash import calculate_details
 
-VERSION = 4
+VERSION = 5
 REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
@@ -17,14 +17,16 @@ ORDER_DUPLICATE = -2
 
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
+TYPE_FILE_DUP   = 1001
+TYPE_FILE_VAR   = 1002
 TYPE_GROUP      = 2000
 TYPE_ALBUM      = 2001
 TYPE_CLASSIFIER = 2002
 
-REL_CHILD       = 0
-REL_DUPLICATE   = 1000
-REL_VARIANT     = 1001
-REL_CLASS       = 2000
+LEGACY_REL_CHILD       = 0
+LEGACY_REL_DUPLICATE   = 1000
+LEGACY_REL_VARIANT     = 1001
+LEGACY_REL_CLASS       = 2000
 
 def check_len( length ):
 
@@ -102,9 +104,9 @@ def upgrade_from_1_to_2( db ):
         fchk.insert( [ ( 'id', id, ), ( 'len', len, ), ( 'crc32', crc32, ), ( 'md5', md5, ), ( 'sha1', sha1, ) ] )
 
         if( parent != None and order == ORDER_VARIENT ):
-            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', REL_VARIANT, ) ] )
+            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', LEGACY_REL_VARIANT, ) ] )
         elif( parent != None and order == ORDER_DUPLICATE ):
-            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', REL_DUPLICATE, ) ] )
+            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', LEGACY_REL_DUPLICATE, ) ] )
         elif( parent != None ):
             coltbl[id] = [ parent, order ]
             if( not collst.has_key( parent ) ):
@@ -114,11 +116,11 @@ def upgrade_from_1_to_2( db ):
     for collection in collst.keys():
         colid = objl.insert( [ ( 'type', TYPE_ALBUM, ), ], [ 'id' ] ).eval( True, True )
         collst[collection] = colid
-        rell.insert( [ ( 'id', collection, ), ( 'parent', colid, ), ( 'rel', REL_CHILD, ), ( 'sort', 0, ) ] )
+        rell.insert( [ ( 'id', collection, ), ( 'parent', colid, ), ( 'rel', LEGACY_REL_CHILD, ), ( 'sort', 0, ) ] )
 
     for member in coltbl.keys():
         collection, order = coltbl[member]
-        rell.insert( [ ( 'id', member, ), ( 'parent', collst[collection], ), ( 'rel', REL_CHILD, ), ( 'sort', order, ) ] )
+        rell.insert( [ ( 'id', member, ), ( 'parent', collst[collection], ), ( 'rel', LEGACY_REL_CHILD, ), ( 'sort', order, ) ] )
 
     mfl.drop()
     # Note: naming of collections was never fully implemented in ver. 1 so it is not preserved
@@ -177,128 +179,129 @@ def upgrade_from_3_to_4( db ):
     for item in tagl.select():
 
         rell.insert( [ ( 'id', item[0], ), ( 'parent', tagmap[item[1]], ),
-                ( 'rel', REL_CLASS, ), ] )
+                ( 'rel', LEGACY_REL_CLASS, ), ] )
 
     tagl.drop()
     dbi.update( [ ( 'ver', 4, ), ( 'rev', 0, ) ] )
 
     db.commit()
 
-class ResultIterator:
+def upgrade_from_4_to_5( db ):
 
-    def __init__( self, rs, fn = lambda x: x ):
+    print 'Database upgrade from VER 4 -> VER 5'
 
-        self.rs = rs
-        self.fn = fn
+    dbi = db.get_table( 'dbi' )
+    objl = db.get_table( 'objl' )
+    rell = db.get_table( 'rell' )
+    meta = db.get_table( 'meta' )
+    rel2 = db.get_table( 'rel2' )
+    mtda = db.get_table( 'mtda' )
 
-    def next( self ):
+    # Step 1, create new tables
+    objl.add_col( 'dup', 'INTEGER' )
 
-        return self.fn( self.rs.next() )
+    rel2.create( [ ( 'child',  'INTEGER NOT NULL', ),
+                   ( 'parent', 'INTEGER NOT NULL', ),
+                   ( 'sort',   'INTEGER', ), ] )
 
-    def __iter__( self ):
+    mtda.create( [ ( 'id',     'INTEGER NOT NULL', ),
+                   ( 'key',    'TEXT NOT NULL', ),
+                   ( 'value',  'TEXT' ), ] )
 
-        return self
+    # Step 2, convert relations
+    for child, parent, type, sort in rell.select():
+        if( type == LEGACY_REL_CHILD or type == LEGACY_REL_CLASS ):
+            rel2.insert( [ ( 'child', child, ), ( 'parent', parent, ),
+                    ( 'sort', sort, ), ] )
+        elif( type == LEGACY_REL_DUPLICATE ):
+            objl.update( [ ( 'type', TYPE_FILE_DUP, ), ( 'dup', parent, ) ], [ ( 'id', child, ) ] )
+        elif( type == LEGACY_REL_VARIANT ):
+            objl.update( [ ( 'type', TYPE_FILE_VAR, ), ( 'dup', parent, ) ], [ ( 'id', child, ) ] )
+        else:
+            assert( False )
 
-class FileMgmtDb:
+    # Step 3, collapse meta into mtda
+    for id, key in meta.select( [ 'id', 'tag', ], distinct = True ):
+        values = [ value[0] for value in meta.select( [ 'value' ], [ ( 'id', id, ), ( 'tag', key, ) ] ) ]
 
-    def __init__( self, dbfile ):
+        if( len( values ) == 1 ):
+            mtda.insert( [ ( 'id', id, ), ( 'key', key, ), ( 'value', values[0], ), ] )
+        else:
+            assert( key == 'altname' )
+            values = ':'.join( values )
+            mtda.insert( [ ( 'id', id, ), ( 'key', key, ), ( 'value', values, ), ] )
 
-        self.db = db.SqlLiteDatabase( dbfile )
-        self.dbi = DatabaseInfo( self.db.get_table( 'dbi' ) )
+    # Step 4, drop old tables
+    rell.drop()
+    meta.drop()
 
-        while( True ):
-            ver = self.dbi.get_version()
-         
-            if( ver != VERSION ):
+    # Step 5, update the database file
+    dbi.update( [ ( 'ver', 5, ), ( 'rev', 0, ) ] )
+    db.commit()
 
-                # Back-up the dbfile
-                f = file( dbfile, 'rb' )
-                n = 0
-                while( 1 ):
-                    if( not os.path.isfile( dbfile + '.bak' + str( n ) ) ):
-                        break
-                    n += 1
-                g = file( dbfile + '.bak' + str( n ), 'wb' )
-                while( 1 ):
-                    buff = f.read( 1024 )
-                    if( len( buff ) == 0 ):
-                        f.close()
-                        g.close()
-                        break
-                    g.write( buff )
 
-                if( ver == 0 ): 
-                    upgrade_from_0_to_1( self.db )
-                    upgrade_from_1_to_2( self.db )
-                    upgrade_from_2_to_3( self.db )
-                    upgrade_from_3_to_4( self.db )
-                    continue
-                elif( ver == 1 ):
-                    upgrade_from_1_to_2( self.db )
-                    upgrade_from_2_to_3( self.db )
-                    upgrade_from_3_to_4( self.db )
-                    continue
-                elif( ver == 2 ):
-                    upgrade_from_2_to_3( self.db )
-                    upgrade_from_3_to_4( self.db )
-                    continue
-                elif( ver == 3 ):
-                    upgrade_from_3_to_4( self.db )
-                    continue
-                else:
-                    raise RuntimeError( 'Incompatible database version' )
-            elif( self.dbi.get_revision() > REVISION ):
-                raise RuntimeError( 'Incompatible database revision' )
-            elif( self.dbi.get_revision() != REVISION ):
-                self.dbi.set_revision( REVISION )
-                self.commit()
+def update_legacy_database( dbfile ):
 
-            break
+    session = db.SqlLiteDatabase( dbfile )
+    dbi = DatabaseInfo( session.get_table( 'dbi' ) )
 
-        self.objl = MasterObjectList( self.db.get_table( 'objl' ) )
-        self.rell = RelationList( self.db.get_table( 'rell' ) )
-        self.fchk = FileChecksumList( self.db.get_table( 'fchk' ) )
-        self.meta = MetaList( self.db.get_table( 'meta' ) )
+    while( True ):
+        ver = dbi.get_version()
+     
+        if( ver != VERSION ):
 
-    def commit( self ):
+            # Back-up the dbfile
+            f = file( dbfile, 'rb' )
+            n = 0
+            while( 1 ):
+                if( not os.path.isfile( dbfile + '.bak' + str( n ) ) ):
+                    break
+                n += 1
+            g = file( dbfile + '.bak' + str( n ), 'wb' )
+            while( 1 ):
+                buff = f.read( 1024 )
+                if( len( buff ) == 0 ):
+                    f.close()
+                    g.close()
+                    break
+                g.write( buff )
 
-        self.db.commit()
+            if( ver == 0 ): 
+                upgrade_from_0_to_1( session )
+                upgrade_from_1_to_2( session )
+                upgrade_from_2_to_3( session )
+                upgrade_from_3_to_4( session )
+                upgrade_from_4_to_5( session )
+                continue
+            elif( ver == 1 ):
+                upgrade_from_1_to_2( session )
+                upgrade_from_2_to_3( session )
+                upgrade_from_3_to_4( session )
+                upgrade_from_4_to_5( session )
+                continue
+            elif( ver == 2 ):
+                upgrade_from_2_to_3( session )
+                upgrade_from_3_to_4( session )
+                upgrade_from_4_to_5( session )
+                continue
+            elif( ver == 3 ):
+                upgrade_from_3_to_4( session )
+                upgrade_from_4_to_5( session )
+                continue
+            elif( ver == 4 ):
+                upgrade_from_4_to_5( session )
+                continue
+            else:
+                raise RuntimeError( 'Incompatible database version' )
+        elif( dbi.get_revision() > REVISION ):
+            raise RuntimeError( 'Incompatible database revision' )
+        elif( dbi.get_revision() != REVISION ):
+            dbi.set_revision( REVISION )
+            session.commit()
 
-    def close( self ):
+        break
 
-        self.db.close()
-        self.objl = None
-        self.rell = None
-        self.fchk = None
-        self.naml = None
-
-    def get_objl( self ):
-
-        return self.objl
-
-    def get_rell( self ):
-
-        return self.rell
-
-    def get_fchk( self ):
-
-        return self.fchk
-
-    def get_meta( self ):
-
-        return self.meta
-
-    def get_uuid( self ):
-
-        return self.dbi.get_uuid()
-
-    def get_version( self ):
-
-        return self.dbi.get_version()
-
-    def get_revision( self ):
-
-        return self.dbi.get_revision()
+    session.close()
 
 class DatabaseInfo:
 
@@ -340,7 +343,8 @@ class MasterObjectList:
         try:
              self.objl.create( [    ( 'id',     'INTEGER PRIMARY KEY', ),
                                     ( 'type',   'INTEGER NOT NULL', ),
-                                    ( 'name',   'TEXT', ), ] )
+                                    ( 'name',   'TEXT', ),
+                                    ( 'dup',    'INTEGER', ), ] )
         except db.QueryError:
             pass
 
@@ -455,27 +459,25 @@ class RelationList:
         try:
              self.rell.create( [    ( 'id',     'INTEGER NOT NULL', ),
                                     ( 'parent', 'INTEGER NOT NULL', ),
-                                    ( 'rel',    'INTEGER NOT NULL', ),
                                     ( 'sort',   'INTEGER', ), ] )
         except db.QueryError:
             pass
 
-    def get_parents( self, id, rel ):
+    def get_parents( self, id ):
 
-        return self.rell.select( [ 'parent' ], [ ( 'id', id, ), ( 'rel', rel, ), ] ).eval( True )
+        return self.rell.select( [ 'parent' ], [ ( 'id', id, ), ] ).eval( True )
 
-    def get_children( self, id, rel ):
+    def get_children( self, id ):
 
-        return self.rell.select( [ 'id' ], [ ( 'parent', id, ), ( 'rel', rel, ), ] ).eval( True )
+        return self.rell.select( [ 'id' ], [ ( 'parent', id, ), ] ).eval( True )
 
-    def assign_parent( self, id, parent, rel, order = None ):
+    def assign_parent( self, id, parent, order = None ):
 
         if( len( self.rell.select( query = [ ( 'id', id, ), ( 'parent', parent, ) ] ).eval() ) > 0 ):
-            self.rell.update(   [ ( 'rel', rel, ), ( 'sort', order, ), ],
+            self.rell.update(   [ ( 'sort', order, ), ],
                                 [ ( 'id', id, ), ( 'parent', parent, ) ] )
         else:
-            self.rell.insert( [ ( 'id', id, ), ( 'parent', parent, ),
-                                ( 'rel', rel, ), ( 'sort', order, ), ] )
+            self.rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'sort', order, ), ] )
 
     def transfer_parent( self, old_parent, new_parent ):
 
@@ -500,9 +502,9 @@ class RelationList:
 
         self.rell.update( [ ( 'sort', order, ) ], [ ( 'id', id, ), ( 'parent', parent, ) ] )
 
-    def child_iterator( self, id, rel ):
+    def child_iterator( self, id ):
 
-        result = self.rell.select( [ 'id' ], [ ( 'parent', id, ), ( 'rel', rel, ) ], 'sort' )
+        result = self.rell.select( [ 'id' ], [ ( 'parent', id, ) ], 'sort' )
         return ResultIterator( result.__iter__(), lambda x: x[0] )
 
     def select_no_album( self, tbl ):
@@ -554,63 +556,42 @@ class MetaList:
 
         try:
             self.meta.create( [ ( 'id',     'INTEGER NOT NULL', ),
-                                ( 'tag',    'TEXT NOT NULL', ),
+                                ( 'key',    'TEXT NOT NULL', ),
                                 ( 'value',  'TEXT', ), ] )
         except db.QueryError:
             pass
 
-    def all_tags( self ):
+    def all_keys( self ):
 
-        return ResultIterator( self.meta.select( [ 'tag' ], distinct = True ).__iter__(),
+        return ResultIterator( self.meta.select( [ 'key' ], distinct = True ).__iter__(),
                 lambda x: x[0] )
 
-    def lookup_tags( self, id ):
+    def lookup_keys( self, id ):
 
-        return ResultIterator( self.meta.select( [ 'tag' ], [ ( 'id', id, ) ],
+        return ResultIterator( self.meta.select( [ 'key' ], [ ( 'id', id, ) ],
                 distinct = True ).__iter__(), lambda x: x[0] )
 
-    def clear_tag( self, id, tag ):
+    def clear_key( self, id, key ):
 
-        self.tagl.delete( [ ( 'id', id, ), ( 'tag', tag, ) ] )
+        self.meta.delete( [ ( 'id', id, ), ( 'key', key, ) ] )
 
-    def clear_single( self, id, tag, value ):
-
-        self.tagl.delete( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )
-
-    def set_tag( self, id, tag, value ):
+    def set_key( self, id, key, value ):
 
         try:
-            ovalue = self.meta.select( [ 'value' ],
-                    [ ( 'id', id, ), ( 'tag', tag, ) ] ).eval( True, True )
             self.meta.update( [ ( 'value', value, ) ],
-                    [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', ovalue, ) ] )
+                    [ ( 'id', id, ), ( 'key', key, ) ] )
         except StopIteration:
-            self.meta.insert( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )
+            self.meta.insert( [ ( 'id', id, ), ( 'key', key, ), ( 'value', value, ) ] )
             return True
 
-    def set_single( self, id, tag, value ):
-
-        try:
-            self.meta.select( [ 'value' ],
-                    [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] ).__iter__().next()
-            self.meta.update( [ ( 'value', value, ) ], [ ( 'id', id, ), ( 'tag', tag, ) ] )
-        except StopIteration:
-            self.meta.insert( [ ( 'id', id, ), ( 'tag', tag, ), ( 'value', value, ) ] )
-            return True
-
-    def get_value( self, id, tag ):
+    def get_value( self, id, key ):
 
         return self.meta.select( [ 'value' ],
-                [ ( 'id', id, ), ( 'tag', tag, ) ] ).eval( True, True )
+                [ ( 'id', id, ), ( 'key', key, ) ] ).eval( True, True )
 
-    def get_values( self, id, tag ):
+    def rename_key( self, key, new_name ):
 
-        return self.meta.select( [ 'value' ],
-                [ ( 'id', id, ), ( 'tag', tag, ) ] ).eval( True )
-
-    def rename_tag( self, tag, new_name ):
-
-        self.meta.update( [ ( 'tag', new_name, ) ], [ ( 'tag', tag, ) ] )
+        self.meta.update( [ ( 'key', new_name, ) ], [ ( 'key', key, ) ] )
 
     def unregister( self, id ):
 

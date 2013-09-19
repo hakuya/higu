@@ -1,4 +1,4 @@
-import filemgmt
+import model
 import os
 import shutil
 
@@ -11,8 +11,12 @@ DEFAULT_ENVIRON = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 HIGURASHI_DATA_PATH = 'imgdat'
 
-TYPE_FILE = filemgmt.TYPE_FILE
-TYPE_ALBUM = filemgmt.TYPE_ALBUM
+TYPE_FILE       = model.TYPE_FILE
+TYPE_FILE_DUP   = model.TYPE_FILE_DUP
+TYPE_FILE_VAR   = model.TYPE_FILE_VAR
+TYPE_GROUP      = model.TYPE_GROUP
+TYPE_ALBUM      = model.TYPE_ALBUM
+TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
 
 def make_unicode( s ):
 
@@ -23,40 +27,41 @@ def make_unicode( s ):
 
 class Obj:
 
-    def __init__( self, db, id ):
+    def __init__( self, db, obj ):
 
         self.db = db
-        self.id = id
+        self.obj = obj
 
     def get_id( self ):
 
-        return self.id
+        return self.obj.id
 
     def get_tags( self ):
 
-        return map( lambda x: Tag( self.db, x ), self.db.db.get_rell().get_parents( self.id, filemgmt.REL_CLASS ) )
+        tag_objs = [ obj for obj in self.obj.parents if obj.type == TYPE_CLASSIFIER ]
+        return map( lambda x: Tag( self.db, x ), tag_objs )
 
-    def assign( self, group ):
+    def assign( self, group, order = None ):
 
-        if( isinstance( group, Tag ) ):
-            return self.db.db.get_rell().assign_parent( self.id, group.id, filemgmt.REL_CLASS )
-        elif( isinstance( group, Album ) ):
-            return self.db.db.get_rell().assign_parent( self.id, group.id, filemgmt.REL_CHILD )
-
-        assert False
+        rel = model.Relation( order )
+        rel.parent_obj = group.obj
+        rel.child_obj = self.obj
 
     def unassign( self, group ):
 
-        self.db.db.get_rell().clear_parent( self.id, group.id )
+        rel = self.db.session.query( model.Relation ) \
+                .filter( model.Relation.parent == group.obj.id ) \
+                .filter( model.Relation.child == self.obj.id ).first()
+        assert rel is not None
+        self.db.session.delete( rel )
         
     def get_name( self ):
 
-        return self.db.db.get_objl().get_name( self.id )
+        return self.obj.name
 
     def set_name( self, name ):
 
-        name = make_unicode( name )
-        self.db.db.get_objl().set_name( self.id, name )
+        self.obj.name = name
 
     def get_repr( self ):
 
@@ -64,23 +69,36 @@ class Obj:
         if( name is not None ):
             return name
         else:
-            return '%016x' % ( self.id )
+            return '%016x' % ( self.obj.id )
 
     def get_names( self ):
 
-        names = []
-        names.append( self.get_repr() )
-        for value in self.db.db.get_meta().get_values( self.id, 'altname' ):
-            names.append( value )
+        names = [ self.get_repr() ]
+
+        try:
+            xnames = self.obj['altname']
+            names.extend( xnames.split( ':' ) )
+        except KeyError:
+            pass
+
         return names
 
     def register_name( self, name ):
 
         name = make_unicode( name )
+
         if( self.get_name() is None ):
             self.set_name( name )
         else:
-            self.db.db.get_meta().set_single( self.id, 'altname', name )
+            try:
+                xnames = self.obj['altname']
+                if( len( xnames ) == 0 ):
+                    xnames = name
+                else:
+                    xnames += ':' + name
+                self.obj['altname'] = xnames
+            except KeyError:
+                self.obj['altname'] = name
 
     def __hash__( self ):
 
@@ -96,81 +114,76 @@ class Obj:
 
 class Group( Obj ):
 
-    def __init__( self, db, id ):
+    def __init__( self, db, obj ):
 
-        Obj.__init__( self, db, id )
+        Obj.__init__( self, db, obj )
 
     def get_files( self ):
 
-        return map( lambda x: File( self.db, x ),
-                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_CHILD ) )
+        objs = [ obj for obj in self.obj.children if( obj.type == TYPE_FILE or obj.type == TYPE_FILE_DUP or obj.type == TYPE_FILE_VAR ) ]
+        return map( lambda x: File( self.db, x ), objs )
 
 class Tag( Group ):
 
-    def __init__( self, db, id ):
+    def __init__( self, db, obj ):
 
-        Group.__init__( self, db, id )
+        Group.__init__( self, db, obj )
 
 class Album( Group ):
 
-    def __init__( self, db, id ):
+    def __init__( self, db, obj ):
 
-        Group.__init__( self, db, id )
+        Group.__init__( self, db, obj )
 
 class File( Obj ):
 
-    def __init__( self, db, id ):
+    def __init__( self, db, obj ):
 
-        Obj.__init__( self, db, id )
+        Obj.__init__( self, db, obj )
 
-    def get_parents( self ):
+    def is_duplicate( self ):
 
-        return self.db.db.get_rell().get_parents( self.id, filemgmt.REL_CHILD )
+        return self.obj.type == TYPE_FILE_DUP
+
+    def is_variant( self ):
+
+        return self.obj.type == TYPE_FILE_VAR
 
     def get_albums( self ):
 
-        parents = self.get_parents()
-        albums = []
-
-        for parent in parents:
-            if( self.db.db.get_objl().get_type( parent ) == filemgmt.TYPE_ALBUM ):
-                albums.append( parent )
-
-        return map( lambda x: Album( self.db, x ), albums )
+        objs = [ obj for obj in self.obj.parents if obj.type == TYPE_ALBUM ]
+        return map( lambda x: Album( self.db, x ), objs )
 
     def get_duplicates( self ):
 
-        return map( lambda x: File( self.db, x ),
-                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_DUPLICATE ) )
+        objs = [ obj for obj in self.obj.similars if obj.type == TYPE_FILE_DUP ]
+        return map( lambda x: File( self.db, x ), objs )
 
     def get_variants( self ):
 
-        return map( lambda x: File( self.db, x ),
-                    self.db.db.get_rell().get_children( self.id, filemgmt.REL_VARIANT ) )
+        objs = [ obj for obj in self.obj.similars if obj.type == TYPE_FILE_VAR ]
+        return map( lambda x: File( self.db, x ), objs )
 
-    def get_duplicates_of( self ):
+    def get_similar_to( self ):
 
-        return map( lambda x: File( self.db, x ),
-                    self.db.db.get_rell().get_parents( self.id, filemgmt.REL_DUPLICATE ) )
-
-    def get_variants_of( self ):
-
-        return map( lambda x: File( self.db, x ),
-                    self.db.db.get_rell().get_parents( self.id, filemgmt.REL_VARIANT ) )
+        if( self.obj.similar_to is None ):
+            return None
+        else:
+            return File( self.db, self.obj.similar_to )
 
     def set_duplicate_of( self, parent ):
 
-        if( isinstance( parent, File ) ):
-            parent = parent.id
+        assert( isinstance( parent, File ) )
 
-        self.db.db.get_rell().assign_parent( self.id, parent, filemgmt.REL_DUPLICATE )
+        self.obj.type = TYPE_FILE_DUP
+        self.obj.similar_to = parent.obj
 
     def set_varient_of( self, parent ):
 
-        if( isinstance( parent, File ) ):
-            parent = parent.id
+        assert( isinstance( parent, File ) )
 
-        self.db.db.get_rell().assign_parent( self.id, parent, filemgmt.REL_VARIANT )
+        self.obj.type = TYPE_FILE_VAR
+        self.obj.similar_to = parent.obj
 
     def get_repr( self ):
 
@@ -186,18 +199,18 @@ class File( Obj ):
 
     def get_length( self ):
 
-        return self.db.db.get_fchk().details( self.id )[0]
+        return self.obj.fchk.len
 
     def get_hash( self ):
 
-        return self.db.db.get_fchk().details( self.id )[3]
+        return self.obj.fchk.sha1
 
     def get_path( self ):
 
         try:
-            d = self.db._get_path_for_id( self.id )
+            d = self.db._get_path_for_id( self.obj.id )
             ls = os.listdir( d )
-            ids = '%016x.' % ( self.id )
+            ids = '%016x.' % ( self.obj.id )
         except OSError:
             return None
 
@@ -214,7 +227,7 @@ class File( Obj ):
 
         from PIL import Image
 
-        t = self.db._get_fname_base( self.id ) + '_%02d.jpg' % ( exp, )
+        t = self.db._get_fname_base( self.obj.id ) + '_%02d.jpg' % ( exp, )
         if( os.path.isfile( t ) ):
             return t
 
@@ -260,7 +273,7 @@ class File( Obj ):
 
         r = i.resize( ( tw, th, ), Image.ANTIALIAS )
         
-        t = self.db._get_fname_base( self.id ) + '_%02d.jpg' % ( exp, )
+        t = self.db._get_fname_base( self.obj.id ) + '_%02d.jpg' % ( exp, )
         if( os.path.isfile( t ) ):
             os.remove( t )
         r.save( t )
@@ -269,20 +282,43 @@ class File( Obj ):
 
         from glob import glob
     
-        fs = glob( self.db._get_fname_base( self.id ) + '_*.jpg' )
+        fs = glob( self.db._get_fname_base( self.obj.id ) + '_*.jpg' )
         for f in fs:
             os.remove( f )
 
+env_path = None
+
+def model_obj_to_higu_obj( db, obj ):
+
+    if( obj.type == TYPE_FILE ):
+        return File( db, obj )
+    elif( obj.type == TYPE_ALBUM ):
+        return Album( db, obj )
+    elif( obj.type == TYPE_CLASSIFIER ):
+        return Tag( db, obj )
+    else:
+        return None
+
+class ModelObjToHiguObjIterator:
+
+    def __init__( self, db, iterable ):
+
+        self.db = db
+        self.it = iterable.__iter__()
+
+    def __iter__( self ):
+
+        return ModelObjToHiguObjIterator( self.db, self.it )
+
+    def next( self ):
+
+        return model_obj_to_higu_obj( self.db, self.it.next() )
+
 class Database:
 
-    def __init__( self, environ ):
+    def __init__( self ):
 
-        self.environ = environ
-
-        if( not os.path.isdir( self.environ ) ):
-            os.makedirs( self.environ )
-
-        self.db = filemgmt.FileMgmtDb( os.path.join( environ, HIGURASHI_DB_NAME ) )
+        self.session = model.Session()
 
     def _get_path_for_id( self, id ):
 
@@ -292,7 +328,7 @@ class Database:
 
         assert lv4 == 0
 
-        return os.path.join( self.environ, HIGURASHI_DATA_PATH, '%03x' % ( lv3 ), \
+        return os.path.join( env_path, HIGURASHI_DATA_PATH, '%03x' % ( lv3 ), \
                                                                 '%03x' % ( lv2 ) )
 
     def _get_fname_base( self, id ):
@@ -318,159 +354,144 @@ class Database:
 
     def commit( self ):
 
-        self.db.commit()
+        self.session.commit()
 
     def close( self ):
 
-        self.db.close()
+        self.session.close()
 
     def create_album( self ):
 
-        id = self.db.get_objl().register( filemgmt.TYPE_ALBUM )
-        return Album( self, id )
+        album = model.Object( TYPE_ALBUM )
+        self.session.add( album )
+        return Album( self, album )
 
     def get_object_by_id( self, id ):
 
-        type = self.db.get_objl().get_type( id ) 
+        obj = self.session.query( model.Object ).filter( model.Object.id == id ).first()
 
-        if( type == TYPE_FILE ):
-            return File( self, id )
-        elif( type == TYPE_ALBUM ):
-            return Album( self, id )
+        if( obj.type == TYPE_FILE ):
+            return File( self, obj )
+        elif( obj.type == TYPE_ALBUM ):
+            return Album( self, obj )
         else:
             return None
 
     def all_albums( self ):
 
-        objl = self.db.get_objl().objl
-        rell = self.db.get_rell().rell
-        albums = dblib.Query( dblib.Selection( [ 'id' ], [ ( 'type', TYPE_ALBUM, ) ], order = 'RANDOM()' ), objl )
-        return albums.__iter__()
+        objs = self.session.query( model.Object ).filter( model.Object.type == TYPE_ALBUM ).order_by( 'RANDOM()' )
+        return ModelObjToHiguObjIterator( self, objs )
 
     def all_albums_or_free_files( self ):
 
-        objl = self.db.get_objl().objl
-        rell = self.db.get_rell().rell
-        albums = dblib.Query( dblib.Selection( [ 'id' ], [ ( 'type', TYPE_ALBUM, ) ] ), objl )
-        albums_n_files = dblib.Query( dblib.Selection( [ 'id' ], [ dblib.OrOperator( [ ( 'type', TYPE_ALBUM, ), ( 'type', TYPE_FILE, ) ] ) ] ), objl )
-        files_with_alb = dblib.Query( dblib.Selection( [ 'a.id' ] ), dblib.InnerJoinOperator( rell, albums, 'a', 'b', 'a.parent', 'b.id' ) )
-        invalidate = dblib.InOperator( 'id', files_with_alb, True )
-        files_with_noalb = dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ], order = 'RANDOM()' ), albums_n_files )
-        return files_with_noalb.__iter__()
+        files = self.session.query( model.Object.id ).filter( model.Object.type == TYPE_FILE )
+        albums = self.session.query( model.Object.id ).filter( model.Object.type == TYPE_ALBUM )
+        all_children = self.session.query( model.Relation.child ).filter( model.Relation.parent.in_( albums ) )
+        free_files = files.filter( ~model.Object.id.in_( all_children ) )
+        #return ModelObjToHiguObjIterator( self, self.session.query( model.Object ).union( albums, free_files ) )
+        return self.session.query( model.Object.id ).filter( model.Object.id.in_( free_files.union( albums ) ) ).order_by( 'RANDOM()' )
 
     def unowned_files( self ):
 
-        objl = self.db.get_objl().objl
-        rell = self.db.get_rell().rell
-
-        files = dblib.Query( dblib.Selection( [ 'id' ], [ ( 'type', TYPE_FILE, ) ] ), objl )
-        owned_objects = dblib.Query( dblib.Selection( [ 'id' ] ), rell )
-        invalidate = dblib.InOperator( 'id', owned_objects, True )
-        files_with_noown = dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ], order = 'RANDOM()' ), files )
-        return files_with_noown.__iter__()
+        all_children = self.session.query( model.Relation.child )
+        #free_files = self.session.query( model.Object ).filter( model.Object.type == TYPE_FILE ).filter( ~model.Object.id.in_( all_children ) )
+        #return ModelObjToHiguObjIterator( self, free_files )
+        return self.session.query( model.Object.id ).filter( model.Object.type == TYPE_FILE ).filter( ~model.Object.id.in_( all_children ) )
 
     def lookup_files_by_details( self, len = None, crc32 = None, md5 = None, sha1 = None ):
 
-        fchk = self.db.get_fchk()
-        return ResultIterator( fchk.lookup( len, crc32, md5, sha1 ),
-                lambda x: File( self, x ) )
+        q = self.session.query( model.FileChecksum.id )
+        if( len is not None ):
+            q = q.filter( model.FileChecksum.len == len )
+        if( crc32 is not None ):
+            q = q.filter( model.FileChecksum.crc32 == crc32 )
+        if( md5 is not None ):
+            q = q.filter( model.FileChecksum.md5 == md5 )
+        if( sha1 is not None ):
+            q = q.filter( model.FileChecksum.sha1 == sha1 )
+
+        objs = self.session.query( model.Object ).filter(
+                model.Object.id.in_( q ) )
+        return ModelObjToHiguObjIterator( self, objs )
 
     def lookup_ids_by_tags( self, require, add = [], sub = [], strict = False, type = None, random_order = False ):
 
-        add = map( lambda x: x.id, add )
-        sub = map( lambda x: x.id, sub )
-        require = map( lambda x: x.id, require )
+        if( len( add ) > 0 ):
+            add_q = map( lambda x: self.session.query( model.Relation.child ) \
+                    .filter( model.Relation.parent == x.obj.id ), add )
+            add_q = add_q[0].union( *add_q[1:] )
+        else:
+            add_q = None
 
-        q = self.db.get_rell().restrict_ids( self.db.get_objl().objl, require, add, sub, random_order )
-        if( type is not None ):
-            q = self.db.get_objl().restrict_by_type( q, type )
-        if( strict ):
-            q = self.db.get_rell().select_no_parent( q )        
+        if( len( sub ) > 0 ):
+            sub_q = map( lambda x: self.session.query( model.Relation.child ) \
+                    .filter( model.Relation.parent == x.obj.id ), sub )
+            sub_q = sub_q[0].union( *sub_q[1:] )
+        else:
+            sub_q = None
 
-        return q.__iter__()
+        if( len( require ) > 0 ):
+            req_q = map( lambda x: self.session.query( model.Relation.child ) \
+                    .filter( model.Relation.parent == x.obj.id ), require )
+            req_q = req_q[0].intersect( *req_q[1:] )
+        else:
+            req_q = None
 
-    def lookup_objects_by_tags_with_names( self, require, add = [], sub = [], strict = False, type = TYPE_FILE ):
+        if( req_q is not None ):
+            q = req_q
 
-        add = map( lambda x: x.id, add )
-        sub = map( lambda x: x.id, sub )
-        require = map( lambda x: x.id, require )
+            if( add_q is not None ):
+                q = q.union( add_q )
+        else:
+            q = add_q
 
-        q = self.db.get_rell().restrict_ids( self.db.get_objl().objl, require, add, sub, strict )
-        q = self.db.get_objl().restrict_by_type( q, type )
-        if( strict ):
-            q = self.db.get_rell().select_no_parent( q )        
+        if( sub_q is not None ):
+            q = q.except_( sub_q )
 
-        q = self.db.get_objl().lookup_names_by_query( q )
-
-        if( type == None ):
-            q = self.db.get_objl().append_type( q )
-
-        class ResultWithNameIterator:
-
-            def __init__( iself, iter ):
-
-                iself.iter = iter
-
-            def __iter__( iself ):
-
-                return iself
-
-            def next( iself ):
-
-                id, name = iself.iter.next()
-                if( type == TYPE_FILE ):
-                    f = File( self, id )
-                else:
-                    f = Album( self, id )
-                if( name == None ):
-                    name = f.get_repr()
-                return f, name
-
-        return ResultWithNameIterator( q.__iter__() )
+        return self.session.query( model.Object.id ).filter( model.Object.id.in_( q ) ).order_by( 'RANDOM()' )
 
     def lookup_untagged_files( self ):
 
-        fchk = self.db.get_fchk()
-        rell = self.db.get_rell()
-
-        return ResultIterator( rell.select_no_parent( fchk.fchk ).__iter__(),
-                lambda x: File( self, x ) )
-
-    def all_files( self ):
-
-        fchk = self.db.get_fchk()
-        return ResultIterator( fchk.lookup(), lambda x: File( self, x ) )
+        return self.unowned_files()
 
     def all_tags( self ):
 
-        return [Tag( self, c )
-                for c in self.db.get_objl().lookup( filemgmt.TYPE_CLASSIFIER,
-                sortby = "name" )]
+        objs = self.session.query( model.Object ) \
+                .filter( model.Object.type == TYPE_CLASSIFIER ) \
+                .order_by( model.Object.name )
+
+        return ModelObjToHiguObjIterator( self, objs )
 
     def get_tag( self, name ):
 
-        c = self.db.get_objl().lookup( filemgmt.TYPE_CLASSIFIER, name ).next()
-        return Tag( self, c )
+        obj = self.session.query( model.Object ) \
+                .filter( model.Object.type == TYPE_CLASSIFIER ) \
+                .filter( model.Object.name == name ).first()
+        if( obj is None ):
+            raise KeyError, 'No such tag "%s"' % ( name )
+
+        return model_obj_to_higu_obj( self, obj )
 
     def make_tag( self, name ):
 
         try:
             return self.get_tag( name )
-        except StopIteration:
-            c = self.db.get_objl().register( filemgmt.TYPE_CLASSIFIER, name )
-            return Tag( self, c )
+        except KeyError:
+            obj = model.Object( TYPE_CLASSIFIER, name )
+            self.session.add( obj )
+            return model_obj_to_higu_obj( self, obj )
 
     def rename_tag( self, tag, new_name ):
 
-        c = self.get_tag( tag )
+        c = self.get_tag( tag ).obj
 
         try:
-            d = self.get_tag( new_name )
-            self.db.get_rell().transfer_parent( c.id, d.id )
-            self.delete_object( c )
+            d = self.get_tag( new_name ).obj
+            self.session.query( model.Relation ).filter( model.Relation.parent == c.id ).update( { 'parent' : d.id } )
+            self.session.delete( c )
 
-        except StopIteration:
-            c.set_name( new_name )
+        except KeyError:
+            c.name = new_name
 
     def register_file( self, path, add_name = True ):
 
@@ -479,25 +500,25 @@ class Database:
         details = calculate_details( path )
         results = self.lookup_files_by_details( *details )
 
-        objl = self.db.get_objl()
-        fchk = self.db.get_fchk()
-        meta = self.db.get_meta()
-
         try:
-            id = results.next().get_id()
+            obj = results.first()
         except StopIteration:
-            id = objl.register( filemgmt.TYPE_FILE )
-            fchk.register( id, *details )
+            obj = model.Object( TYPE_FILE )
+            self.session.add( obj )
+            fchk = FileChecksum( obj, *details )
+            self.session.add( fchk )
+
+        f = File( self, obj )
+        id = obj.id
 
         if( add_name ):
             ename = objl.get_name( id )
             if( ename is None ):
-                objl.set_name( id, name )
+                obj.name = name
             elif( ename != name ):
-                meta.set_single( id, 'altname', name )
+                f.add_name( name )
         self.commit()
 
-        f = File( self, id )
         if( f.get_path() == None ):
             self._load_data( path, id )
 
@@ -509,10 +530,6 @@ class Database:
 
         details = calculate_details( path )
         results = self.lookup_files_by_details( *details )
-
-        objl = self.db.get_objl()
-        fchk = self.db.get_fchk()
-        meta = self.db.get_meta()
 
         try:
             id = results.next().get_id()
@@ -530,17 +547,32 @@ class Database:
         else:
             p = None
 
-        self.db.get_meta().unregister( obj.get_id() )
-        self.db.get_rell().unregister( obj.get_id() )
-        self.db.get_fchk().unregister( obj.get_id() )
-        self.db.get_objl().unregister( obj.get_id() )
+        self.session.query( model.Metadata ) \
+                .filter( model.Metadata.id == obj.id ).delete()
+        self.session.query( model.Relation ) \
+                .filter( model.Relation.parent == obj.id ).delete()
+        self.session.query( model.Relation ) \
+                .filter( model.Relation.child == obj.id ).delete()
+        self.session.query( model.FileChecksum ) \
+                .filter( model.FileChecksum.id == obj.id ).delete()
+        self.session.query( model.Object ) \
+                .filter( model.Object.id == obj.id ).delete()
 
         if( p != None ):
             os.remove( p )
 
+def init( environ ):
+    global env_path
+
+    if( not os.path.isdir( environ ) ):
+        os.makedirs( environ )
+
+    env_path = environ
+    model.init( os.path.join( env_path, HIGURASHI_DB_NAME ) )
+
 def init_default():
 
-    return Database( DEFAULT_ENVIRON )
+    init( DEFAULT_ENVIRON )
 
 def compare_details( a, b ):
 
