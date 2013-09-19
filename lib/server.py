@@ -34,7 +34,7 @@ class ResultSet:
             self.loaded = results
         else:
             self.loaded = []
-            self.preload( results )
+            self.preload( results.__iter__() )
 
     def preload( self, results ):
 
@@ -58,18 +58,19 @@ class Server:
 
     def __init__( self, database_path = None ):
 
-        self.db_path = database_path
         self.dialogs = {
             'rename' : dialog.RenameDialog(),
         }
         self.searches = {}
 
+        if( database_path is None ):
+            higu.init_default()
+        else:
+            higu.init( database_path )
+
     def open_db( self ):
 
-        if( self.db_path == None ):
-            return higu.init_default()
-        else:
-            return higu.Database( self.db_path )
+        return higu.Database()
 
     def flush_searches( self ):
 
@@ -339,21 +340,14 @@ class Server:
 
         if( isinstance( obj, higu.File ) ):
 
-            variants = obj.get_variants_of()
-            if( len( variants ) > 0 ):
-                links = map( lambda x:
-                        self.link_load( x.get_repr(), x.get_id(), loadimg = '1' ), variants )
-                links = ', '.join( links )
+            similar = obj.get_similar_to()
+            if( similar is not None ):
+                link = self.link_load( similar.get_repr(), similar.get_id(), loadimg = '1' )
 
-                html.text( 'Varient of: ' + links + '<br/>' )
-
-            duplicates = obj.get_duplicates_of()
-            if( len( duplicates ) > 0 ):
-                links = map( lambda x:
-                        self.link_load( x.get_repr(), x.get_id(), loadimg = '1' ), duplicates )
-                links = ', '.join( links )
-
-                html.text( 'Duplicate of: ' + links + '<br/>' )
+                if( obj.is_duplicate() ):
+                    html.text( 'Duplicate of: ' + link + '<br/>' )
+                else:
+                    html.text( 'Variant of: ' + link + '<br/>' )
 
             variants = obj.get_variants()
             if( len( variants ) > 0 ):
@@ -711,6 +705,8 @@ class Server:
 
         db = self.open_db()
         tags = db.all_tags()
+
+        print tags
 
         html = HtmlGenerator()
         html.list( """<a class='taglink' href='#%s'>%s</a></li>""",
