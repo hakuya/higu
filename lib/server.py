@@ -5,6 +5,7 @@ import uuid
 import time
 import json
 
+from view import JsonWebView
 from html import TextFormatter, HtmlGenerator
 
 import dialog
@@ -43,7 +44,7 @@ class ResultSet:
         try:
             self.loaded = [ 0 ] * 10000
             for i in range( 10000 ):
-                self.loaded[i] = results.next()[0]
+                self.loaded[i] = results.next().get_id()
         except StopIteration:
             self.loaded = self.loaded[:i]
 
@@ -152,36 +153,6 @@ class Server:
             result = [ ( 'info', self.generate_info_pane( objs ) ),
                      ( 'main', self.generate_image_pane( objs[-1] ) ) ]
             return result
-
-        elif( action == 'selalbum' ):
-            f = higu.File( db, int( args['fid'] ) )
-            c = higu.Album( db, int( args['cid'] ) )
-
-            objects = map( lambda x: ( x, x.get_repr(), ), c.get_files() )
-
-            return [ ( 'info', self.generate_info_pane( [ f ] ) ),
-                     ( 'main', self.generate_image_pane( f ) ),
-                     ( 'list', self.generate_search_pane( objects, [ f ] ) ) ]
-
-        elif( action == 'tag' ):
-
-            tags = args['tags'].split( ' ' )
-
-            add = [t for t in tags if t[0] != '-' and t[0] != '!']
-            new = [t[1:] for t in tags if t[0] == '!']
-            sub = [t[1:] for t in tags if t[0] == '-']
-
-            add = map( db.get_tag, add )
-            sub = map( db.get_tag, sub )
-            add += map( db.make_tag, new )
-
-            for obj in objs:
-                for t in sub:
-                    obj.unassign( t )
-                for t in add:
-                    obj.assign( t )
-
-            return [ ( 'info', self.generate_info_pane( objs ) ) ]
 
         elif( self.dialogs.has_key( action ) ):
             result = self.dialogs[action].process_input( self, db, objs, **args )
@@ -435,124 +406,6 @@ class Server:
                 enumerate( files ), lambda x: ( album.get_id(), x[0], x[1].get_id() ), cls = 'thumbslist' )
         return html.format()
 
-    def generate_search_pane( self, objs, selection ):
-
-        html = HtmlGenerator()
-
-        total_count = TextFormatter( 'Total: %d objects<br/>' )
-        html.generator( total_count )
-        html.begin_form( name = 'list' )
-
-        FILE_PRIMARY_ITEM =  [  '<div style="background:yellow" id="list_div',
-                                '"><input type="checkbox" name="list_check',
-                                '" checked value="',
-                                '" onclick="javascript:clickfile( ',
-                                ', false )"/><a href="javascript:clickfile( ',
-                                ', true )">' ]
-
-        ALBUM_PRIMARY_ITEM  = [ '<div style="background:yellow" id="list_div',
-                                '"><input type="checkbox" name="list_check',
-                                '" checked value="',
-                                '" onclick="javascript:clickalbum( ',
-                                ' )"/><a href="javascript:clickalbum( ',
-                                ' )"><i>' ]
-
-        FILE_SELECTED_ITEM = [  '<div style="" id="list_div',
-                                '"><input type="checkbox" name="list_check',
-                                '" checked value="',
-                                '" onclick="javascript:clickfile( ',
-                                ', false )"/><a href="javascript:clickfile( ',
-                                ', true )">' ]
-
-        ALBUM_SELECTED_ITEM = [ '<div style="" id="list_div',
-                                '"><input type="checkbox" name="list_check',
-                                '" checked value="',
-                                '" onclick="javascript:clickalbum( ',
-                                ' )"/><a href="javascript:clickalbum( ',
-                                ' )"><i>' ]
-
-        FILE_ITEM = [           '<div id="list_div',
-                                '"><input type="checkbox" name="list_check',
-                                '" value="',
-                                '" onclick="javascript:clickfile( ',
-                                ', false )"/><a href="javascript:clickfile( ',
-                                ', true )">' ]
-
-        ALBUM_ITEM = [          '<div id="list_div',
-                                '"><input type="checkbox" name="list_check',
-                                '" value="',
-                                '" onclick="javascript:clickalbum( ',
-                                ' )"/><a href="javascript:clickalbum( ',
-                                ' )"><i>' ]
-
-        FILE_ITEM_CLOSE = '</a></div>'
-        ALBUM_ITEM_CLOSE = '</i></a></div>'
-
-        selection = list( selection )
-        if( selection ):
-            primary = selection[-1]
-        else:
-            primary = None
-
-        c = 0
-        for o in objs:
-            c += 1
-
-            name = o[1]
-            o = o[0]
-
-            id = o.get_id()
-            id_str = str( id )
-
-            if( isinstance( o, higu.Album ) ):
-                name = "<i>" + name + "</i>"
-
-            try:
-                selection.remove( o )
-                #if( isinstance( o, higu.File ) ):
-                if( 1 ):
-                    if( o == primary ):
-                        html.text( id_str.join( FILE_PRIMARY_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                    else:
-                        html.text( id_str.join( FILE_SELECTED_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                else:
-                    if( o == primary ):
-                        html.text( id_str.join( ALBUM_PRIMARY_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                    else:
-                        html.text( id_str.join( ALBUM_SELECTED_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
-            except ValueError:
-                #if( isinstance( o, higu.File ) ):
-                if( 1 ):
-                    html.text( id_str.join( FILE_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                else:
-                    html.text( id_str.join( ALBUM_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
-
-        if( len( selection ) > 0 ):
-            html.hr()
-            html.text( 'Also selected<br/>' )
-
-            for o in selection:
-                name = o.get_repr()
-                id = o.get_id()
-                id_str = str( id )
-
-                if( isinstance( o, higu.File ) ):
-                    if( o == primary ):
-                        html.text( id_str.join( FILE_PRIMARY_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                    else:
-                        html.text( id_str.join( FILE_SELECTED_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                else:
-                    if( o == primary ):
-                        html.text( id_str.join( ALBUM_PRIMARY_ITEM ) + (name + FILE_ITEM_CLOSE) )
-                    else:
-                        html.text( id_str.join( ALBUM_SELECTED_ITEM ) + (name + ALBUM_ITEM_CLOSE) )
-
-        html.end_form()
-
-        total_count.set_data( c )
-
-        return html.format()
-
     def dialog( self, kind, selection = None ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
@@ -579,27 +432,6 @@ class Server:
         width, height = dialog.get_dimensions()
         return self.do_show_dialog( dialog.get_title(), html.format(), width, height )
 
-    def update_info( self, action, objs, **args ):
-        cherrypy.response.headers['Content-Type'] = 'application/json'
-
-        try:
-            ids = objs.split( ' ' )
-            ids = map( lambda x: int( x ), ids )
-        except:
-            raise cherrypy.HTTPError( 400 )
-
-        db = self.open_db()
-        objs = map( lambda x: db.get_object_by_id( x ), ids )
-        self.process_action( db, objs, action, **args )
-
-        info = self.generate_info_pane( objs )
-        db.commit()
-
-        return json.dumps( {
-            'action' : 'show-html',
-            'data' : info,
-        } );
-
     def callback( self, action = None, selection = None, **args ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
@@ -614,6 +446,27 @@ class Server:
         db = self.open_db()
 
         return self.do_update_divs( self.process_action( db, map( lambda x: db.get_object_by_id( x ), ids ), action, **args ) )
+
+    @cherrypy.expose
+    def callback_new( self ):
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+
+        cl = cherrypy.request.headers['Content-Length']
+        data = cherrypy.request.body.read( int( cl ) )
+        data = json.loads( data )
+
+        print '***'
+        print data
+
+        view = JsonWebView()
+        result = view.execute( data )
+
+        print '==='
+        print result
+
+        view.close()
+
+        return json.dumps( result )
 
     def perform_search( self, db, mode, tags = None ):
 
@@ -751,7 +604,6 @@ class Server:
         return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
 
     callback.exposed = True
-    update_info.exposed = True
     search_new.exposed = True
     search_step.exposed = True
     search_album.exposed = True
