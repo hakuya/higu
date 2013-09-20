@@ -7,6 +7,9 @@ import db as dblib
 from hash import calculate_details
 from filemgmt import ResultIterator
 
+VERSION = 1
+REVISION = 0
+
 DEFAULT_ENVIRON = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 HIGURASHI_DATA_PATH = 'imgdat'
@@ -25,6 +28,19 @@ def make_unicode( s ):
     else:
         return s
 
+def model_obj_to_higu_obj( db, obj ):
+
+    if( obj.type == TYPE_FILE 
+     or obj.type == TYPE_FILE_DUP
+     or obj.type == TYPE_FILE_VAR ):
+        return File( db, obj )
+    elif( obj.type == TYPE_ALBUM ):
+        return Album( db, obj )
+    elif( obj.type == TYPE_CLASSIFIER ):
+        return Tag( db, obj )
+    else:
+        assert False
+
 class Obj:
 
     def __init__( self, db, obj ):
@@ -36,6 +52,10 @@ class Obj:
 
         return self.obj.id
 
+    def get_type( self ):
+
+        return self.obj.type
+
     def get_tags( self ):
 
         tag_objs = [ obj for obj in self.obj.parents if obj.type == TYPE_CLASSIFIER ]
@@ -43,6 +63,11 @@ class Obj:
 
     def assign( self, group, order = None ):
 
+        rel = self.db.session.query( model.Relation ) \
+                .filter( model.Relation.parent == group.obj.id ) \
+                .filter( model.Relation.child == self.obj.id ).first()
+        if( rel is not None ):
+            return
         rel = model.Relation( order )
         rel.parent_obj = group.obj
         rel.child_obj = self.obj
@@ -288,17 +313,6 @@ class File( Obj ):
 
 env_path = None
 
-def model_obj_to_higu_obj( db, obj ):
-
-    if( obj.type == TYPE_FILE ):
-        return File( db, obj )
-    elif( obj.type == TYPE_ALBUM ):
-        return Album( db, obj )
-    elif( obj.type == TYPE_CLASSIFIER ):
-        return Tag( db, obj )
-    else:
-        return None
-
 class ModelObjToHiguObjIterator:
 
     def __init__( self, db, iterable ):
@@ -384,12 +398,20 @@ class Database:
 
     def all_albums_or_free_files( self ):
 
-        files = self.session.query( model.Object.id ).filter( model.Object.type == TYPE_FILE )
-        albums = self.session.query( model.Object.id ).filter( model.Object.type == TYPE_ALBUM )
-        all_children = self.session.query( model.Relation.child ).filter( model.Relation.parent.in_( albums ) )
+        files = self.session.query( model.Object.id ) \
+                .filter( model.Object.type == TYPE_FILE )
+        albums = self.session.query( model.Object.id ) \
+                .filter( model.Object.type == TYPE_ALBUM )
+        all_children = self.session.query( model.Relation.child ) \
+                .filter( model.Relation.parent.in_( albums ) )
         free_files = files.filter( ~model.Object.id.in_( all_children ) )
-        #return ModelObjToHiguObjIterator( self, self.session.query( model.Object ).union( albums, free_files ) )
-        return self.session.query( model.Object.id ).filter( model.Object.id.in_( free_files.union( albums ) ) ).order_by( 'RANDOM()' )
+
+        select_ids = free_files.union( albums )
+
+        return ModelObjToHiguObjIterator( self, 
+                self.session.query( model.Object )
+                    .filter( model.Object.id.in_( select_ids ) )
+                    .order_by( 'RANDOM()' ) )
 
     def unowned_files( self ):
 
@@ -448,7 +470,10 @@ class Database:
         if( sub_q is not None ):
             q = q.except_( sub_q )
 
-        return self.session.query( model.Object.id ).filter( model.Object.id.in_( q ) ).order_by( 'RANDOM()' )
+        return ModelObjToHiguObjIterator( self, 
+                self.session.query( model.Object )
+                    .filter( model.Object.id.in_( q ) )
+                    .order_by( 'RANDOM()' ) )
 
     def lookup_untagged_files( self ):
 

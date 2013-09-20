@@ -18,9 +18,10 @@ $(document).keypress( function( e ) {
                 open_tag_dialog();
                 break;
             case 114: // r
+                /*
                 if( selection.length == 1 ) {
                     load( '/dialog?kind=rename' );
-                }
+                }*/
                 break;
             case 65: // A
                 select_all();
@@ -206,8 +207,12 @@ function submit_tags( tags )
 
     if( tab.data( 'search_id' ) ) {
         var obj = tab.data( 'object_id' );
-        load_new( '/update_info?action=tag&objs=' + obj + '&tags=' + tags,
-            tab.find( '.info' ) );
+        var request = {
+            'action' : 'tag',
+            'target' : obj,
+            'tags' : tags,
+        };
+        load3( request, tab.find( '.info' ) );
     }
 }
 
