@@ -20,6 +20,31 @@ class JsonWebView:
         #except:
         #    return { 'result' : 'error' }
 
+    def view_admin( self ):
+
+        html = HtmlGenerator()
+
+        html.header( 'Rename tag' )
+        html.begin_form()
+        html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( '/admin?action=rename_tag&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
+        html.end_form()
+
+        return html.format()
+
+    def view_taglist( self ):
+
+        request = {
+            'action'    : 'taglist',
+        }
+        result = self.json.execute( request )
+
+        html = HtmlGenerator()
+        html.list( """<a class='taglink' href='#%s'>%s</a></li>""",
+                result['tags'], lambda t: ( t, t, ),
+                cls = 'taglist' )
+
+        return html.format()
+
     def view_object( self, target ):
 
         request = {
@@ -184,6 +209,22 @@ class JsonWebView:
 
         return self.cmd_info( data )
 
+    def cmd_admin( self, data ):
+
+        return {
+            'result'    : 'ok',
+            'action'    : 'show-html',
+            'data'      : self.view_admin()
+        }
+
+    def cmd_taglist( self, data ):
+
+        return {
+            'result'    : 'ok',
+            'action'    : 'show-html',
+            'data'      : self.view_taglist()
+        }
+
     def cmd_search( self, data ):
 
         request = {
@@ -218,14 +259,11 @@ class JsonWebView:
                 elif( tag == '~f' ):
                     pass
                 elif( tag[0] == '?' ):
-                    c = db.get_tag( tag[1:] )
-                    add.append( c )
+                    add.append( tag[1:] )
                 elif( tag[0] == '!' ):
-                    c = db.get_tag( tag[1:] )
-                    sub.append( c )
+                    sub.append( tag[1:] )
                 else:
-                    c = db.get_tag( tag )
-                    req.append( c )
+                    req.append( tag )
 
             request['req'] = req
             request['add'] = add
@@ -238,6 +276,7 @@ class JsonWebView:
             'action'    : 'begin-display',
             'selection' : result['selection'],
             'index'     : result['index'],
+            'object_id' : result['first'],
             'data'      : self.view_object( result['first'] )
         }
 
@@ -256,6 +295,7 @@ class JsonWebView:
             'action'    : 'step-display',
             'selection' : data['selection'],
             'index'     : data['index'],
+            'object_id' : result['object_id'],
             'data'      : self.view_object( result['object_id'] )
         }
 

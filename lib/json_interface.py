@@ -217,6 +217,16 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
+    def cmd_taglist( self, data ):
+
+        tags = self.db.all_tags()
+        tags = map( lambda x: x.get_name(), tags )
+
+        return {
+            'result'    : 'ok',
+            'tags'      : tags,
+        }
+
     def cmd_search( self, data ):
 
         if( data.has_key( 'mode' ) ):
@@ -233,6 +243,8 @@ class JsonInterface:
         else:
             if( data.has_key( 'strict' ) and data['strict'] ):
                 strict = True
+            else:
+                strict = False
 
             req = data['req'] if data.has_key( 'req' ) else []
             add = data['add'] if data.has_key( 'add' ) else []
@@ -242,7 +254,7 @@ class JsonInterface:
             add = map( self.db.get_tag, add )
             sub = map( self.db.get_tag, sub )
 
-            rs = db.lookup_ids_by_tags( req, add, sub, strict,
+            rs = self.db.lookup_ids_by_tags( req, add, sub, strict,
                     random_order = True )
 
         sel = Selection( rs )

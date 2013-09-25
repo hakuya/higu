@@ -57,15 +57,23 @@ $( 'a[href="#allimg"]' ).click( function() {
         'action' : 'search',
         'mode' : 'all',
     };
-    load3_into_new_tab( 'All', request );
+    load_into_new_tab( 'All', request );
 });
 
 $( 'a[href="#untagged"]' ).click( function() {
-    load_into_new_tab( 'Untagged', '/search_new?mode=untagged&tags=' );
+    var request = {
+        'action' : 'search',
+        'mode' : 'untagged',
+    };
+    load_into_new_tab( 'Untagged', request );
 });
 
 $( 'a[href="#albums"]' ).click( function() {
-    load_into_new_tab( 'Albums', '/search_new?mode=albums&tags=' );
+    var request = {
+        'action' : 'search',
+        'mode' : 'albums',
+    };
+    load_into_new_tab( 'Albums', request );
 });
 
 tabs = $( '#tabs' ).tabs({
@@ -92,7 +100,12 @@ tabs.delegate( "span.ui-icon-close", "click", function() {
 
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
-    load_into_new_tab( 'Search', '/search_new?mode=tags&tags=' + tags );
+
+    var request = {
+        'action' : 'search',
+        'tags' : tags,
+    }
+    load_into_new_tab( 'Search', request );
     $( this ).children( 'input' ).val( '' );
     $( document ).focus();
 });
@@ -162,8 +175,10 @@ $( window ).resize( function() {
     $( '#tabs' ).tabs( 'refresh' );
 } );
 
-load_new( '/taglist', $( '#taglist-tab' ) );
-load_new( '/admin', $( '#admin-tab' ) );
+var request;
+
+load3( { 'action' : 'taglist' }, $( '#taglist-tab' ) );
+load3( { 'action' : 'admin' }, $( '#admin-tab' ) );
 
 $( window ).resize();
 });
@@ -171,12 +186,7 @@ $( window ).resize();
 var tab_counter = 1;
 var tab_template = "<li><a href='#{href}'>#{label}</a> <span class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span></li>";
 
-function load_into_new_tab( title, page ) {
-    tab_id = open_tab( title );
-    load_new( page, tab );
-}
-
-function load3_into_new_tab( title, request ) {
+function load_into_new_tab( title, request ) {
     var tab_id = open_tab( title );
     load3( request, tab );
 }
@@ -259,7 +269,12 @@ function activate_links( par )
     par.find( '.taglink' ).each( function( idx ) {
         $( this ).click( function() {
             tag = $( this ).attr( 'href' ).substring( 1 );
-            load_into_new_tab( tag, '/search_new?mode=tags&tags=' + tag );
+
+            var request = {
+                'action' : 'search',
+                'tags' : tag,
+            }
+            load_into_new_tab( tag, request );
         });
     });
 
@@ -272,7 +287,7 @@ function activate_links( par )
                 'album' : parseInt( target[0] ),
                 'index' : parseInt( target[1] ),
             };
-            load3_into_new_tab( 'Album', request );
+            load_into_new_tab( 'Album', request );
         });
     });
 }

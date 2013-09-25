@@ -393,8 +393,10 @@ class Database:
 
     def all_albums( self ):
 
-        objs = self.session.query( model.Object ).filter( model.Object.type == TYPE_ALBUM ).order_by( 'RANDOM()' )
-        return ModelObjToHiguObjIterator( self, objs )
+        return ModelObjToHiguObjIterator( self,
+                self.session.query( model.Object )
+                    .filter( model.Object.type == TYPE_ALBUM )
+                    .order_by( 'RANDOM()' ) )
 
     def all_albums_or_free_files( self ):
 
@@ -416,9 +418,11 @@ class Database:
     def unowned_files( self ):
 
         all_children = self.session.query( model.Relation.child )
-        #free_files = self.session.query( model.Object ).filter( model.Object.type == TYPE_FILE ).filter( ~model.Object.id.in_( all_children ) )
-        #return ModelObjToHiguObjIterator( self, free_files )
-        return self.session.query( model.Object.id ).filter( model.Object.type == TYPE_FILE ).filter( ~model.Object.id.in_( all_children ) )
+        return ModelObjToHiguObjIterator( self,
+                self.session.query( model.Object )
+                    .filter( model.Object.type == TYPE_FILE )
+                    .filter( ~model.Object.id.in_( all_children ) )
+                    .order_by( 'RANDOM()' ) )
 
     def lookup_files_by_details( self, len = None, crc32 = None, md5 = None, sha1 = None ):
 
