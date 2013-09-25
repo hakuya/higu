@@ -135,7 +135,7 @@ class Obj:
             return False
         if( not isinstance( o, self.__class__ ) ):
             return False
-        return self.db == o.db and self.id == o.id
+        return self.db == o.db and self.obj == o.obj
 
 class Group( Obj ):
 

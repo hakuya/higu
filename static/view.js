@@ -12,7 +12,7 @@ $(document).keypress( function( e ) {
 
     tab = active_tab();
 
-    if( tab.data( 'search_id' ) ) {
+    if( tab.data( 'selection_id' ) ) {
         switch( e.charCode ) {
             case 116: // t
                 open_tag_dialog();
@@ -53,7 +53,11 @@ $(document).keypress( function( e ) {
 });
 
 $( 'a[href="#allimg"]' ).click( function() {
-    load_into_new_tab( 'All', '/search_new?mode=all&tags=' );
+    var request = {
+        'action' : 'search',
+        'mode' : 'all',
+    };
+    load3_into_new_tab( 'All', request );
 });
 
 $( 'a[href="#untagged"]' ).click( function() {
@@ -73,9 +77,13 @@ tabs.delegate( "span.ui-icon-close", "click", function() {
     var panelId = $( this ).closest( "li" ).remove().attr( "aria-controls" );
     tab = $( "#" + panelId );
 
-    search_id = tab.data( 'search_id' );
-    if( search_id ) {
-        load_new( '/search_close?search_id=' + search_id, null );
+    selection_id = tab.data( 'selection_id' );
+    if( selection_id ) {
+        var request = {
+            'action' : 'selection_close',
+            'selection' : selection_id,
+        }
+        load3( request, null );
     }
     tab.remove();
     
@@ -168,6 +176,11 @@ function load_into_new_tab( title, page ) {
     load_new( page, tab );
 }
 
+function load3_into_new_tab( title, request ) {
+    var tab_id = open_tab( title );
+    load3( request, tab );
+}
+
 function active_tab() {
     tabs = $( '#tabs' );
 
@@ -205,7 +218,7 @@ function submit_tags( tags )
 {
     var tab = active_tab();
 
-    if( tab.data( 'search_id' ) ) {
+    if( tab.data( 'selection_id' ) ) {
         var obj = tab.data( 'object_id' );
         var request = {
             'action' : 'tag',
@@ -252,9 +265,14 @@ function activate_links( par )
 
     par.find( '.albumlink' ).each( function( idx ) {
         $( this ).click( function() {
-            target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
-            load_into_new_tab( 'Album', '/search_album?album=' + target[0]
-                + '&idx=' + target[1] );
+            var target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
+            var request = {
+                'action' : 'search',
+                'mode' : 'album',
+                'album' : parseInt( target[0] ),
+                'index' : parseInt( target[1] ),
+            };
+            load3_into_new_tab( 'Album', request );
         });
     });
 }
