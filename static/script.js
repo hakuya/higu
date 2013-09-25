@@ -6,10 +6,15 @@ function search( tags ) {
 function step_display( tab, offset ) {
     if( offset == 0 ) return;
 
-    search_id = tab.data( 'search_id' );
+    selection_id = tab.data( 'selection_id' );
     display_idx = tab.data( 'display_idx' );
 
-    load_new( '/search_step?search_id=' + search_id + '&idx=' + (display_idx + offset), tab );
+    var request = {
+        'action' : 'selection_fetch',
+        'selection' : selection_id,
+        'index' : display_idx + offset,
+    };
+    load3( request, tab );
 }
 
 function rm() {
@@ -20,7 +25,7 @@ function rm() {
 
 function do_begin_display( target, response )
 {
-    target.data( 'search_id', response.search_id );
+    target.data( 'selection_id', response.selection );
     target.data( 'object_id', response.object_id );
     target.data( 'display_idx', response.index );
     load_html( target, response.data );
