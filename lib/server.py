@@ -117,24 +117,6 @@ class Server:
 
         return json.dumps( { 'action' : 'display-dialog', 'data' : data } )
 
-    def admin( self, action = None, **args ):
-
-        cherrypy.response.headers['Content-Type'] = "text/html; charset=utf-8" 
-
-        html = HtmlGenerator()
-
-        self.process_action( self.open_db(), [], action, **args )
-
-        html.header( 'Rename tag' )
-        html.begin_form()
-        html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( '/admin?action=rename_tag&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
-        html.end_form()
-
-        return json.dumps( {
-            'action' : 'show-html',
-            'data' : html.format(),
-        } );
-
     def view( self, id = None, selection = None ):
 
         if( id == None ):
@@ -262,23 +244,6 @@ class Server:
 
         return json.dumps( result )
 
-    def taglist( self, selection = None ):
-
-        db = self.open_db()
-        tags = db.all_tags()
-
-        print tags
-
-        html = HtmlGenerator()
-        html.list( """<a class='taglink' href='#%s'>%s</a></li>""",
-                tags, lambda t: ( t.get_name(), t.get_name(), ),
-                cls = 'taglist' )
-
-        return json.dumps( {
-            'action' : 'show-html',
-            'data' : html.format(),
-        } );
-
     def img( self, id = None, exp = None ):
 
         db = self.open_db()
@@ -311,10 +276,7 @@ class Server:
 
         return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
 
-    callback.exposed = True
-    taglist.exposed = True
     img.exposed = True
-    admin.exposed = True
     dialog.exposed = True
 
 if( __name__ == '__main__' ):
