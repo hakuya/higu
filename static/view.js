@@ -1,6 +1,14 @@
 window_width = -1;
 window_height = -1;
 
+// Singletons
+var tabs;
+var tag_dialog;
+var error_dialog;
+
+// Classes
+var SearchTab;
+
 $( function() {
 
 $(document).keypress( function( e ) {
@@ -10,12 +18,12 @@ $(document).keypress( function( e ) {
 
     e = window.event || e;
 
-    tab = active_tab();
+    tab = tabs.active();
 
     if( tab.data( 'selection_id' ) ) {
         switch( e.charCode ) {
             case 116: // t
-                open_tag_dialog();
+                tag_dialog.open();
                 break;
             case 114: // r
                 /*
@@ -57,7 +65,7 @@ $( 'a[href="#allimg"]' ).click( function() {
         'action' : 'search',
         'mode' : 'all',
     };
-    load_into_new_tab( 'All', request );
+    new SearchTab( 'All', request );
 });
 
 $( 'a[href="#untagged"]' ).click( function() {
@@ -65,7 +73,7 @@ $( 'a[href="#untagged"]' ).click( function() {
         'action' : 'search',
         'mode' : 'untagged',
     };
-    load_into_new_tab( 'Untagged', request );
+    new SearchTab( 'Untagged', request );
 });
 
 $( 'a[href="#albums"]' ).click( function() {
@@ -73,30 +81,138 @@ $( 'a[href="#albums"]' ).click( function() {
         'action' : 'search',
         'mode' : 'albums',
     };
-    load_into_new_tab( 'Albums', request );
+    new SearchTab( 'Albums', request );
 });
 
-tabs = $( '#tabs' ).tabs({
-    fit : true,
-    heightStyle : 'fill',
-});
+/*
+$( 'a[href="#newsel"]' ).click( function() {
+    new SelectionTab();
+});*/
 
-tabs.delegate( "span.ui-icon-close", "click", function() {
-    var panelId = $( this ).closest( "li" ).remove().attr( "aria-controls" );
-    tab = $( "#" + panelId );
+/**
+ * class tabs
+ */
+tabs = new function()
+{
+    this.elem = $( '#tabs' );
+    this.counter = 1;
+    this.template = "<li><a href='#{href}'>#{label}</a> <span class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span></li>";
 
-    selection_id = tab.data( 'selection_id' );
-    if( selection_id ) {
-        var request = {
-            'action' : 'selection_close',
-            'selection' : selection_id,
+    // Begin constructor
+    this.elem.tabs({
+        fit : true,
+        heightStyle : 'fill',
+    });
+
+    this.elem.delegate( "span.ui-icon-close", "click", function() {
+        var panelId = $( this ).closest( "li" ).remove().attr( "aria-controls" );
+        var tab_elem = $( "#" + panelId );
+        var tab = tab_elem.data( 'obj' );
+        
+        if( !tab || !tab.close ) {
+            tabs.remove( tab_elem );
+        } else {
+            tab.close();
         }
-        load3( request, null );
+    });
+    // End constructor
+
+    /**
+     * active() - returns active tab
+     */
+    this.active = function()
+    {
+        idx = this.elem.tabs( 'option', 'active' );
+        return this.elem.find( '.tab' ).eq( idx );
+    };
+
+    /**
+     * get_head_elem()
+     */
+    this.get_nav_elem = function( tab )
+    {
+        var idx = $( '#tabs > div' ).index( tab );
+        return this.elem.find( '.ui-tabs-nav > li' ).eq( idx );
     }
-    tab.remove();
+
+    /**
+     * select( tab ) - selects the given tab
+     */
+    this.select = function( tab )
+    {
+        var idx = $( '#tabs > div' ).index( tab );
+        this.elem.tabs( 'option', 'active', idx );
+    };
+
+    /**
+     * create( title ) - creates a tab with the given title
+     */
+    this.create = function( title )
+    {
+        var count = this.counter;
+        var id_val = 'tabs-' + count;
+        var li = $( this.template.replace( /#\{href\}/g, "#" + id_val ).replace( /#\{label\}/g, title ) );
+        this.elem.find( '.ui-tabs-nav' ).append( li );
+        this.elem.append( "<div class='tab' id='" + id_val + "'>loading...</div>" );
+        this.elem.tabs( 'refresh' );
+        this.counter++;
+
+        tab = $( '#' + id_val );
+        this.select( tab );
+
+        return tab;
+    };
+
+    /**
+     * remove( elem ) - removes the given tab
+     */
+    this.remove = function( elem )
+    {
+        elem.remove();
+        this.elem.tabs( "refresh" );
+    }
+};
+
+/**
+ * class SearchTab
+ */
+SearchTab = function( title, request )
+{
+    this.elem = tabs.create( title );
+    this.elem.data( 'obj', this );
     
-    tabs.tabs( "refresh" );
-});
+    load3( request, this.elem );
+
+    this.close = function()
+    {
+        selection_id = this.elem.data( 'selection_id' );
+        if( selection_id ) {
+            var request = {
+                'action' : 'selection_close',
+                'selection' : selection_id,
+            }
+            load3( request, null );
+        }
+        tabs.remove( this.elem );
+    }
+};
+
+/**
+ * class SelectionTab
+ */
+SelectionTab = function()
+{
+    this.elem = tabs.create( 'Selection' );
+    this.elem.data( 'obj', this );
+
+    this.elem.html( "<li class='thumbslist sortable'></li>" );
+    tabs.get_nav_elem( this.elem ).droppable({
+        accept: '.thumbslist > li',
+        drop: function( event, ui ) {
+            alert( 'dropped' );
+        },
+    });
+};
 
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
@@ -105,59 +221,143 @@ $( '#tagsearch' ).submit( function() {
         'action' : 'search',
         'tags' : tags,
     }
-    load_into_new_tab( 'Search', request );
+    new SearchTab( 'Search', request );
     $( this ).children( 'input' ).val( '' );
     $( document ).focus();
 });
 
-$( '#error-dialog' ).dialog({
-    autoOpen: false,
-    width: 800,
-    height: 500,
-    modal: true,
-    buttons: {
-        Cancel: function() {
-            $( document ).focus();
-            $( this ).dialog( 'close' );
-        }
-    },
-});
+/**
+ * class error_dialog
+ */
+error_dialog = new function()
+{
+    this.elem = $( '#error-dialog' );
+    this.elem.data( 'obj', this );
 
-$( '#tag-dialog' ).dialog({
-    autoOpen: false,
-    width: 600,
-    height: 300,
-    modal: true,
-    buttons: {
-        'Apply': function() {
-            close_tag_dialog( true );
+    // Begin Constructor
+    this.elem.dialog({
+        autoOpen: false,
+        width: 800,
+        height: 500,
+        modal: true,
+        buttons: {
+            Cancel: function() {
+                $( this ).data( 'obj' ).close();
+            }
         },
-        Cancel: function() {
-            close_tag_dialog( false );
-        }
-    },
-});
+    });
+    // End Constructor
 
-$( '#tag-dialog-form' ).submit( function() {
-    close_tag_dialog( true );
-});
+    this.open = function( msg )
+    {
+        $( '#error-msg' ).html( msg );
+        this.elem.dialog( 'open' );
+    };
 
-$( '#name-dialog' ).dialog({
-    autoOpen: false,
-    width: 600,
-    height: 300,
-    modal: true,
-    buttons: {
-        'Apply': function() {
-            $( document ).focus();
-            $( this ).dialog( 'close' );
+    this.close = function()
+    {
+        $( document ).focus();
+        this.elem.dialog( 'close' );
+    }
+};
+
+/**
+ * class tag_dialog
+ */
+tag_dialog = new function()
+{
+    this.elem = $( '#tag-dialog' );
+    this.elem.data( 'obj', this );
+
+    // Begin Constructor
+    this.elem.dialog({
+        autoOpen: false,
+        width: 600,
+        height: 300,
+        modal: true,
+        buttons: {
+            'Apply': function() {
+                $( this ).data( 'obj' ).close( true );
+            },
+            Cancel: function() {
+                $( this ).data( 'obj' ).close( false );
+            }
         },
-        Cancel: function() {
-            $( document ).focus();
-            $( this ).dialog( 'close' );
+    });
+
+    $( '#tag-dialog-form' ).submit( function() {
+        $( this ).data( 'obj' ).close( true );
+    });
+    // End Constructor
+
+    this.open = function()
+    {
+        this.elem.dialog( 'open' );
+        $( '#tags' ).focus();
+        $( '#tags' ).select();
+    };
+
+    this.submit = function( tags )
+    {
+        var tab = tabs.active();
+
+        if( tab.data( 'selection_id' ) ) {
+            var obj = tab.data( 'object_id' );
+            var request = {
+                'action' : 'tag',
+                'target' : obj,
+                'tags' : tags,
+            };
+            load3( request, tab.find( '.info' ) );
         }
-    },
-});
+    }
+
+    this.close = function( submit )
+    {
+        if( submit ) {
+            this.submit( $( '#tags' ).val() );
+        }
+        $( document ).focus();
+        this.elem.dialog( 'close' );
+    }
+};
+
+/**
+ * class name_dialog
+ */
+name_dialog = new function()
+{
+    this.elem = $( '#name-dialog' );
+    this.elem.data( 'obj', this );
+
+    this.elem.dialog({
+        autoOpen: false,
+        width: 600,
+        height: 300,
+        modal: true,
+        buttons: {
+            'Apply': function() {
+                $( this ).data( 'obj' ).close();
+            },
+            Cancel: function() {
+                $( this ).data( 'obj' ).close();
+            }
+        },
+    });
+
+    this.open = function()
+    {
+        this.elem.dialog( 'open' );
+        this.elem.focus();
+        this.elem.select();
+    };
+
+    this.close = function( submit )
+    {
+        $( document ).focus();
+        this.elem.dialog( 'close' );
+    }
+};
 
 $( window ).resize( function() {
     width = window.innerWidth;
@@ -183,80 +383,11 @@ load3( { 'action' : 'admin' }, $( '#admin-tab' ) );
 $( window ).resize();
 });
 
-var tab_counter = 1;
-var tab_template = "<li><a href='#{href}'>#{label}</a> <span class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span></li>";
-
-function load_into_new_tab( title, request ) {
-    var tab_id = open_tab( title );
-    load3( request, tab );
-}
-
-function active_tab() {
-    tabs = $( '#tabs' );
-
-    idx = tabs.tabs( 'option', 'active' );
-    return tabs.find( '.tab' ).eq( idx );
-}
-
-function select_tab( tab ) {
-    var idx = $( '#tabs > div' ).index( tab )
-    $( '#tabs' ).tabs( 'option', 'active', idx );
-}
-
-function open_tab( title ) {
-    var count = tab_counter;
-    var id_val = 'tabs-' + count;
-    var li = $( tab_template.replace( /#\{href\}/g, "#" + id_val ).replace( /#\{label\}/g, title ) );
-    tabs.find( '.ui-tabs-nav' ).append( li );
-    tabs.append( "<div class='tab' id='" + id_val + "'>loading...</div>" );
-    tabs.tabs( 'refresh' );
-    tab_counter++;
-
-    tab = $( '#' + id_val );
-    select_tab( tab );
-
-    return tab;
-};
-
-function open_tag_dialog() {
-    $( '#tag-dialog' ).dialog( 'open' );
-    $( '#tags' ).focus();
-    $( '#tags' ).select();
-};
-
-function submit_tags( tags )
-{
-    var tab = active_tab();
-
-    if( tab.data( 'selection_id' ) ) {
-        var obj = tab.data( 'object_id' );
-        var request = {
-            'action' : 'tag',
-            'target' : obj,
-            'tags' : tags,
-        };
-        load3( request, tab.find( '.info' ) );
-    }
-}
-
-function close_tag_dialog( submit ) {
-    if( submit ) {
-        submit_tags( $( '#tags' ).val() );
-    }
-    $( document ).focus();
-    $( '#tag-dialog' ).dialog( 'close' );
-}
-
 function open_rename_dialog( saveold_allowed ) {
     $( '#saveold' ).disabled( !saveold_allowed );
     $( '#name-dialog' ).dialog( 'open' );
     $( '#fname' ).focus();
 }
-
-function open_error_dialog( msg ) {
-    $( '#error-msg' ).html( msg );
-    $( '#error-dialog' ).dialog( 'open' );
-};
 
 function load_html( elem, content )
 {
@@ -274,7 +405,7 @@ function activate_links( par )
                 'action' : 'search',
                 'tags' : tag,
             }
-            load_into_new_tab( tag, request );
+            new SearchTab( tag, request );
         });
     });
 
@@ -287,7 +418,14 @@ function activate_links( par )
                 'album' : parseInt( target[0] ),
                 'index' : parseInt( target[1] ),
             };
-            load_into_new_tab( 'Album', request );
+            new SearchTab( 'Album', request );
         });
+    });
+
+    par.find( '.sortable li' ).each( function( idx ) {
+        $( this ).draggable( {
+            helper : 'clone',
+        } );
+        $( this ).disableSelection();
     });
 }

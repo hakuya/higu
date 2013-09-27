@@ -108,7 +108,7 @@ class JsonWebView:
 
         html = HtmlGenerator()
         html.list( '<a class="albumlink" href="#%d-%d"><img src="/img?id=%d&exp=7"/></a>',
-                enumerate( files ), lambda x: ( target, x[0], x[1][0] ), cls = 'thumbslist' )
+                enumerate( files ), lambda x: ( target, x[0], x[1][0] ), cls = 'thumbslist sortable' )
         return html.format()
 
     def link_load( self, text, target, **args ):
