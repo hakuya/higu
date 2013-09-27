@@ -217,6 +217,29 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
+    def cmd_deorder( self, data ):
+
+        group = self.db.get_object_by_id( data['group'] )
+        assert( isinstance( group, higu.OrderedGroup ) )
+
+        group.clear_order()
+
+        return { 'result' : 'ok' }
+
+    def cmd_reorder( self, data ):
+
+        group = data['group']
+        items = data['items']
+
+        group = self.db.get_object_by_id( group )
+        assert( isinstance( group, higu.OrderedGroup ) )
+
+        items = map( self.db.get_object_by_id, items )
+
+        group.set_order( items )
+
+        return { 'result' : 'ok' }
+
     def cmd_taglist( self, data ):
 
         tags = self.db.all_tags()

@@ -58,7 +58,7 @@ function load3( request, target )
             }
         },
         error:          function( xhr ) {
-            open_error_dialog( xhr.responseText );
+            error_dialog.open( xhr.responseText );
         }
     } );
 }

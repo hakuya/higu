@@ -67,6 +67,7 @@ class Obj:
                 .filter( model.Relation.parent == group.obj.id ) \
                 .filter( model.Relation.child == self.obj.id ).first()
         if( rel is not None ):
+            rel.sort = order
             return
         rel = model.Relation( order )
         rel.parent_obj = group.obj
@@ -79,6 +80,24 @@ class Obj:
                 .filter( model.Relation.child == self.obj.id ).first()
         assert rel is not None
         self.db.session.delete( rel )
+
+    def reorder( self, group, order = None ):
+
+        rel = self.db.session.query( model.Relation ) \
+                .filter( model.Relation.parent == group.obj.id ) \
+                .filter( model.Relation.child == self.obj.id ).first()
+        if( rel is None ):
+            raise ValueError, str( self ) + ' is not in ' + str( group )
+        rel.sort = order
+
+    def get_order( self, group ):
+
+        rel = self.db.session.query( model.Relation ) \
+                .filter( model.Relation.parent == group.obj.id ) \
+                .filter( model.Relation.child == self.obj.id ).first()
+        if( rel is None ):
+            raise ValueError, str( self ) + ' is not in ' + str( group )
+        return rel.sort
         
     def get_name( self ):
 
@@ -143,10 +162,47 @@ class Group( Obj ):
 
         Obj.__init__( self, db, obj )
 
+    def is_ordered( self ):
+
+        return False
+
     def get_files( self ):
 
         objs = [ obj for obj in self.obj.children if( obj.type == TYPE_FILE or obj.type == TYPE_FILE_DUP or obj.type == TYPE_FILE_VAR ) ]
         return map( lambda x: File( self.db, x ), objs )
+
+class OrderedGroup( Group ):
+
+    def __init__( self, db, obj ):
+
+        Group.__init__( self, db, obj )
+
+    def is_ordered( self ):
+
+        #TODO: check if ordered
+        return True
+
+    def clear_order( self ):
+
+        all_objs = self.get_files()
+
+        for child in all_objs:
+            child.reorder( self )
+
+    def set_order( self, children ):
+
+        all_objs = self.get_files()
+        
+        for child in enumerate( children ):
+            assert( child[1] in all_objs )
+            all_objs.remove( child[1] )
+            
+            child[1].reorder( self, child[0] )
+
+        offset = len( children )
+
+        for child in enumerate( all_objs ):
+            child[1].reorder( self, offset + child[0] )
 
 class Tag( Group ):
 
@@ -154,11 +210,11 @@ class Tag( Group ):
 
         Group.__init__( self, db, obj )
 
-class Album( Group ):
+class Album( OrderedGroup ):
 
     def __init__( self, db, obj ):
 
-        Group.__init__( self, db, obj )
+        OrderedGroup.__init__( self, db, obj )
 
 class File( Obj ):
 

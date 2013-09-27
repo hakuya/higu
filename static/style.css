@@ -41,6 +41,12 @@ html body {
     overflow: hidden;
 }
 
+.thumbslist-hover {
+    background-color:#dddddd;
+    width: 130px;
+    height: 130px;
+}
+
 .thumbslist li {
     float: left;
     width: 130px;
