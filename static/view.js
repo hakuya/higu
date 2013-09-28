@@ -86,10 +86,11 @@ $( '#tagsearch' ).submit( function() {
     $( document ).focus();
 });
 
-/*
+
 $( 'a[href="#newsel"]' ).click( function() {
-    new SelectionTab();
-});*/
+    provider = new SelectionProvider();
+    new DisplayTab( 'Selection', provider );
+});
 
 /**
  * class tabs
@@ -134,7 +135,7 @@ tabs = new function()
     this.get_nav_elem = function( tab )
     {
         var idx = $( '#tabs > div' ).index( tab );
-        return this.elem.find( '.ui-tabs-nav > li' ).eq( idx );
+        return this.elem.find( '.ui-tabs-nav li' ).eq( idx );
     }
 
     /**
@@ -207,6 +208,53 @@ taglist_tab = new function()
 
     // Constructor
     this.on_tags_changed();
+};
+
+/**
+ * class SelectionProvider
+ */
+SelectionProvider = function()
+{
+    this.selection = new SelectionDisplay();
+
+    // Member functions
+    this.init = function( obj, callback )
+    {
+        eval( 'obj.' + callback + '( this.selection )' );
+    };
+
+    this.close = function()
+    {
+    };
+
+    this.repr = function()
+    {
+        return 'Single';
+    };
+
+    this.fetch = function( idx )
+    {
+        if( idx == 0 ) {
+            return this.selection;
+        } else {
+            return null;
+        }
+    };
+
+    this.offset = function( off )
+    {
+        return this.fetch( off );
+    };
+
+    this.next = function()
+    {
+        return null;
+    };
+
+    this.prev = function()
+    {
+        return null;
+    };
 };
 
 /**
@@ -364,7 +412,6 @@ DisplayTab = function( title, provider )
     this.display = null;
 
     TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
-    GROUPLINK_TEMPLATE = '<li><a class="albumlink" href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a></li>'
     
     // Member functions
     this.close = function()
@@ -377,6 +424,13 @@ DisplayTab = function( title, provider )
     {
         if( this.display ) {
             this.display.tag( tags );
+        }
+    }
+
+    this.drop = function( obj_id, repr )
+    {
+        if( this.display ) {
+            this.display.drop( obj_id, repr );
         }
     }
 
@@ -409,13 +463,19 @@ DisplayTab = function( title, provider )
     };
 
     // Constructor
-/*
-    tabs.get_nav_elem( this.elem ).droppable({
-        accept: '.thumbslist > li',
+
+    nav = tabs.get_nav_elem( this.elem );
+    nav.data( 'tab', this );
+    nav.droppable({
+        accept: '.objitem',
+        hoverClass: 'ui-state-hover',
         drop: function( event, ui ) {
-            alert( 'dropped' );
+            tab = $( this ).data( 'tab' );
+            item = $( ui.draggable );
+
+            tab.drop( item.data( 'obj_id' ), item.data( 'repr' ) );
         },
-    });*/
+    });
 
     this.provider.init( this, 'on_init_complete' );
 };

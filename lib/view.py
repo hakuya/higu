@@ -43,9 +43,14 @@ class JsonWebView:
         new = [t[1:] for t in tags if t[0] == '!']
         sub = [t[1:] for t in tags if t[0] == '-']
 
+        if( data.has_key( 'targets' ) ):
+            targets = data['targets']
+        else:
+            targets = [ data['target'] ]
+
         request = {
             'action'    : 'tag',
-            'targets'   : [ data['target'] ],
+            'targets'   : targets,
             'add_tags'  : add,
             'sub_tags'  : sub,
             'new_tags'  : new,
