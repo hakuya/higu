@@ -147,7 +147,7 @@ class JsonInterface:
                     info['type'] = 'unknown'
             if( 'repr' in items ):
                 info['repr'] = target.get_repr()
-            if( 'path' in items ):
+            if( isinstance( target, higu.File ) and 'path' in items ):
                 info['path'] = target.get_path()
             if( 'tags' in items ):
                 tags = target.get_tags()

@@ -7,7 +7,8 @@ var tag_dialog;
 var error_dialog;
 
 // Classes
-var SearchTab;
+var SearchProvider;
+var DisplayTab;
 
 $( function() {
 
@@ -20,7 +21,7 @@ $(document).keypress( function( e ) {
 
     tab = tabs.active();
 
-    if( tab.data( 'selection_id' ) ) {
+    if( tab.data( 'obj' ) ) {
         switch( e.charCode ) {
             case 116: // t
                 tag_dialog.open();
@@ -50,10 +51,10 @@ $(document).keypress( function( e ) {
                 resize_image( tab, -1 );
                 break;
             case 106: // j
-                step_display( tab, 1 );
+                tab.data( 'obj' ).down();
                 break;
             case 107: // k
-                step_display( tab, -1 );
+                tab.data( 'obj' ).up();
                 break;
             default:
         }
@@ -61,27 +62,28 @@ $(document).keypress( function( e ) {
 });
 
 $( 'a[href="#allimg"]' ).click( function() {
-    var request = {
-        'action' : 'search',
-        'mode' : 'all',
-    };
-    new SearchTab( 'All', request );
+    provider = new SearchProvider( 'all' );
+    new DisplayTab( 'All', provider );
 });
 
 $( 'a[href="#untagged"]' ).click( function() {
-    var request = {
-        'action' : 'search',
-        'mode' : 'untagged',
-    };
-    new SearchTab( 'Untagged', request );
+    provider = new SearchProvider( 'untagged' );
+    new DisplayTab( 'Untagged', provider );
 });
 
 $( 'a[href="#albums"]' ).click( function() {
-    var request = {
-        'action' : 'search',
-        'mode' : 'albums',
-    };
-    new SearchTab( 'Albums', request );
+    provider = new SearchProvider( 'albums' );
+    new DisplayTab( 'Albums', provider );
+});
+
+$( '#tagsearch' ).submit( function() {
+    tags = $( this ).children( 'input' ).val();
+
+    provider = new SearchProvider( tags );
+    new DisplayTab( tags, provider );
+
+    $( this ).children( 'input' ).val( '' );
+    $( document ).focus();
 });
 
 /*
@@ -174,57 +176,249 @@ tabs = new function()
 };
 
 /**
- * class SearchTab
+ * singleton taglist_tab
  */
-SearchTab = function( title, request )
+taglist_tab = new function()
 {
-    this.elem = tabs.create( title );
+    this.elem = $( '#taglist-tab' );
     this.elem.data( 'obj', this );
-    
-    load3( request, this.elem );
 
-    this.close = function()
+    TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
+
+    // Member functions
+    this.on_tags_loaded = function( response )
     {
-        selection_id = this.elem.data( 'selection_id' );
-        if( selection_id ) {
-            var request = {
-                'action' : 'selection_close',
-                'selection' : selection_id,
-            }
-            load3( request, null );
+        this.elem.html( '' );
+        this.elem.append( "<ul class='taglist'></ul>" );
+        var ls = this.elem.children().first();
+
+        for( i = 0; i < response.tags.length; i++ ) {
+            var li = TAGLINK_TEMPLATE.replace( /#\{tag\}/g, response.tags[i]);
+            ls.append( li );
         }
-        tabs.remove( this.elem );
-    }
+
+        activate_links( ls );
+    };
+
+    this.on_tags_changed = function()
+    {
+        load4( { 'action' : 'taglist' }, this, 'on_tags_loaded' );
+    };
+
+    // Constructor
+    this.on_tags_changed();
 };
 
 /**
- * class SelectionTab
+ * class SingleProvider
  */
-SelectionTab = function()
+SingleProvider = function( obj_id )
 {
-    this.elem = tabs.create( 'Selection' );
+    this.obj_id = obj_id;
+
+    // Member functions
+    this.init = function( obj, callback )
+    {
+        eval( 'obj.' + callback + '( this.obj_id )' );
+    };
+
+    this.close = function()
+    {
+    };
+
+    this.repr = function()
+    {
+        return 'Single';
+    };
+
+    this.fetch = function( idx )
+    {
+        if( idx == 0 ) {
+            return make_display( this.obj_id );
+        } else {
+            return null;
+        }
+    };
+
+    this.offset = function( off )
+    {
+        return this.fetch( off );
+    };
+
+    this.next = function()
+    {
+        return null;
+    };
+
+    this.prev = function()
+    {
+        return null;
+    };
+};
+
+/**
+ * class SearchProvider
+ */
+SearchProvider = function( query )
+{
+    this.query = query;
+    this.sid = null;
+    this.last = null;
+
+    // Member functions
+    this.init = function( obj, callback )
+    {
+        var request;
+
+        if( this.sid ) {
+            return this.fetch( idx );
+        }
+
+        if( this.query == 'all'
+         || this.query == 'untagged'
+         || this.query == 'albums' )
+        {
+            request = {
+                'action' : 'search',
+                'mode' : this.query,
+            };
+        } else {
+            var request = {
+                'action' : 'search',
+                'tags' : this.query,
+            }
+        }
+
+        load_async( request, this, 'on_init_load', {
+            obj: obj,
+            callback: callback,
+        });
+    };
+
+    this.on_init_load = function( data, response )
+    {
+        this.sid = response.selection;
+        this.last = response.index;
+
+        display = make_display( response.object_id );
+        eval( 'data.obj.' + data.callback + '( display )' );
+    }
+
+    this.close = function()
+    {
+        var request = {
+            'action' : 'selection_close',
+            'selection' : this.sid,
+        }
+        load_sync( request );
+    }
+
+    this.repr = function()
+    {
+        return query;
+    }
+
+    this.fetch = function( idx )
+    {
+        var request = {
+            action:     'selection_fetch',
+            selection:  this.sid,
+            index:      idx,
+        };
+        response = load_sync( request );
+
+        this.last = response.index;
+        display = make_display( response.object_id );
+        return display;
+    };
+
+    this.offset = function( off )
+    {
+        return this.fetch( this.last + off );
+    };
+
+    this.next = function()
+    {
+        return this.offset( 1 );
+    };
+
+    this.prev = function()
+    {
+        return this.offset( -1 );
+    };
+
+    this.slice = function( begin, end )
+    {
+    };
+};
+
+/**
+ * class DisplayTab
+ */
+DisplayTab = function( title, provider )
+{
+    this.elem = tabs.create( title );
     this.elem.data( 'obj', this );
 
-    this.elem.html( "<li class='thumbslist sortable'></li>" );
+    this.provider = provider;
+    this.display = null;
+
+    TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
+    GROUPLINK_TEMPLATE = '<li><a class="albumlink" href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a></li>'
+    
+    // Member functions
+    this.close = function()
+    {
+        this.provider.close();
+        tabs.remove( this.elem );
+    };
+
+    this.tag = function( tags )
+    {
+        if( this.display ) {
+            this.display.tag( tags );
+        }
+    }
+
+    this.down = function()
+    {
+        display = this.provider.next();
+        if( display ) {
+            this.display = display;
+            this.display.attach( this.elem );
+        }
+    }
+
+    this.up = function()
+    {
+        display = this.provider.prev();
+        if( display ) {
+            this.display = display;
+            this.display.attach( this.elem );
+        }
+    }
+
+    this.on_init_complete = function( display )
+    {
+        this.elem.html( '' );
+        this.elem.append( "<div class='info'></div>" );
+        this.elem.append( "<div class='disp'></div>" );
+
+        this.display = display;
+        this.display.attach( this.elem );
+    };
+
+    // Constructor
+/*
     tabs.get_nav_elem( this.elem ).droppable({
         accept: '.thumbslist > li',
         drop: function( event, ui ) {
             alert( 'dropped' );
         },
-    });
+    });*/
+
+    this.provider.init( this, 'on_init_complete' );
 };
-
-$( '#tagsearch' ).submit( function() {
-    tags = $( this ).children( 'input' ).val();
-
-    var request = {
-        'action' : 'search',
-        'tags' : tags,
-    }
-    new SearchTab( 'Search', request );
-    $( this ).children( 'input' ).val( '' );
-    $( document ).focus();
-});
 
 /**
  * class error_dialog
@@ -286,7 +480,7 @@ tag_dialog = new function()
     });
 
     $( '#tag-dialog-form' ).submit( function() {
-        $( this ).data( 'obj' ).close( true );
+        $( '#tag-dialog' ).data( 'obj' ).close( true );
     });
     // End Constructor
 
@@ -301,14 +495,8 @@ tag_dialog = new function()
     {
         var tab = tabs.active();
 
-        if( tab.data( 'selection_id' ) ) {
-            var obj = tab.data( 'object_id' );
-            var request = {
-                'action' : 'tag',
-                'target' : obj,
-                'tags' : tags,
-            };
-            load3( request, tab.find( '.info' ) );
+        if( tab.data( 'obj' ) ) {
+            tab.data( 'obj' ).tag( tags );
         }
     }
 
@@ -377,7 +565,6 @@ $( window ).resize( function() {
 
 var request;
 
-load3( { 'action' : 'taglist' }, $( '#taglist-tab' ) );
 load3( { 'action' : 'admin' }, $( '#admin-tab' ) );
 
 $( window ).resize();
@@ -401,11 +588,8 @@ function activate_links( par )
         $( this ).click( function() {
             tag = $( this ).attr( 'href' ).substring( 1 );
 
-            var request = {
-                'action' : 'search',
-                'tags' : tag,
-            }
-            new SearchTab( tag, request );
+            provider = new SearchProvider( tag );
+            new DisplayTab( tag, provider );
         });
     });
 
