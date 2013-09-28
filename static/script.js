@@ -221,6 +221,20 @@ $( '#tagsearch' ).submit( function() {
     $( document ).focus();
 });
 
+$( '#trash' ).droppable({
+    accept: '.objitem',
+    hoverClass: 'ui-state-hover',
+    drop: function( event, ui ) {
+        tab = tabs.active();
+        item = $( ui.draggable );
+        
+        tab = tab.data( 'obj' );
+        if( tab && tab.rm ) {
+            tab.rm( item.data( 'obj_id' ), item.data( 'repr' ),
+                    item.data( 'type' ) );
+        }
+    },
+});
 
 $( 'a[href="#newsel"]' ).click( function() {
     provider = new SelectionProvider();

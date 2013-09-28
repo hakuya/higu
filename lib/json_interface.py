@@ -317,6 +317,38 @@ class JsonInterface:
             'result' : 'ok',
         }
 
+    def cmd_group_append( self, data ):
+
+        group = self.db.get_object_by_id( data['group'] )
+        assert( isinstance( group, higu.Album ) )
+
+        targets = map( self.db.get_object_by_id, data['targets'] )
+        for target in targets:
+            assert( isinstance( target, higu.File ) )
+            target.assign( group )
+
+        self.db.commit()
+
+        return {
+            'result' : 'ok',
+        }
+
+    def cmd_group_remove( self, data ):
+
+        group = self.db.get_object_by_id( data['group'] )
+        assert( isinstance( group, higu.Album ) )
+
+        targets = map( self.db.get_object_by_id, data['targets'] )
+        for target in targets:
+            assert( isinstance( target, higu.File ) )
+            target.unassign( group )
+
+        self.db.commit()
+
+        return {
+            'result' : 'ok',
+        }
+
     def cmd_set_duplication( self, data ):
 
         original = self.db.get_object_by_id( data['original'] )
