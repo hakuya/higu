@@ -62,24 +62,24 @@ $(document).keypress( function( e ) {
 });
 
 $( 'a[href="#allimg"]' ).click( function() {
-    provider = new SearchProvider( 'all' );
+    provider = new SearchProvider( { mode: 'all' } );
     new DisplayTab( 'All', provider );
 });
 
 $( 'a[href="#untagged"]' ).click( function() {
-    provider = new SearchProvider( 'untagged' );
+    provider = new SearchProvider( { mode: 'untagged' } );
     new DisplayTab( 'Untagged', provider );
 });
 
 $( 'a[href="#albums"]' ).click( function() {
-    provider = new SearchProvider( 'albums' );
+    provider = new SearchProvider( { mode: 'albums' } );
     new DisplayTab( 'Albums', provider );
 });
 
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
 
-    provider = new SearchProvider( tags );
+    provider = new SearchProvider( { tags: tags } );
     new DisplayTab( tags, provider );
 
     $( this ).children( 'input' ).val( '' );
@@ -219,7 +219,8 @@ SingleProvider = function( obj_id )
     // Member functions
     this.init = function( obj, callback )
     {
-        eval( 'obj.' + callback + '( this.obj_id )' );
+        display = make_display( this.obj_id );
+        eval( 'obj.' + callback + '( display )' );
     };
 
     this.close = function()
@@ -268,25 +269,24 @@ SearchProvider = function( query )
     // Member functions
     this.init = function( obj, callback )
     {
-        var request;
-
         if( this.sid ) {
             return this.fetch( idx );
         }
 
-        if( this.query == 'all'
-         || this.query == 'untagged'
-         || this.query == 'albums' )
-        {
-            request = {
-                'action' : 'search',
-                'mode' : this.query,
-            };
-        } else {
-            var request = {
-                'action' : 'search',
-                'tags' : this.query,
+        var request = { action: 'search' };
+
+        if( query.mode ) {
+            if( query.mode == 'album' ) {
+                request.album = query.album;
             }
+
+            request.mode = query.mode;
+        } else {
+            request.tags = query.tags;
+        }
+
+        if( query.index ) {
+            request.index = query.index;
         }
 
         load_async( request, this, 'on_init_load', {
@@ -588,7 +588,7 @@ function activate_links( par )
         $( this ).click( function() {
             tag = $( this ).attr( 'href' ).substring( 1 );
 
-            provider = new SearchProvider( tag );
+            provider = new SearchProvider( { tags: tag } );
             new DisplayTab( tag, provider );
         });
     });
@@ -596,13 +596,13 @@ function activate_links( par )
     par.find( '.albumlink' ).each( function( idx ) {
         $( this ).click( function() {
             var target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
-            var request = {
-                'action' : 'search',
-                'mode' : 'album',
-                'album' : parseInt( target[0] ),
-                'index' : parseInt( target[1] ),
-            };
-            new SearchTab( 'Album', request );
+
+            provider = new SearchProvider( {
+                mode:   'album',
+                album:  parseInt( target[0] ),
+                index:  parseInt( target[1] ),
+            });
+            new DisplayTab( 'Album', provider );
         });
     });
 
