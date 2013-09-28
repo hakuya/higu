@@ -8,6 +8,24 @@ import threading
 VERSION = 0
 REVISION = 0
 
+def get_type_str( obj ):
+
+    type = obj.get_type()
+    if( type == higu.TYPE_FILE
+     or type == higu.TYPE_FILE_DUP
+     or type == higu.TYPE_FILE_VAR ):
+        return 'file'
+    elif( type == higu.TYPE_ALBUM ):
+        return 'album'
+    elif( type == higu.TYPE_CLASSIFIER ):
+        return 'tag'
+    else:
+        return 'unknown'
+
+def make_obj_tuple( obj ):
+
+    return [ obj.get_id(), obj.get_repr(), get_type_str( obj ) ]
+
 class Selection:
 
     def __init__( self, results ):
@@ -134,17 +152,7 @@ class JsonInterface:
             info = {}
 
             if( 'type' in items ):
-                type = target.get_type()
-                if( type == higu.TYPE_FILE
-                 or type == higu.TYPE_FILE_DUP
-                 or type == higu.TYPE_FILE_VAR ):
-                    info['type'] = 'file'
-                elif( type == higu.TYPE_ALBUM ):
-                    info['type'] = 'album'
-                elif( type == higu.TYPE_CLASSIFIER ):
-                    info['type'] = 'tag'
-                else:
-                    info['type'] = 'unknown'
+                info['type'] = get_type_str( target )
             if( 'repr' in items ):
                 info['repr'] = target.get_repr()
             if( isinstance( target, higu.File ) and 'path' in items ):
@@ -167,24 +175,16 @@ class JsonInterface:
                     info['similar_to'] = [ similar.get_id(), similar.get_repr() ]
             if( isinstance( target, higu.File ) and 'duplicates' in items ):
                 duplicates = target.get_duplicates()
-                info['duplicates'] = map(
-                        lambda x: [ x.get_id(), x.get_repr() ],
-                        duplicates )
+                info['duplicates'] = map( make_obj_tuple, duplicates )
             if( isinstance( target, higu.File ) and 'variants' in items ):
                 variants = target.get_variants()
-                info['variants'] = map(
-                        lambda x: [ x.get_id(), x.get_repr() ],
-                        variants )
+                info['variants'] = map( make_obj_tuple, variants )
             if( isinstance( target, higu.File ) and 'albums' in items ):
                 albums = target.get_albums()
-                info['albums'] = map(
-                        lambda x: [ x.get_id(), x.get_repr() ],
-                        albums )
+                info['albums'] = map( make_obj_tuple, albums )
             if( isinstance( target, higu.Album ) and 'files' in items ):
                 files = target.get_files()
-                info['files'] = map(
-                        lambda x: [ x.get_id(), x.get_repr() ],
-                        files )
+                info['files'] = map( make_obj_tuple, files )
 
             return info
 
@@ -313,6 +313,40 @@ class JsonInterface:
         sel_id = data['selection']
         self.cache.close( sel_id )
         
+        return {
+            'result' : 'ok',
+        }
+
+    def cmd_set_duplication( self, data ):
+
+        original = self.db.get_object_by_id( data['original'] )
+        
+        if( data.has_key( 'duplicates' ) ):
+            dups = map( self.db.get_object_by_id, data['duplicates'] )
+            for dup in dups:
+                dup.set_duplicate_of( original )
+
+        if( data.has_key( 'variants' ) ):
+            vars = map( self.db.get_object_by_id, data['variants'] )
+            for var in vars:
+                var.set_variant_of( original )
+
+        self.db.commit()
+
+        return {
+            'result' : 'ok',
+        }
+
+    def cmd_clear_duplication( self, data ):
+
+        targets = data['targets']
+        targets = map( self.db.get_object_by_id, targets )
+
+        for target in targets:
+            target.clear_duplication()
+
+        self.db.commit()
+
         return {
             'result' : 'ok',
         }

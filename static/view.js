@@ -4,6 +4,7 @@ window_height = -1;
 // Singletons
 var tabs;
 var tag_dialog;
+var dup_dialog;
 var error_dialog;
 
 // Classes
@@ -139,6 +140,19 @@ tabs = new function()
     }
 
     /**
+     * on_event()
+     */
+    this.on_event = function( e )
+    {
+        $( '#tabs > div' ).each( function( idx ) {
+            obj = $( this ).data( 'obj' );
+            if( obj && obj.on_event ) {
+                obj.on_event( e );
+            }
+        });
+    }
+
+    /**
      * select( tab ) - selects the given tab
      */
     this.select = function( tab )
@@ -200,6 +214,10 @@ taglist_tab = new function()
 
         activate_links( ls );
     };
+
+    this.on_event = function( e )
+    {
+    }
 
     this.on_tags_changed = function()
     {
@@ -410,6 +428,7 @@ DisplayTab = function( title, provider )
 
     this.provider = provider;
     this.display = null;
+    this.title = title;
 
     TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
     
@@ -427,10 +446,17 @@ DisplayTab = function( title, provider )
         }
     }
 
-    this.drop = function( obj_id, repr )
+    this.set_duplication = function( original, variant, is_duplicate )
     {
         if( this.display ) {
-            this.display.drop( obj_id, repr );
+            this.display.set_duplication( original, variant, is_duplicate );
+        }
+    }
+
+    this.drop = function( obj_id, repr, type )
+    {
+        if( this.display ) {
+            this.display.drop( obj_id, repr, type );
         }
     }
 
@@ -462,6 +488,13 @@ DisplayTab = function( title, provider )
         this.display.attach( this.elem );
     };
 
+    this.on_event = function( e )
+    {
+        if( this.display ) {
+            this.display.on_event( e );
+        }
+    }
+
     // Constructor
 
     nav = tabs.get_nav_elem( this.elem );
@@ -473,7 +506,9 @@ DisplayTab = function( title, provider )
             tab = $( this ).data( 'tab' );
             item = $( ui.draggable );
 
-            tab.drop( item.data( 'obj_id' ), item.data( 'repr' ) );
+            tab.drop( item.data( 'obj_id' ), item.data( 'repr' ),
+                    item.data( 'type' ) );
+            $( ui.helper ).hide( 'slow' );
         },
     });
 
@@ -568,6 +603,75 @@ tag_dialog = new function()
         $( document ).focus();
         this.elem.dialog( 'close' );
     }
+};
+
+/**
+ * class dup_dialog
+ */
+dup_dialog = new function()
+{
+    this.elem = $( '#dup-dialog' );
+    this.elem.data( 'obj', this );
+
+    this.dropped = null;
+    this.received = null;
+
+    // Begin Constructor
+    this.elem.dialog({
+        autoOpen: false,
+        width: 600,
+        height: 300,
+        modal: true,
+        buttons: {
+            'Apply': function() {
+                $( this ).data( 'obj' ).close( true );
+            },
+            Cancel: function() {
+                $( this ).data( 'obj' ).close( false );
+            }
+        },
+    });
+
+    $( '#dup-dialog-form' ).submit( function() {
+        $( 'dup-dialog' ).data( 'obj' ).close( true );
+    });
+    // End Constructor
+
+    this.open = function( dropped, received )
+    {
+        this.dropped = dropped;
+        this.received = received;
+        this.elem.dialog( 'open' );
+    };
+
+    this.submit = function( result )
+    {
+        var tab = tabs.active();
+
+        if( tab.data( 'obj' ) ) {
+            tab = tab.data( 'obj' );
+
+            if( result == 'orig_dup' ) {
+                tab.set_duplication( this.dropped, this.received, true );
+            } else if( result == 'orig_var' ) {
+                tab.set_duplication( this.dropped, this.received, false );
+            } else if( result == 'duplicate' ) {
+                tab.set_duplication( this.received, this.dropped, true );
+            } else if( result == 'variant' ) {
+                tab.set_duplication( this.received, this.dropped, false );
+            }
+        }
+    };
+
+    this.close = function( submit )
+    {
+        if( submit ) {
+            var result = this.elem.find( 'input:radio:checked' ).val();
+            this.submit( result );
+        }
+        $( document ).focus();
+        this.elem.dialog( 'close' );
+    };
 };
 
 /**

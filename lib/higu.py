@@ -266,6 +266,11 @@ class File( Obj ):
         self.obj.type = TYPE_FILE_VAR
         self.obj.similar_to = parent.obj
 
+    def clear_duplication( self ):
+
+        self.obj.type = TYPE_FILE
+        self.obj.similar_to = None
+
     def get_repr( self ):
 
         name = self.get_name()
