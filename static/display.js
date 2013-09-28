@@ -97,11 +97,13 @@ var common_on_event = function( e )
     }
     
     if( e.type == 'info_changed' ) {
-        this.refresh_info();
+        this.refresh_info( false );
+    } else if( e.type == 'files_changed' ) {
+        this.refresh_info( true );
     }
 };
 
-var common_refresh_info = function()
+var common_refresh_info = function( reload_all )
 {
     var request = {
         action:     'info',
@@ -114,7 +116,11 @@ var common_refresh_info = function()
     response = load_sync( request );
     this.info = response.info[0];
 
-    this.on_display_info();
+    if( reload_all ) {
+        this.on_display();
+    } else {
+        this.on_display_info();
+    }
 };
 
 var common_tag = function( tags )
@@ -178,6 +184,11 @@ FileDisplay = function( obj_id, info )
 
         //alert( 'dropped ' + type + ' ' + repr + ' on file ' + this.info.repr );
         dup_dialog.open( obj_id, this.obj_id );
+    }
+
+    this.rm = function( obj_id, repr, type )
+    {
+        alert( 'delete ' + repr );
     }
 
     this.clear_duplication = function()
@@ -261,8 +272,9 @@ FileDisplay = function( obj_id, info )
                 clone.data( 'repr', orig.data( 'repr' ) );
                 return clone;
             },*/
+            appendTo:   $( '#page' ),
             helper:     'clone',
-            cursor:     'move',
+            //cursor:     'move',
             opacity:    0.3,
             distance:   30,
             start: function( event, ui ) { 
@@ -313,7 +325,42 @@ GroupDisplay = function( obj_id, info )
 
     this.drop = function( obj_id, repr, type )
     {
-        alert( 'dropped ' + type + ' ' + repr + ' on album ' + this.info.repr );
+        if( this.find_item( obj_id ) != -1 ) {
+            alert( repr + ' already in album' );
+        } else if( type != 'file' ) {
+            alert( 'Only files may be added to albums' );
+        }
+
+        var request = {
+            action:     'group_append',
+            group:      this.obj_id,
+            targets:    [ obj_id ],
+        };
+
+        load_sync( request );
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+        tabs.on_event( { type: 'info_changed', affected:
+                [ obj_id ] } );
+    }
+
+    this.rm = function( obj_id, repr, type )
+    {
+        if( this.find_item( obj_id ) == -1 ) {
+            alert( repr + ' not in album' );
+        }
+
+        var request = {
+            action:     'group_remove',
+            group:      this.obj_id,
+            targets:    [ obj_id ],
+        };
+
+        load_sync( request );
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+        tabs.on_event( { type: 'info_changed', affected:
+                [ obj_id ] } );
     }
 
     this.on_display_info = function()
@@ -328,6 +375,9 @@ GroupDisplay = function( obj_id, info )
     this.on_display_disp = function()
     {
         var div = this.pane.find( '.disp' );
+        // Workaround for jQuery exection when removing draggable during
+        // drag event
+        div.find( '.objitem' ).remove();
         div.html( '' );
 
         var request = {
@@ -336,19 +386,17 @@ GroupDisplay = function( obj_id, info )
             items:      [ 'files' ],
         }
 
-        info_response = load_sync( request );
-        files = info_response.info[0].files;
-
         div.append( '<ul class="thumbslist sortable"></ul>' );
         var ls = div.children().first();
-        for( i = 0; i < files.length; i++ ) {
+        for( i = 0; i < this.info.files.length; i++ ) {
             var img = $( GROUPLINK_TEMPLATE
                     .replace( /#\{grp\}/g, this.obj_id )
                     .replace( /#\{idx\}/g, i )
-                    .replace( /#\{obj\}/g, files[i][0] ) );
+                    .replace( /#\{obj\}/g, this.info.files[i][0] ) );
             img.draggable( {
+                appendTo:   $( '#page' ),
                 helper:     'clone',
-                cursor:     'move',
+                //cursor:     'move',
                 opacity:    0.3,
                 distance:   30,
                 start: function( event, ui ) { 
@@ -358,9 +406,9 @@ GroupDisplay = function( obj_id, info )
                     }); 
                 },
             });
-            img.data( 'obj_id', files[i][0] );
-            img.data( 'repr', files[i][1] );
-            img.data( 'type', files[i][2] );
+            img.data( 'obj_id', this.info.files[i][0] );
+            img.data( 'repr', this.info.files[i][1] );
+            img.data( 'type', this.info.files[i][2] );
 
             var li = $( '<li></li>' );
             li.append( img );
@@ -374,6 +422,16 @@ GroupDisplay = function( obj_id, info )
         this.on_display_info( response );
         this.on_display_disp( response );
     }
+
+    this.find_item = function( obj_id )
+    {
+        for( i = 0; i < this.info.files.length; i++ ) {
+            if( this.info.files[i][0] == obj_id ) {
+                return i;
+            }
+        }
+        return -1;
+    };
 };
 
 /**
@@ -409,18 +467,29 @@ SelectionDisplay = function()
             'tags' : tags,
         };
         load_sync( request );
-    }
+    };
 
     this.drop = function( obj_id, repr, type )
     {
-        alert( 'dropped ' + type + ' ' + repr + ' on selection' );
-        this.objs.push( [ obj_id, repr ] );
+        if( this.find_item( obj_id ) != -1 ) return;
+
+        this.objs.push( [ obj_id, repr, type ] );
         this.on_display();
-    }
+        alert( 'dropped ' + type + ' ' + repr + ' on selection' );
+    };
+
+    this.rm = function( obj_id, repr, type )
+    {
+        index = this.find_item( obj_id );
+        if( index == -1 ) return;
+
+        this.objs.splice( index, 1 );
+        this.on_display();
+    };
 
     this.on_event = function( e )
     {
-    }
+    };
 
     this.on_display_info = function()
     {
@@ -433,6 +502,9 @@ SelectionDisplay = function()
     this.on_display_disp = function()
     {
         var div = this.pane.find( '.disp' );
+        // Workaround for jQuery exection when removing draggable during
+        // drag event
+        div.find( '.objitem' ).remove();
         div.html( '' );
 
         div.append( '<ul class="thumbslist sortable"></ul>' );
@@ -453,8 +525,9 @@ SelectionDisplay = function()
             });
 
             img.draggable( {
+                appendTo:   $( '#page' ),
                 helper:     'clone',
-                cursor:     'move',
+                //cursor:     'move',
                 opacity:    0.3,
                 distance:   30,
                 start: function( event, ui ) { 
@@ -475,5 +548,15 @@ SelectionDisplay = function()
     {
         this.on_display_info( response );
         this.on_display_disp( response );
-    }
+    };
+
+    this.find_item = function( obj_id )
+    {
+        for( i = 0; i < this.objs.length; i++ ) {
+            if( this.objs[i][0] == obj_id ) {
+                return i;
+            }
+        }
+        return -1;
+    };
 };

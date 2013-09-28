@@ -377,6 +377,13 @@ DisplayTab = function( title, provider )
         }
     }
 
+    this.rm = function( obj_id, repr, type )
+    {
+        if( this.display ) {
+            this.display.rm( obj_id, repr, type );
+        }
+    }
+
     this.down = function()
     {
         display = this.provider.next();
@@ -422,10 +429,10 @@ DisplayTab = function( title, provider )
         drop: function( event, ui ) {
             tab = $( this ).data( 'tab' );
             item = $( ui.draggable );
+            item.draggable( 'option', 'revert', false );
 
             tab.drop( item.data( 'obj_id' ), item.data( 'repr' ),
                     item.data( 'type' ) );
-            $( ui.helper ).hide( 'slow' );
         },
     });
 

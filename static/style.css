@@ -2,8 +2,18 @@ html body {
     height: 100%;
 }
 
-#sidebar{
-    float:left;
+#header{
+    float: left;
+}
+
+#trash{
+    float: right;
+    text-align:center;
+    border-width:2px;
+    border-color:#000000;
+    background-color:#dddddd;
+    width: 4em;
+    height: 2em;
 }
 
 .tab{
