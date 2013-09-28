@@ -22,10 +22,11 @@ html body {
     overflow:auto;
 }
 
-.img{
+/*
+.disp{
     height: 100%;
     float: left;
-}
+}*/
 
 .taglist {
     overflow: hidden;

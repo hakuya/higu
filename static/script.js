@@ -1,18 +1,3 @@
-
-function step_display( tab, offset ) {
-    if( offset == 0 ) return;
-
-    selection_id = tab.data( 'selection_id' );
-    display_idx = tab.data( 'display_idx' );
-
-    var request = {
-        'action' : 'selection_fetch',
-        'selection' : selection_id,
-        'index' : display_idx + offset,
-    };
-    load3( request, tab );
-}
-
 function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
         load( '/callback?id=' + selected + '&action=rm' );
@@ -61,6 +46,65 @@ function load3( request, target )
             error_dialog.open( xhr.responseText );
         }
     } );
+}
+
+function load4( request, obj, callback )
+{
+    $.ajax( {
+        url:            '/callback_new',
+        type:           'POST',
+        contentType:    'application/json',
+        data:           JSON.stringify( request ),
+        processData:    false,
+        dataType:       'json',
+        success:        function( response ) {
+            eval( 'obj.' + callback + '( response )' );
+        },
+        error:          function( xhr ) {
+            error_dialog.open( xhr.responseText );
+        }
+    } );
+}
+
+function load_async( request, obj, callback, data )
+{
+    $.ajax( {
+        url:            '/callback_new',
+        type:           'POST',
+        contentType:    'application/json',
+        data:           JSON.stringify( request ),
+        processData:    false,
+        dataType:       'json',
+        success:        function( response ) {
+            eval( 'obj.' + callback + '( data, response )' );
+        },
+        error:          function( xhr ) {
+            error_dialog.open( xhr.responseText );
+        }
+    } );
+}
+
+function load_sync( request )
+{
+    result = null;
+    
+    $.ajax( {
+        url:            '/callback_new',
+        type:           'POST',
+        contentType:    'application/json',
+        data:           JSON.stringify( request ),
+        processData:    false,
+        async:          false,
+        dataType:       'json',
+        success:        function( response ) {
+            result = response;
+        },
+        error:          function( xhr ) {
+            error_dialog.open( xhr.responseText );
+        }
+    } );
+
+    return result;
 }
 
 // vim:sts=4:sw=4:et

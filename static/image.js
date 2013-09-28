@@ -21,10 +21,11 @@ function resize_image( tab, zoom )
             break;
         case -1:
         case -2:
-            img_div = tab.find( '.img' )
+            tab_div = tab.find( '.tab' );
+            info_div = tab.find( '.info' );
 
-            container_width = img_div.width();
-            container_height = img_div.height();
+            container_width = tab.width() - info_div.width();
+            container_height = tab.height();
 
             img_width = tab.data( 'im-width' );
             img_height = tab.data( 'im-height' );

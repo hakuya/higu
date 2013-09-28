@@ -31,164 +31,9 @@ class JsonWebView:
 
         return html.format()
 
-    def view_taglist( self ):
-
-        request = {
-            'action'    : 'taglist',
-        }
-        result = self.json.execute( request )
-
-        html = HtmlGenerator()
-        html.list( """<a class='taglink' href='#%s'>%s</a></li>""",
-                result['tags'], lambda t: ( t, t, ),
-                cls = 'taglist' )
-
-        return html.format()
-
-    def view_object( self, target ):
-
-        request = {
-            'action'    : 'info',
-            'targets'   : [ target ],
-            'items'     : [ 'type' ],
-        }
-        result = self.json.execute( request )
-
-        if( result['result'] != 'ok' ):
-            return { 'result' : result['result'] }
-
-        info = result['info'][0]
-
-        html = HtmlGenerator()
-
-        html.begin_div( cls = 'info' )
-        html.text( self.view_info( target ) )
-        html.end_div()
-
-        if( info['type'] == 'file' ):
-            html.begin_div( cls = 'img' )
-            html.text( self.view_image( target ) )
-            html.end_div()
-        elif( info['type'] == 'album' ):
-            html.begin_div( cls = 'thumbs' )
-            html.text( self.view_album( target ) )
-            html.end_div()
-
-        return html.format()
-
-    def view_image( self, target ):
-
-        request = {
-            'action'    : 'info',
-            'targets'   : [ target ],
-            'items'     : [ 'path' ],
-        }
-        result = self.json.execute( request )
-
-        if( result['result'] != 'ok' ):
-            return { 'result' : result['result'] }
-
-        info = result['info'][0]
-        if( info.has_key( 'path' ) ):
-            return '<img src="/img?id=%d" class="picture" onload="register_image( this )" onclick="nextfile( 1 )"/><br/>' % ( target, )
-        else:
-            return 'Image not available<br/>'
-
-    def view_album( self, target ):
-
-        request = {
-            'action'    : 'info',
-            'targets'   : [ target ],
-            'items'     : [ 'files' ],
-        }
-        result = self.json.execute( request )
-
-        info = result['info'][0]
-        files = info['files']
-
-        html = HtmlGenerator()
-        html.list( '<a class="albumlink" href="#%d-%d"><img src="/img?id=%d&exp=7"/></a>',
-                enumerate( files ), lambda x: ( target, x[0], x[1][0] ), cls = 'thumbslist sortable' )
-        return html.format()
-
-    def link_load( self, text, target, **args ):
-
-        extra = ''
-        for arg in args:
-            extra += '&%s=%s' % ( arg, args[arg], )
-        return """<a href="javascript:load( '/callback?id=%d%s' )">%s</a>""" % (
-                target, extra, text )
-
-    def view_info( self, target ):
-
-        request = {
-            'action'    : 'info',
-            'targets'   : [ target ],
-            'items'     : [ 'type', 'repr', 'tags', 'names', 'duplication',
-                'similar_to', 'duplicates', 'variants', 'albums', 'files' ]
-        }
-        result = self.json.execute( request )
-
-        if( result['result'] != 'ok' ):
-            return { 'result' : result['result'] }
-
-        info = result['info'][0]
-        html = HtmlGenerator()
-
-        html.text( info['repr'] + '<br/>' )
-
-#        if( isinstance( obj, higu.Album ) ):
-#
-#            html.header( 'Files' )
-#            fs = obj.get_files()
-#            html.list( '<a href="javascript:selectfromalbum( %d, %d )">%s</a>', fs,
-#                    lambda x: ( obj.get_id(), x.get_id(), x.get_repr(), ) )
-
-        html.header( 'Tags' )
-        html.list( """%s""", info['tags'] )
-
-        html.header( 'Names' )
-        html.list( '%s', info['names'] )
-
-        if( info['type'] == 'file' ):
-
-            if( info.has_key( 'similar_to' ) ):
-                link = self.link_load( info['similar_to'][1], info['similar_to'][0], loadimg = '1' )
-
-                if( info['duplication'] == 'duplicate' ):
-                    html.text( 'Duplicate of: ' + link + '<br/>' )
-                else:
-                    html.text( 'Variant of: ' + link + '<br/>' )
-
-            variants = info['variants']
-            if( len( variants ) > 0 ):
-                links = map( lambda x: self.link_load( x[1], x[0], loadimg = '1' ), variants )
-                links = ', '.join( links )
-
-                html.text( 'Varients: ' + links + '<br/>' )
-
-            duplicates = info['duplicates']
-            if( len( duplicates ) > 0 ):
-                links = map( lambda x: self.link_load( x[1], x[0], loadimg = '1' ), duplicates )
-                links = ', '.join( links )
-
-                html.text( 'Duplicates: ' + links + '<br/>' )
-
-            albums = info['albums']
-            if( len( albums ) >= 1 ):
-
-                html.header( 'Albums:' )
-                html.list( '%s', map( lambda x: x[1], albums ) )
-
-        return html.format()
-
     def cmd_info( self, data ):
 
-        return {
-            'result'    : 'ok',
-            'action'    : 'show-html',
-            'data'      : self.view_info( data['target'] )
-        }
+        return self.json.execute( data )
 
     def cmd_tag( self, data ):
 
@@ -207,7 +52,7 @@ class JsonWebView:
         }
         result = self.json.execute( request )
 
-        return self.cmd_info( data )
+        return result
 
     def cmd_admin( self, data ):
 
@@ -219,11 +64,7 @@ class JsonWebView:
 
     def cmd_taglist( self, data ):
 
-        return {
-            'result'    : 'ok',
-            'action'    : 'show-html',
-            'data'      : self.view_taglist()
-        }
+        return self.json.execute( data )
 
     def cmd_search( self, data ):
 
@@ -277,11 +118,11 @@ class JsonWebView:
             'selection' : result['selection'],
             'index'     : result['index'],
             'object_id' : result['first'],
-            'data'      : self.view_object( result['first'] )
         }
 
     def cmd_selection_fetch( self, data ):
 
+        print data
         request = {
             'action'    : 'selection_fetch',
             'selection' : data['selection'],
@@ -296,7 +137,6 @@ class JsonWebView:
             'selection' : data['selection'],
             'index'     : data['index'],
             'object_id' : result['object_id'],
-            'data'      : self.view_object( result['object_id'] )
         }
 
     def cmd_selection_close( self, data ):
