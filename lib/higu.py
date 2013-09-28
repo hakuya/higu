@@ -440,12 +440,7 @@ class Database:
 
         obj = self.session.query( model.Object ).filter( model.Object.id == id ).first()
 
-        if( obj.type == TYPE_FILE ):
-            return File( self, obj )
-        elif( obj.type == TYPE_ALBUM ):
-            return Album( self, obj )
-        else:
-            return None
+        return model_obj_to_higu_obj( self, obj )
 
     def all_albums( self ):
 
