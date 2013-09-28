@@ -90,6 +90,17 @@ var common_info_display = function( div )
     }
 };
 
+var common_on_event = function( e )
+{
+    if( e.affected.indexOf( this.obj_id ) == -1 ) {
+        return;
+    }
+    
+    if( e.type == 'info_changed' ) {
+        this.refresh_info();
+    }
+};
+
 var common_refresh_info = function()
 {
     var request = {
@@ -114,7 +125,23 @@ var common_tag = function( tags )
         'tags' : tags,
     };
     load_sync( request );
-    this.refresh_info();
+    tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
+}
+
+var common_set_duplication = function( original, variant, is_duplicate )
+{
+    var request = {
+        action:     'set_duplication',
+        original:   original,
+    };
+
+    if( is_duplicate ) {
+        request.duplicates = [ variant ];
+    } else {
+        request.variants = [ variant ];
+    }
+    load_sync( request );
+    tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
 }
 
 /**
@@ -128,8 +155,10 @@ FileDisplay = function( obj_id, info )
     this.pane = null;
 
     this.common_info_display = common_info_display;
+    this.on_event = common_on_event;
     this.refresh_info = common_refresh_info;
     this.tag = common_tag;
+    this.set_duplication = common_set_duplication;
 
     this.attach = function( pane )
     {
@@ -137,9 +166,32 @@ FileDisplay = function( obj_id, info )
         this.on_display();
     }
 
-    this.drop = function( obj_id, repr )
+    this.drop = function( obj_id, repr, type )
     {
-        alert( 'dropped ' + repr + ' on file ' + this.info.repr );
+        if( obj_id == this.obj_id ) {
+            alert( 'Cannot drop file on itself' );
+            return;
+        } else if( type != 'file' ) {
+            alert( 'Only a file may be dropped on a file' );
+            return;
+        }
+
+        //alert( 'dropped ' + type + ' ' + repr + ' on file ' + this.info.repr );
+        dup_dialog.open( obj_id, this.obj_id );
+    }
+
+    this.clear_duplication = function()
+    {
+        var request = {
+            action:     'clear_duplication',
+            targets:    [ this.obj_id ],
+        };
+
+        dup_id = this.info.similar_to[0];
+
+        load_sync( request );
+        tabs.on_event( { type: 'info_changed', affected:
+                [ this.obj_id, dup_id ] } );
     }
 
     this.on_display_info = function()
@@ -157,6 +209,16 @@ FileDisplay = function( obj_id, info )
             }
 
             div.append( make_link2( this.info.similar_to ) );
+            clr_link = $( '<a href="#">Clear</a>' );
+            clr_link.data( 'obj', this );
+            clr_link.click( function( e ) {
+                obj = $( this ).data( 'obj' );
+                obj.clear_duplication();
+            });
+
+            div.append( ' (' );
+            div.append( clr_link );
+            div.append( ')' );
             div.append( '<br/>' );
         }
 
@@ -212,6 +274,7 @@ FileDisplay = function( obj_id, info )
         });
         img.data( 'obj_id', this.obj_id );
         img.data( 'repr', this.info.repr );
+        img.data( 'type', this.info.type );
 
         div.append( img );
         div.append( '<br/>' );
@@ -237,8 +300,10 @@ GroupDisplay = function( obj_id, info )
     this.pane = null;
 
     this.common_info_display = common_info_display;
+    this.on_event = common_on_event;
     this.refresh_info = common_refresh_info;
     this.tag = common_tag;
+    this.set_duplication = common_set_duplication;
 
     this.attach = function( pane )
     {
@@ -246,9 +311,9 @@ GroupDisplay = function( obj_id, info )
         this.on_display();
     }
 
-    this.drop = function( obj_id, repr )
+    this.drop = function( obj_id, repr, type )
     {
-        alert( 'dropped ' + repr + ' on album ' + this.info.repr );
+        alert( 'dropped ' + type + ' ' + repr + ' on album ' + this.info.repr );
     }
 
     this.on_display_info = function()
@@ -295,6 +360,7 @@ GroupDisplay = function( obj_id, info )
             });
             img.data( 'obj_id', files[i][0] );
             img.data( 'repr', files[i][1] );
+            img.data( 'type', files[i][2] );
 
             var li = $( '<li></li>' );
             li.append( img );
@@ -321,6 +387,8 @@ SelectionDisplay = function()
 
     this.pane = null;
 
+    this.set_duplication = common_set_duplication;
+
     this.attach = function( pane )
     {
         this.pane = pane;
@@ -343,11 +411,15 @@ SelectionDisplay = function()
         load_sync( request );
     }
 
-    this.drop = function( obj_id, repr )
+    this.drop = function( obj_id, repr, type )
     {
-        alert( 'dropped ' + repr + ' on selection' );
+        alert( 'dropped ' + type + ' ' + repr + ' on selection' );
         this.objs.push( [ obj_id, repr ] );
         this.on_display();
+    }
+
+    this.on_event = function( e )
+    {
     }
 
     this.on_display_info = function()
