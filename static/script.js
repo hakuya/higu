@@ -107,4 +107,149 @@ function load_sync( request )
     return result;
 }
 
+function load_html( elem, content )
+{
+    elem.html( content );
+    activate_links( elem );
+}
+
+function activate_links( par )
+{
+    par.find( '.taglink' ).each( function( idx ) {
+        $( this ).click( function() {
+            tag = $( this ).attr( 'href' ).substring( 1 );
+
+            provider = new SearchProvider( { tags: tag } );
+            new DisplayTab( tag, provider );
+        });
+    });
+
+    par.find( '.albumlink' ).each( function( idx ) {
+        $( this ).click( function() {
+            var target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
+
+            provider = new SearchProvider( {
+                mode:   'album',
+                album:  parseInt( target[0] ),
+                index:  parseInt( target[1] ),
+            });
+            new DisplayTab( 'Album', provider );
+        });
+    });
+
+    par.find( '.sortable li' ).each( function( idx ) {
+        $( this ).draggable( {
+            helper : 'clone',
+        } );
+        $( this ).disableSelection();
+    });
+}
+
+$( function() {
+
+$(document).keypress( function( e ) {
+    if( $( '.ui-dialog' ).is( ':visible' ) || $( '.nokb' ).is( ':focus' ) ) {
+        return;
+    }
+
+    e = window.event || e;
+
+    tab = tabs.active();
+
+    if( tab.data( 'obj' ) ) {
+        switch( e.charCode ) {
+            case 116: // t
+                tag_dialog.open();
+                break;
+            case 114: // r
+                /*
+                if( selection.length == 1 ) {
+                    load( '/dialog?kind=rename' );
+                }*/
+                break;
+            case 65: // A
+                select_all();
+                break;
+            case 97: // a
+                resize_image( tab, 0.5 );
+                break;
+            case 115: // s
+                resize_image( tab, 2.0 );
+                break;
+            case 122: // z
+                resize_image( tab, 0 );
+                break;
+            case 120: // x
+                resize_image( tab, -2 );
+                break;
+            case 99:  // c
+                resize_image( tab, -1 );
+                break;
+            case 106: // j
+                tab.data( 'obj' ).down();
+                break;
+            case 107: // k
+                tab.data( 'obj' ).up();
+                break;
+            default:
+        }
+    }
+});
+
+$( 'a[href="#allimg"]' ).click( function() {
+    provider = new SearchProvider( { mode: 'all' } );
+    new DisplayTab( 'All', provider );
+});
+
+$( 'a[href="#untagged"]' ).click( function() {
+    provider = new SearchProvider( { mode: 'untagged' } );
+    new DisplayTab( 'Untagged', provider );
+});
+
+$( 'a[href="#albums"]' ).click( function() {
+    provider = new SearchProvider( { mode: 'albums' } );
+    new DisplayTab( 'Albums', provider );
+});
+
+$( '#tagsearch' ).submit( function() {
+    tags = $( this ).children( 'input' ).val();
+
+    provider = new SearchProvider( { tags: tags } );
+    new DisplayTab( tags, provider );
+
+    $( this ).children( 'input' ).val( '' );
+    $( document ).focus();
+});
+
+
+$( 'a[href="#newsel"]' ).click( function() {
+    provider = new SelectionProvider();
+    new DisplayTab( 'Selection', provider );
+});
+
+
+$( window ).resize( function() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+
+    if( width == window_width && height == window_height ) return;
+
+    window_width = width;
+    window_height = height;
+
+    head_h = $( '#header' ).height();
+    main_h = height - head_h;
+
+    $( '#main' ).height( main_h - 50 );
+    $( '#tabs' ).tabs( 'refresh' );
+} );
+
+init_view();
+init_dialog();
+
+load3( { 'action' : 'admin' }, $( '#admin-tab' ) );
+
+$( window ).resize();
+});
+
 // vim:sts=4:sw=4:et
