@@ -439,11 +439,13 @@ class Database:
 
         album = model.Object( TYPE_ALBUM )
         self.session.add( album )
-        return Album( self, album )
+        return model_obj_to_higu_obj( self, album )
 
     def get_object_by_id( self, id ):
 
         obj = self.session.query( model.Object ).filter( model.Object.id == id ).first()
+        if( obj is None ):
+            return None
 
         return model_obj_to_higu_obj( self, obj )
 
@@ -632,16 +634,25 @@ class Database:
         else:
             p = None
 
+        id = obj.get_id()
+
+        # Clear out similar to
+        objs = [ o for o in obj.obj.similars ]
+        for o in objs:
+            if( o.type == TYPE_FILE_DUP or o.type == TYPE_FILE_VAR ):
+                o.type = TYPE_FILE
+            o.similar_to = None
+
         self.session.query( model.Metadata ) \
-                .filter( model.Metadata.id == obj.id ).delete()
+                .filter( model.Metadata.id == id ).delete()
         self.session.query( model.Relation ) \
-                .filter( model.Relation.parent == obj.id ).delete()
+                .filter( model.Relation.parent == id ).delete()
         self.session.query( model.Relation ) \
-                .filter( model.Relation.child == obj.id ).delete()
+                .filter( model.Relation.child == id ).delete()
         self.session.query( model.FileChecksum ) \
-                .filter( model.FileChecksum.id == obj.id ).delete()
+                .filter( model.FileChecksum.id == id ).delete()
         self.session.query( model.Object ) \
-                .filter( model.Object.id == obj.id ).delete()
+                .filter( model.Object.id == id ).delete()
 
         if( p != None ):
             os.remove( p )

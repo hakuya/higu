@@ -13,11 +13,40 @@ var make_display = function( obj_id )
 
     if( info.type == 'file' ) {
         disp = new FileDisplay( obj_id, info );
-    } else {
+    } else if( info.type == 'album' ) {
         disp = new GroupDisplay( obj_id, info );
+    } else {
+        disp = new DummyDisplay();
     }
 
     return disp;
+}
+
+function make_draggable( elem, obj_id, repr, type )
+{
+    elem.draggable( {
+        /*helper:     function() {
+            orig = $( this );
+            clone = orig.clone();
+            clone.data( 'obj_id', orig.data( 'obj_id' ) );
+            clone.data( 'repr', orig.data( 'repr' ) );
+            return clone;
+        },*/
+        appendTo:   $( '#page' ),
+        helper:     'clone',
+        //cursor:     'move',
+        opacity:    0.3,
+        distance:   30,
+        start: function( event, ui ) { 
+            $( this ).draggable("option", "cursorAt", {
+                left:   Math.floor( ui.helper.width() / 2 ),
+                top:    Math.floor( ui.helper.height() / 2 )
+            }); 
+        },
+    });
+    elem.data( 'obj_id', obj_id );
+    elem.data( 'repr', repr );
+    elem.data( 'type', type );
 }
 
 function make_link( repr, target )
@@ -59,7 +88,11 @@ function make_link_list( list )
 
 var common_info_display = function( div )
 {
-    div.append( make_link( this.info.repr, this.obj_id ) );
+    var label = $( '<div class="objlabel objitem"></div>' );
+    label.append( make_link( this.info.repr, this.obj_id ) );
+    make_draggable( label, this.obj_id, this.info.repr, this.info.type );
+
+    div.append( label );
     div.append( '<br/>' );
 
     /* Display album info?
@@ -93,14 +126,18 @@ var common_info_display = function( div )
 var common_on_event = function( e )
 {
     if( e.affected.indexOf( this.obj_id ) == -1 ) {
-        return;
+        return null;
     }
     
     if( e.type == 'info_changed' ) {
         this.refresh_info( false );
     } else if( e.type == 'files_changed' ) {
         this.refresh_info( true );
+    } else if( e.type == 'removed' ) {
+        return new DummyDisplay();
     }
+
+    return null;
 };
 
 var common_refresh_info = function( reload_all )
@@ -149,6 +186,63 @@ var common_set_duplication = function( original, variant, is_duplicate )
     load_sync( request );
     tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
 }
+
+/**
+ * class DummyDisplay
+ */
+DummyDisplay = function()
+{
+    this.pane = null;
+
+    this.refresh_info = common_refresh_info;
+    this.set_duplication = common_set_duplication;
+
+    this.attach = function( pane )
+    {
+        this.pane = pane;
+        this.on_display();
+    }
+
+    this.tag = function( tags )
+    {
+    };
+
+    this.drop = function( obj_id, repr, type )
+    {
+    }
+
+    this.rm = function( obj_id, repr, type )
+    {
+    }
+
+    this.clear_duplication = function()
+    {
+    }
+
+    this.on_event = function( e )
+    {
+        return null;
+    };
+
+    this.on_display_info = function()
+    {
+        var div = this.pane.find( '.info' );
+        div.html( 'Invalid object' );
+    };
+
+    this.on_display_disp = function()
+    {
+        var div = this.pane.find( '.disp' );
+        div.html( '<p>This is a placeholder for an object that does not'
+            + ' exist or has been removed.</p>' )
+    }
+
+    this.on_display = function()
+    {
+        this.on_display_info();
+        this.on_display_disp();
+    }
+};
 
 /**
  * class FileDisplay
@@ -263,30 +357,7 @@ FileDisplay = function( obj_id, info )
 
         img = $( '<img class="objitem" src="/img?id=' + this.obj_id
                 + '" class="picture" onload="register_image( this )" onclick="nextfile( 1 )"/>' );
-        img.draggable( {
-/*
-            helper:     function() {
-                orig = $( this );
-                clone = orig.clone();
-                clone.data( 'obj_id', orig.data( 'obj_id' ) );
-                clone.data( 'repr', orig.data( 'repr' ) );
-                return clone;
-            },*/
-            appendTo:   $( '#page' ),
-            helper:     'clone',
-            //cursor:     'move',
-            opacity:    0.3,
-            distance:   30,
-            start: function( event, ui ) { 
-                $( this ).draggable("option", "cursorAt", {
-                    left:   Math.floor( ui.helper.width() / 2 ),
-                    top:    Math.floor( ui.helper.height() / 2 )
-                }); 
-            },
-        });
-        img.data( 'obj_id', this.obj_id );
-        img.data( 'repr', this.info.repr );
-        img.data( 'type', this.info.type );
+        make_draggable( img, this.obj_id, this.info.repr, this.info.type );
 
         div.append( img );
         div.append( '<br/>' );
@@ -344,10 +415,28 @@ GroupDisplay = function( obj_id, info )
                 [ obj_id ] } );
     }
 
+    this.rm_group = function()
+    {
+        var request = {
+            action:     'group_delete',
+            group:      this.obj_id,
+        };
+
+        load_sync( request );
+        tabs.on_event( { type: 'info_changed', affected:
+                this.obj_id_list() } );
+        tabs.on_event( { type: 'removed', affected:
+                [ this.obj_id ] } );
+    }
+
     this.rm = function( obj_id, repr, type )
     {
-        if( this.find_item( obj_id ) == -1 ) {
+        if( obj_id == this.obj_id ) {
+            this.rm_group();
+            return;
+        } else if( this.find_item( obj_id ) == -1 ) {
             alert( repr + ' not in album' );
+            return;
         }
 
         var request = {
@@ -393,22 +482,8 @@ GroupDisplay = function( obj_id, info )
                     .replace( /#\{grp\}/g, this.obj_id )
                     .replace( /#\{idx\}/g, i )
                     .replace( /#\{obj\}/g, this.info.files[i][0] ) );
-            img.draggable( {
-                appendTo:   $( '#page' ),
-                helper:     'clone',
-                //cursor:     'move',
-                opacity:    0.3,
-                distance:   30,
-                start: function( event, ui ) { 
-                    $( this ).draggable("option", "cursorAt", {
-                        left:   Math.floor( ui.helper.width() / 2 ),
-                        top:    Math.floor( ui.helper.height() / 2 )
-                    }); 
-                },
-            });
-            img.data( 'obj_id', this.info.files[i][0] );
-            img.data( 'repr', this.info.files[i][1] );
-            img.data( 'type', this.info.files[i][2] );
+            make_draggable( img, this.info.files[i][0],
+                    this.info.files[i][1], this.info.files[i][2] );
 
             var li = $( '<li></li>' );
             li.append( img );
@@ -431,6 +506,17 @@ GroupDisplay = function( obj_id, info )
             }
         }
         return -1;
+    };
+
+    this.obj_id_list = function()
+    {
+        var obj_ids = [];
+
+        for( i = 0; i < this.info.files.length; i++ ) {
+            obj_ids.push( this.info.files[i][0] );
+        }
+
+        return obj_ids;
     };
 };
 
@@ -455,18 +541,14 @@ SelectionDisplay = function()
 
     this.tag = function( tags )
     {
-        var targets = [];
-
-        for( i = 0; i < this.objs.length; i++ ) {
-            targets.push( this.objs[i][0] );
-        }
-    
+        var targets = this.obj_id_list();
         var request = {
             'action' : 'tag',
             'targets' : targets,
             'tags' : tags,
         };
         load_sync( request );
+        tabs.on_event( { type: 'info_changed', affected: targets } );
     };
 
     this.drop = function( obj_id, repr, type )
@@ -487,6 +569,25 @@ SelectionDisplay = function()
         this.on_display();
     };
 
+    this.make_group = function()
+    {
+        if( this.objs.length == 0 ) {
+            alert( 'No objects selected' );
+            return;
+        }
+
+        var targets = this.obj_id_list();
+        var request = {
+            action:     'group_create',
+            targets:    targets,
+        };
+
+        response = load_sync( request );
+        provider = new SingleProvider( response.group );
+        new DisplayTab( 'New Album', provider ); 
+        tabs.on_event( { type: 'info_changed', affected: targets } );
+    };
+
     this.on_event = function( e )
     {
     };
@@ -497,6 +598,22 @@ SelectionDisplay = function()
         div.html( '' );
 
         div.append( 'Selection' );
+
+        div.append( '<h1>Options</h1>' );
+
+        var ul = $( document.createElement( 'ul' ) ); div.append( ul );
+        var li;
+
+        li = $( document.createElement( 'li' ) ); ul.append( li );
+
+        var mkgp = $( '<a href="#">Make Album</a>' );
+        mkgp.data( 'obj', this );
+        mkgp.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.make_group();
+        });
+
+        li.append( mkgp );
     };
 
     this.on_display_disp = function()
@@ -513,29 +630,17 @@ SelectionDisplay = function()
             var img = $( GROUPLINK_TEMPLATE
                     .replace( /#\{obj\}/g, this.objs[i][0] )
                     .replace( /#\{repr\}/g, this.objs[i][1] ) );
-            img.data( 'obj_id', this.objs[i][0] );
-            img.data( 'repr', this.objs[i][1] );
 
+            make_draggable( img, this.objs[i][0],
+                    this.objs[i][1], this.objs[i][2] );
+
+            // obj_id and repr copied to obj by make_draggable
             img.click( function( e ) {
                 obj_id = $( this ).data( 'obj_id' );
                 repr = $( this ).data( 'repr' );
 
                 provider = new SingleProvider( obj_id );
                 new DisplayTab( repr, provider );
-            });
-
-            img.draggable( {
-                appendTo:   $( '#page' ),
-                helper:     'clone',
-                //cursor:     'move',
-                opacity:    0.3,
-                distance:   30,
-                start: function( event, ui ) { 
-                    $( this ).draggable("option", "cursorAt", {
-                        left:   Math.floor( ui.helper.width() / 2 ),
-                        top:    Math.floor( ui.helper.height() / 2 )
-                    }); 
-                },
             });
 
             var li = $( '<li></li>' );
@@ -558,5 +663,16 @@ SelectionDisplay = function()
             }
         }
         return -1;
+    };
+
+    this.obj_id_list = function()
+    {
+        var obj_ids = [];
+
+        for( i = 0; i < this.objs.length; i++ ) {
+            obj_ids.push( this.objs[i][0] );
+        }
+
+        return obj_ids;
     };
 };
