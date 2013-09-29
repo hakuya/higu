@@ -166,6 +166,14 @@ class JsonWebView:
 
         return self.json.execute( data )
 
+    def cmd_group_create( self, data ):
+
+        return self.json.execute( data )
+
+    def cmd_group_delete( self, data ):
+
+        return self.json.execute( data )
+
     def cmd_group_append( self, data ):
 
         return self.json.execute( data )

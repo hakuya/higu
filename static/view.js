@@ -30,10 +30,10 @@ tabs = new function()
         var tab_elem = $( "#" + panelId );
         var tab = tab_elem.data( 'obj' );
         
-        if( !tab || !tab.close ) {
+        if( !tab || !tab.on_close ) {
             tabs.remove( tab_elem );
         } else {
-            tab.close();
+            tab.on_close();
         }
     });
     // End constructor
@@ -352,6 +352,13 @@ DisplayTab = function( title, provider )
     // Member functions
     this.close = function()
     {
+        // XXX - this should be handled in tabs
+        tabs.get_nav_elem( this.elem ).remove();
+        tab.on_close();
+    };
+
+    this.on_close = function()
+    {
         this.provider.close();
         tabs.remove( this.elem );
     };
@@ -415,7 +422,11 @@ DisplayTab = function( title, provider )
     this.on_event = function( e )
     {
         if( this.display ) {
-            this.display.on_event( e );
+            display = this.display.on_event( e );
+            if( display ) {
+                this.display = display;
+                this.display.attach( this.elem );
+            }
         }
     }
 

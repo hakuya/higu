@@ -149,6 +149,9 @@ class JsonInterface:
 
         def fetch_info( target ):
 
+            if( target is None ):
+                return { 'type' : 'invalid' }
+
             info = {}
 
             if( 'type' in items ):
@@ -313,6 +316,37 @@ class JsonInterface:
         sel_id = data['selection']
         self.cache.close( sel_id )
         
+        return {
+            'result' : 'ok',
+        }
+
+    def cmd_group_create( self, data ):
+
+        targets = map( self.db.get_object_by_id, data['targets'] )
+        for target in targets:
+            assert( isinstance( target, higu.File ) )
+
+        group = self.db.create_album()
+        assert( isinstance( group, higu.Album ) )
+
+        for target in targets:
+            target.assign( group )
+
+        self.db.commit()
+
+        return {
+            'result' :  'ok',
+            'group' :   group.get_id(),
+        }
+
+    def cmd_group_delete( self, data ):
+
+        group = self.db.get_object_by_id( data['group'] )
+        assert( isinstance( group, higu.Album ) )
+
+        self.db.delete_object( group )
+        self.db.commit()
+
         return {
             'result' : 'ok',
         }

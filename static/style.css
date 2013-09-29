@@ -16,6 +16,16 @@ html body {
     height: 2em;
 }
 
+.objlabel{
+    display: table-cell;
+    background-color:#dddddd;
+    text-align: center;
+    vertical-align: middle;
+    font-weight: bold;
+    width: 18em;
+    height: 2em;
+}
+
 .tab{
     overflow: auto;
     height: 100%;
