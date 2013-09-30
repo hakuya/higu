@@ -122,9 +122,11 @@ class JsonInterface:
 
     def execute( self, data ):
 
-        #try:
-        fn = getattr( self, 'cmd_' + data['action'] )
-        return fn( data )
+        try:
+            fn = getattr( self, 'cmd_' + data['action'] )
+            return fn( data )
+        finally:
+            self.db.rollback()
         #except:
         #    return {
         #        'result' : 'error',
@@ -272,6 +274,11 @@ class JsonInterface:
             else:
                 strict = False
 
+            if( data.has_key( 'randomize' ) and not data['randomize'] ):
+                randomize = False
+            else:
+                randomize = True
+
             req = data['req'] if data.has_key( 'req' ) else []
             add = data['add'] if data.has_key( 'add' ) else []
             sub = data['sub'] if data.has_key( 'sub' ) else []
@@ -281,7 +288,7 @@ class JsonInterface:
             sub = map( self.db.get_tag, sub )
 
             rs = self.db.lookup_ids_by_tags( req, add, sub, strict,
-                    random_order = True )
+                    random_order = randomize )
 
         sel = Selection( rs )
         selid = self.cache.register( sel )
@@ -395,7 +402,7 @@ class JsonInterface:
         if( data.has_key( 'variants' ) ):
             vars = map( self.db.get_object_by_id, data['variants'] )
             for var in vars:
-                var.set_variant_of( original )
+                var.set_varient_of( original )
 
         self.db.commit()
 

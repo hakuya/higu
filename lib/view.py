@@ -87,10 +87,20 @@ class JsonWebView:
 
         elif( data.has_key( 'tags' ) ):
             tags = data['tags']
-            
-            if( tags[0] == '$' ):
-                request['strict'] = True
-                tags = tags[1:]
+
+            while( len( tags ) > 0 and tags[0] == '$' ):
+                try:
+                    sep = tags.index( ' ' )
+                    cmd = tags[1:sep]
+                    tags = tags[sep+1:]
+                except IndexError:
+                    cmd = tags[1:]
+                    tags = ''
+
+                if( cmd == 'strict' ):
+                    request['strict'] = True
+                elif( cmd == 'norand' ):
+                    request['randomize'] = False
 
             ls = tags.split( ' ' )
             req = []
@@ -100,10 +110,6 @@ class JsonWebView:
             for tag in ls:
                 if( len( tag ) == 0 ):
                     continue
-                elif( tag == '~a' ):
-                    pass
-                elif( tag == '~f' ):
-                    pass
                 elif( tag[0] == '?' ):
                     add.append( tag[1:] )
                 elif( tag[0] == '!' ):

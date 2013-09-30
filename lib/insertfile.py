@@ -33,10 +33,12 @@ if( __name__ == '__main__' ):
         print 'Usage: insertfile.py [-d database] [-r] [-a album] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
 
     if( argv[0] == '-d' ):
-        h = higu.Database( argv[1] )
+        higu.init( argv[1] )
         argv = argv[2:]
     else:
-        h = higu.init_default()
+        higu.init_default()
+
+    h = higu.Database()
 
     album = None
     add_name = True
@@ -73,7 +75,7 @@ if( __name__ == '__main__' ):
             argv = argv[2:]
             continue
         elif( argv[0] == '-t' ):
-            taglist = argv[1].split( ',' )
+            taglist = map( h.get_tag, argv[1].split( ',' ) )
             argv = argv[2:]
             continue
         elif( argv[0] == '-n' ):
@@ -117,6 +119,7 @@ if( __name__ == '__main__' ):
         else:
             create_album( album, taglist, files, order )
 
+    print 'Committing changes'
     h.commit()
 
 # vim:sts=4:et:sw=4
