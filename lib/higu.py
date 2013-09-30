@@ -1,6 +1,7 @@
 import model
 import os
 import shutil
+import sys
 
 import db as dblib
 
@@ -78,8 +79,9 @@ class Obj:
         rel = self.db.session.query( model.Relation ) \
                 .filter( model.Relation.parent == group.obj.id ) \
                 .filter( model.Relation.child == self.obj.id ).first()
-        assert rel is not None
-        self.db.session.delete( rel )
+
+        if( rel is not None ):
+            self.db.session.delete( rel )
 
     def reorder( self, group, order = None ):
 
@@ -638,7 +640,7 @@ class Database:
 
     def register_file( self, path, add_name = True ):
 
-        name = os.path.split( path )[1]
+        name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
         details = calculate_details( path )
 
         try:
@@ -653,15 +655,13 @@ class Database:
             self.session.flush()
 
         id = f.get_id()
-        print 'pi'
-        print id
 
         if( add_name ):
             ename = f.get_name()
             if( ename is None ):
-                obj.name = name
+                f.set_name( name )
             elif( ename != name ):
-                f.add_name( name )
+                f.register_name( name )
 
         if( f.get_path() is None ):
             self.imgdb.load_data( path, id )

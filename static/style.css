@@ -76,6 +76,10 @@ html body {
     display: inline;
 }
 
+.thumbslist .hover {
+    background-color:#dddddd;
+}
+
 .thumbslist li img {
     vertical-align: middle;
 }

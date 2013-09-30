@@ -49,6 +49,26 @@ function make_draggable( elem, obj_id, repr, type )
     elem.data( 'type', type );
 }
 
+function make_sortable( disp, elem, index )
+{
+    elem.droppable({
+        accept: '.sortable',
+        hoverClass: 'hover',
+        drop: function( event, ui ) {
+            slot = $( this );
+            item = $( ui.draggable );
+
+            display = slot.data( 'display' );
+            index = slot.data( 'index' );
+            obj_id = item.data( 'obj_id' );
+
+            display.reorder( obj_id, index );
+        },
+    });
+    elem.data( 'display', disp );
+    elem.data( 'index', index );
+}
+
 function make_link( repr, target )
 {
     label = $( '<a href="#">' + repr + '</a>' );
@@ -327,19 +347,22 @@ FileDisplay = function( obj_id, info )
             div.append( '<br/>' );
         }
 
+        if( this.info.albums && this.info.albums.length > 0 ) {
+            div.append( 'Albums: ' );
+            div.append( make_link_list( this.info.albums ) );
+            div.append( '<br/>' );
+        }
+
         if( this.info.variants && this.info.variants.length > 0 ) {
             div.append( 'Variants: ' );
             div.append( make_link_list( this.info.variants ) );
+            div.append( '<br/>' );
         }
 
         if( this.info.duplicates && this.info.duplicates.length > 0 ) {
             div.append( 'Duplicates: ' );
             div.append( make_link_list( this.info.duplicates ) );
-        }
-
-        if( this.info.albums && this.info.albums.length > 0 ) {
-            div.append( 'Albums: ' );
-            div.append( make_link_list( this.info.albums ) );
+            div.append( '<br/>' );
         }
 
         activate_links( div );
@@ -375,7 +398,7 @@ FileDisplay = function( obj_id, info )
  */
 GroupDisplay = function( obj_id, info )
 {
-    GROUPLINK_TEMPLATE = '<a class="albumlink objitem" href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a>'
+    GROUPLINK_TEMPLATE = '<a class="albumlink objitem sortable" href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a>'
 
     this.obj_id = obj_id;
     this.info = info
@@ -452,12 +475,67 @@ GroupDisplay = function( obj_id, info )
                 [ obj_id ] } );
     }
 
+    this.gather_tags = function()
+    {
+        var request = {
+            action:     'group_gather_tags',
+            group:      this.obj_id,
+        };
+
+        load_sync( request );
+        affected = this.obj_id_list();
+        affected.push( this.obj_id );
+
+        tabs.on_event( { type: 'info_changed', affected: affected } );
+    }
+
+    this.reorder = function( obj_id, idx )
+    {
+        src_idx = this.find_item( obj_id )
+        if( src_idx == -1 ) {
+            alert( obj_id + ' not in album' );
+            return;
+        } else if( src_idx == idx ) {
+            // Do nothing
+            return;
+        }
+
+        obj = this.info.files[src_idx];
+
+        this.info.files.splice( src_idx, 1 );
+        if( idx < src_idx ) {
+            this.info.files.splice( idx, 0, obj );
+        } else {
+            this.info.files.splice( idx - 1, 0, obj );
+        }
+
+        obj_ids = this.obj_id_list();
+        var request = {
+            action:     'group_reorder',
+            group:      this.obj_id,
+            items:      obj_ids,
+        };
+        load_sync( request );
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+    }
+
     this.on_display_info = function()
     {
         var div = this.pane.find( '.info' );
         div.html( '' );
 
         this.common_info_display( div, this.info );
+
+        var gather = $( '<a href="#">Gather Tags</a>' );
+        gather.data( 'obj', this );
+        gather.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.gather_tags();
+        });
+
+        div.append( gather );
+
         activate_links( div );
     };
 
@@ -475,20 +553,28 @@ GroupDisplay = function( obj_id, info )
             items:      [ 'files' ],
         }
 
-        div.append( '<ul class="thumbslist sortable"></ul>' );
+        div.append( '<ul class="thumbslist"></ul>' );
         var ls = div.children().first();
+
+
         for( i = 0; i < this.info.files.length; i++ ) {
+            var li = $( '<li></li>' );
             var img = $( GROUPLINK_TEMPLATE
                     .replace( /#\{grp\}/g, this.obj_id )
                     .replace( /#\{idx\}/g, i )
                     .replace( /#\{obj\}/g, this.info.files[i][0] ) );
             make_draggable( img, this.info.files[i][0],
                     this.info.files[i][1], this.info.files[i][2] );
+            make_sortable( this, li, i );
 
-            var li = $( '<li></li>' );
             li.append( img );
             ls.append( li );
         }
+        var li = $( '<li></li>' );
+        make_sortable( this, li, i );
+
+        ls.append( li );
+
         activate_links( div );
     };
 
@@ -525,7 +611,7 @@ GroupDisplay = function( obj_id, info )
  */
 SelectionDisplay = function()
 {
-    GROUPLINK_TEMPLATE = '<a class="albumlink objitem" href="#"><img alt="#{repr}" src="/img?id=#{obj}&exp=7"/></a>'
+    GROUPLINK_TEMPLATE = '<a class="albumlink objitem sortable" href="#"><img alt="#{repr}" src="/img?id=#{obj}&exp=7"/></a>'
 
     this.objs = [];
 
@@ -588,6 +674,29 @@ SelectionDisplay = function()
         tabs.on_event( { type: 'info_changed', affected: targets } );
     };
 
+    this.reorder = function( obj_id, idx )
+    {
+        src_idx = this.find_item( obj_id )
+        if( src_idx == -1 ) {
+            alert( obj_id + ' not in selection' );
+            return;
+        } else if( src_idx == idx ) {
+            // Do nothing
+            return;
+        }
+
+        obj = this.objs[src_idx];
+
+        this.objs.splice( src_idx, 1 );
+        if( idx < src_idx ) {
+            this.objs.splice( idx, 0, obj );
+        } else {
+            this.objs.splice( idx - 1, 0, obj );
+        }
+
+        this.on_display();
+    }
+
     this.on_event = function( e )
     {
     };
@@ -624,7 +733,7 @@ SelectionDisplay = function()
         div.find( '.objitem' ).remove();
         div.html( '' );
 
-        div.append( '<ul class="thumbslist sortable"></ul>' );
+        div.append( '<ul class="thumbslist"></ul>' );
         var ls = div.children().first();
         for( i = 0; i < this.objs.length; i++ ) {
             var img = $( GROUPLINK_TEMPLATE
@@ -644,9 +753,13 @@ SelectionDisplay = function()
             });
 
             var li = $( '<li></li>' );
+            make_sortable( this, li, i );
             li.append( img );
             ls.append( li );
         }
+        var li = $( '<li></li>' );
+        make_sortable( this, li, i );
+        ls.append( li );
     };
 
     this.on_display = function( response )
