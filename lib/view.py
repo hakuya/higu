@@ -188,6 +188,13 @@ class JsonWebView:
 
         return self.json.execute( data )
 
+    def cmd_group_reorder( self, data ):
+
+        return self.json.execute( data )
+
+    def cmd_group_gather_tags( self, data ):
+
+        return self.json.execute( data )
 
 init = json_interface.init
 init_default = json_interface.init_default

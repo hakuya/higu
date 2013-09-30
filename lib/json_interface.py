@@ -222,7 +222,7 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
-    def cmd_deorder( self, data ):
+    def cmd_group_deorder( self, data ):
 
         group = self.db.get_object_by_id( data['group'] )
         assert( isinstance( group, higu.OrderedGroup ) )
@@ -231,7 +231,7 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
-    def cmd_reorder( self, data ):
+    def cmd_group_reorder( self, data ):
 
         group = data['group']
         items = data['items']
@@ -242,6 +242,8 @@ class JsonInterface:
         items = map( self.db.get_object_by_id, items )
 
         group.set_order( items )
+
+        self.db.commit()
 
         return { 'result' : 'ok' }
 
@@ -388,6 +390,28 @@ class JsonInterface:
 
         return {
             'result' : 'ok',
+        }
+
+    def cmd_group_gather_tags( self, data ):
+
+        group = self.db.get_object_by_id( data['group'] )
+        assert( isinstance( group, higu.Album ) )
+
+        files = group.get_files()
+        tags = []
+
+        for f in files:
+            tags.extend( f.get_tags() )
+
+        for t in tags:
+            group.assign( t )
+            for f in files:
+                f.unassign( t )
+
+        self.db.commit()
+
+        return {
+            'result' : 'ok'
         }
 
     def cmd_set_duplication( self, data ):
