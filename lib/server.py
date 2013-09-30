@@ -141,6 +141,8 @@ class Server:
             p = None
         else:
             p = f.get_path()
+            print 'xxx'
+            print p
 
         db.close()
 

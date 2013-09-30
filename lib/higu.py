@@ -293,10 +293,107 @@ class File( Obj ):
 
     def get_path( self ):
 
+        return self.db.imgdb.get_image( self.obj.id )
+
+    def get_thumb( self, exp ):
+
+        return self.db.imgdb.get_thumb( self.obj.id, exp )
+
+env_path = None
+
+class ModelObjToHiguObjIterator:
+
+    def __init__( self, db, iterable ):
+
+        self.db = db
+        self.it = iterable.__iter__()
+
+    def __iter__( self ):
+
+        return ModelObjToHiguObjIterator( self.db, self.it )
+
+    def next( self ):
+
+        return model_obj_to_higu_obj( self.db, self.it.next() )
+
+class ImageDatabase:
+
+    def __init__( self ):
+
+        self.data_path = os.path.join( env_path, HIGURASHI_DATA_PATH )
+        self.tmp_path = os.path.join( self.data_path, 'tmp' )
+        self.to_commit = []
+
+    def commit( self, commit_on_finish = None ):
+
+        completion = 0
+
         try:
-            d = self.db._get_path_for_id( self.obj.id )
+            for t in self.to_commit:
+                shutil.move( t[0], t[1] )
+                completion += 1
+
+            if( commit_on_finish is not None ):
+                commit_on_finish()
+
+            # Comitted
+            self.to_commit = []
+        except:
+            # Something went wrong, rollback
+            for t in self.to_commit[:completion]:
+                shutil.move( t[1], t[0] )
+
+            # Sometimes move() seems to leave files behind
+            for t in self.to_commit:
+                try:
+                    if( os.path.isfile( t[1] ) ):
+                        os.remove( t[1] )
+                except:
+                    pass
+
+            raise
+
+    def rollback( self ):
+
+        self.to_commit = []
+
+    def get_dir_for_id( self, id ):
+
+        lv2 = (id >> 12) % 0xfff
+        lv3 = (id >> 24) % 0xfff
+        lv4 = id >> 36
+
+        assert lv4 == 0
+
+        return os.path.join( self.data_path, '%03x' % ( lv3 ),
+                                             '%03x' % ( lv2 ) )
+
+    def get_fname_base( self, id ):
+
+        fname = '%016x' % ( id, )
+        return os.path.join( self.get_dir_for_id( id ), fname )
+
+    def load_data( self, path, id ):
+
+        tgt_path = self.get_dir_for_id( id )
+        if( not os.path.isdir( tgt_path ) ):
+            os.makedirs( tgt_path )
+
+        name = os.path.split( path )[-1]
+        try:
+            ext = name[name.rindex( '.' ):]
+        except ValueError:
+            ext = '.dat'
+
+        tgt = os.path.join( tgt_path, '%016x%s' % ( id, ext ) )
+        self.to_commit.append( ( path, tgt, ) )
+
+    def get_image( self, id ):
+
+        try:
+            d = self.get_dir_for_id( id )
             ls = os.listdir( d )
-            ids = '%016x.' % ( self.obj.id )
+            ids = '%016x.' % ( id )
         except OSError:
             return None
 
@@ -309,15 +406,15 @@ class File( Obj ):
 
         return None
 
-    def get_thumb( self, exp ):
+    def get_thumb( self, id, exp ):
 
         from PIL import Image
 
-        t = self.db._get_fname_base( self.obj.id ) + '_%02d.jpg' % ( exp, )
+        t = self.get_fname_base( id ) + '_%02d.jpg' % ( exp, )
         if( os.path.isfile( t ) ):
             return t
 
-        f = self.get_path()
+        f = self.get_image( id )
         if( f is None ):
             return None
 
@@ -339,11 +436,11 @@ class File( Obj ):
         r.save( t )
         return t
 
-    def make_thumb( self, exp ):
+    def make_thumb( self, id, exp ):
 
         from PIL import Image
 
-        i = Image.open( self.get_path() )
+        i = Image.open( self.get_image( id ) )
         s = 2**exp
         w, h = i.size
 
@@ -359,77 +456,34 @@ class File( Obj ):
 
         r = i.resize( ( tw, th, ), Image.ANTIALIAS )
         
-        t = self.db._get_fname_base( self.obj.id ) + '_%02d.jpg' % ( exp, )
+        t = self.get_fname_base( id ) + '_%02d.jpg' % ( exp, )
         if( os.path.isfile( t ) ):
             os.remove( t )
         r.save( t )
 
-    def purge_thumbs( self ):
+    def purge_thumbs( self, id ):
 
         from glob import glob
     
-        fs = glob( self.db._get_fname_base( self.obj.id ) + '_*.jpg' )
+        fs = glob( self.db.get_fname_base( id ) + '_*.jpg' )
         for f in fs:
             os.remove( f )
-
-env_path = None
-
-class ModelObjToHiguObjIterator:
-
-    def __init__( self, db, iterable ):
-
-        self.db = db
-        self.it = iterable.__iter__()
-
-    def __iter__( self ):
-
-        return ModelObjToHiguObjIterator( self.db, self.it )
-
-    def next( self ):
-
-        return model_obj_to_higu_obj( self.db, self.it.next() )
 
 class Database:
 
     def __init__( self ):
 
         self.session = model.Session()
-
-    def _get_path_for_id( self, id ):
-
-        lv2 = (id >> 12) % 0xfff
-        lv3 = (id >> 24) % 0xfff
-        lv4 = id >> 36
-
-        assert lv4 == 0
-
-        return os.path.join( env_path, HIGURASHI_DATA_PATH, '%03x' % ( lv3 ), \
-                                                                '%03x' % ( lv2 ) )
-
-    def _get_fname_base( self, id ):
-
-        fname = '%016x' % ( id, )
-        return os.path.join( self._get_path_for_id( id ), fname )
-
-    def _load_data( self, path, id ):
-
-        tgt_path = self._get_path_for_id( id )
-        if( not os.path.isdir( tgt_path ) ):
-            os.makedirs( tgt_path )
-
-        name = os.path.split( path )[-1]
-        try:
-            ext = name[name.rindex( '.' ):]
-        except ValueError:
-            ext = '.dat'
-
-        tgt = os.path.join( tgt_path, '%016x%s' % ( id, ext ) )
-
-        shutil.move( path, tgt )
+        self.imgdb = ImageDatabase()
 
     def commit( self ):
 
-        self.session.commit()
+        self.imgdb.commit( self.session.commit )
+
+    def rollback( self ):
+
+        self.imgdb.rollback()
+        self.session.rollback()
 
     def close( self ):
 
@@ -532,10 +586,12 @@ class Database:
         if( sub_q is not None ):
             q = q.except_( sub_q )
 
-        return ModelObjToHiguObjIterator( self, 
-                self.session.query( model.Object )
+        query = self.session.query( model.Object ) \
                     .filter( model.Object.id.in_( q ) )
-                    .order_by( 'RANDOM()' ) )
+        if( random_order ):
+            query = query.order_by( 'RANDOM()' )
+
+        return ModelObjToHiguObjIterator( self, query ) 
 
     def lookup_untagged_files( self ):
 
@@ -583,31 +639,32 @@ class Database:
     def register_file( self, path, add_name = True ):
 
         name = os.path.split( path )[1]
-
         details = calculate_details( path )
-        results = self.lookup_files_by_details( *details )
 
         try:
-            obj = results.first()
+            results = self.lookup_files_by_details( *details )
+            f = results.next()
         except StopIteration:
             obj = model.Object( TYPE_FILE )
             self.session.add( obj )
-            fchk = FileChecksum( obj, *details )
+            fchk = model.FileChecksum( obj, *details )
             self.session.add( fchk )
+            f = File( self, obj )
+            self.session.flush()
 
-        f = File( self, obj )
-        id = obj.id
+        id = f.get_id()
+        print 'pi'
+        print id
 
         if( add_name ):
-            ename = objl.get_name( id )
+            ename = f.get_name()
             if( ename is None ):
                 obj.name = name
             elif( ename != name ):
                 f.add_name( name )
-        self.commit()
 
-        if( f.get_path() == None ):
-            self._load_data( path, id )
+        if( f.get_path() is None ):
+            self.imgdb.load_data( path, id )
 
         return f
 
@@ -623,7 +680,7 @@ class Database:
         except StopIteration:
             return False
 
-        self._load_data( path, id )
+        self.imgdb.load_data( path, id )
         return True
 
     def delete_object( self, obj ):
