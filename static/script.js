@@ -156,7 +156,8 @@ $(document).keypress( function( e ) {
 
     tab = tabs.active();
 
-    if( tab.data( 'obj' ) ) {
+    obj = tab.data( 'obj' );
+    if( obj && obj.display ) {
         switch( e.charCode ) {
             case 116: // t
                 tag_dialog.open();
@@ -260,8 +261,6 @@ $( window ).resize( function() {
 
 init_view();
 init_dialog();
-
-load3( { 'action' : 'admin' }, $( '#admin-tab' ) );
 
 $( window ).resize();
 });

@@ -365,6 +365,10 @@ FileDisplay = function( obj_id, info )
             div.append( '<br/>' );
         }
 
+        var vieworig = $( '<a href="/img?id=' + this.obj_id +'">'
+                + 'View Original</a>' );
+
+        div.append( vieworig );
         activate_links( div );
     };
 
@@ -379,7 +383,8 @@ FileDisplay = function( obj_id, info )
         }
 
         img = $( '<img class="objitem" src="/img?id=' + this.obj_id
-                + '" class="picture" onload="register_image( this )" onclick="nextfile( 1 )"/>' );
+                + '&exp=10" class="picture" onload="register_image( this )"'
+                + ' onclick="nextfile( 1 )"/>' );
         make_draggable( img, this.obj_id, this.info.repr, this.info.type );
 
         div.append( img );
@@ -398,7 +403,8 @@ FileDisplay = function( obj_id, info )
  */
 GroupDisplay = function( obj_id, info )
 {
-    GROUPLINK_TEMPLATE = '<a class="albumlink objitem sortable" href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a>'
+    GROUPLINK_TEMPLATE = '<a class="albumlink objitem sortable"'
+            + ' href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a>'
 
     this.obj_id = obj_id;
     this.info = info

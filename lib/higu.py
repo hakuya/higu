@@ -626,17 +626,37 @@ class Database:
             self.session.add( obj )
             return model_obj_to_higu_obj( self, obj )
 
-    def rename_tag( self, tag, new_name ):
+    def delete_tag( self, tag ):
+
+        tag = self.get_tag( tag )
+        self.db.delete_object( tag )
+
+    def move_tag( self, tag, target ):
 
         c = self.get_tag( tag ).obj
 
         try:
-            d = self.get_tag( new_name ).obj
+            d = self.get_tag( target ).obj
             self.session.query( model.Relation ).filter( model.Relation.parent == c.id ).update( { 'parent' : d.id } )
             self.session.delete( c )
 
         except KeyError:
-            c.name = new_name
+            c.name = target
+
+    def copy_tag( self, tag, target ):
+
+        c = self.get_tag( tag ).obj
+
+        try:
+            d = self.get_tag( target ).obj
+        except KeyError:
+            d = model.Object( TYPE_CLASSIFIER, target )
+            self.session.add( d )
+
+        for rel in c.child_rel:
+            rel_copy = model.Relation( rel.sort )
+            rel_copy.parent_obj = d
+            rel_copy.child_obj = rel.child_obj
 
     def register_file( self, path, add_name = True ):
 

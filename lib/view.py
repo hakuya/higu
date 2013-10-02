@@ -14,26 +14,16 @@ class JsonWebView:
 
     def execute( self, data ):
 
+        cmd = 'cmd_' + data['action']
+
         #try:
-        fn = getattr( self, 'cmd_' + data['action'] )
-        return fn( data )
+        if( hasattr( self, cmd ) ):
+            fn = getattr( self, 'cmd_' + data['action'] )
+            return fn( data )
+        else:
+            return self.json.execute( data )
         #except:
         #    return { 'result' : 'error' }
-
-    def view_admin( self ):
-
-        html = HtmlGenerator()
-
-        html.header( 'Rename tag' )
-        html.begin_form()
-        html.text( """Tag: <input type="text" name="rntag"/> New: <input type="text" name="rnnew"/> <input type="button" value="Update" onclick="load( '/admin?action=rename_tag&rntag=' + this.form.rntag.value + '&rnnew=' + this.form.rnnew.value )"/>""" )
-        html.end_form()
-
-        return html.format()
-
-    def cmd_info( self, data ):
-
-        return self.json.execute( data )
 
     def cmd_tag( self, data ):
 
@@ -58,18 +48,6 @@ class JsonWebView:
         result = self.json.execute( request )
 
         return result
-
-    def cmd_admin( self, data ):
-
-        return {
-            'result'    : 'ok',
-            'action'    : 'show-html',
-            'data'      : self.view_admin()
-        }
-
-    def cmd_taglist( self, data ):
-
-        return self.json.execute( data )
 
     def cmd_search( self, data ):
 
@@ -163,38 +141,6 @@ class JsonWebView:
             'result'    : 'ok',
             'action'    : 'nop',
         }
-
-    def cmd_set_duplication( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_clear_duplication( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_group_create( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_group_delete( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_group_append( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_group_remove( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_group_reorder( self, data ):
-
-        return self.json.execute( data )
-
-    def cmd_group_gather_tags( self, data ):
-
-        return self.json.execute( data )
 
 init = json_interface.init
 init_default = json_interface.init_default
