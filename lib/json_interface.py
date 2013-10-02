@@ -414,6 +414,34 @@ class JsonInterface:
             'result' : 'ok'
         }
 
+    def cmd_tag_delete( self, data ):
+
+        self.db.delete_tag( data['tag'] )
+        self.db.commit()
+
+        return {
+            'result' : 'ok',
+        }
+
+    def cmd_tag_move( self, data ):
+
+        self.db.move_tag( data['tag'], data['target'] )
+        self.db.commit()
+
+        return {
+            'result' : 'ok',
+        }
+
+    def cmd_tag_copy( self, data ):
+
+        self.db.copy_tag( data['tag'], data['target'] )
+        self.db.commit()
+
+        return {
+            'result' : 'ok',
+        }
+
+
     def cmd_set_duplication( self, data ):
 
         original = self.db.get_object_by_id( data['original'] )

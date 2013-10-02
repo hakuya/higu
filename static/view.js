@@ -146,6 +146,78 @@ taglist_tab = new function()
 };
 
 /**
+ * singleton admin_tab
+ */
+admin_tab = new function()
+{
+    this.elem = $( '#admin-tab' );
+    this.elem.data( 'obj', this );
+
+    // Member functions
+    this.on_event = function( e )
+    {
+    }
+
+    // Constructor
+    this.elem.html( '' );
+    this.elem.append( 'Tag: <input type="text" id="adm-tag-src"/>' );
+    this.elem.append( 'New: <input type="text" id="adm-tag-tgt"/>' );
+
+    // Delete
+    button = $( '<input type="button" value="Delete"/>' );
+    button.click( function( e ) {
+        src = $( '#adm-tag-src' );
+        tgt = $( '#adm-tag-tgt' );
+
+        var request = {
+            action:     'tag_delete',
+            tag:        src.val(),
+        };
+        load_sync( request );
+
+        src.val( '' );
+        tgt.val( '' );
+    });
+    this.elem.append( button );
+
+    // Copy
+    button = $( '<input type="button" value="Copy"/>' );
+    button.click( function( e ) {
+        src = $( '#adm-tag-src' );
+        tgt = $( '#adm-tag-tgt' );
+
+        var request = {
+            action:     'tag_copy',
+            tag:        src.val(),
+            target:     tgt.val(),
+        };
+        load_sync( request );
+
+        src.val( '' );
+        tgt.val( '' );
+    });
+    this.elem.append( button );
+
+    // Move
+    button = $( '<input type="button" value="Move"/>' );
+    button.click( function( e ) {
+        src = $( '#adm-tag-src' );
+        tgt = $( '#adm-tag-tgt' );
+
+        var request = {
+            action:     'tag_move',
+            tag:        src.val(),
+            target:     tgt.val(),
+        };
+        load_sync( request );
+
+        src.val( '' );
+        tgt.val( '' );
+    });
+    this.elem.append( button );
+};
+
+/**
  * class SelectionProvider
  */
 SelectionProvider = function()
