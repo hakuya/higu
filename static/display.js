@@ -191,6 +191,21 @@ var common_tag = function( tags )
     tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
 }
 
+var common_rename = function( name, saveold )
+{
+    var request = {
+        'action' : 'rename',
+        'target' : this.obj_id,
+        'name' : name,
+    };
+
+    if( saveold ) {
+        request.saveold = true;
+    }
+    load_sync( request );
+    tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
+}
+
 var common_set_duplication = function( original, variant, is_duplicate )
 {
     var request = {
@@ -278,6 +293,7 @@ FileDisplay = function( obj_id, info )
     this.on_event = common_on_event;
     this.refresh_info = common_refresh_info;
     this.tag = common_tag;
+    this.rename = common_rename;
     this.set_duplication = common_set_duplication;
 
     this.attach = function( pane )
@@ -415,6 +431,7 @@ GroupDisplay = function( obj_id, info )
     this.on_event = common_on_event;
     this.refresh_info = common_refresh_info;
     this.tag = common_tag;
+    this.rename = common_rename;
     this.set_duplication = common_set_duplication;
 
     this.attach = function( pane )
@@ -641,6 +658,11 @@ SelectionDisplay = function()
         };
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: targets } );
+    };
+
+    this.rename = function( name, saveold )
+    {
+        alert( 'Selections cannot be renamed' );
     };
 
     this.drop = function( obj_id, repr, type )

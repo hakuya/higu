@@ -144,23 +144,37 @@ name_dialog = new function()
         modal: true,
         buttons: {
             'Apply': function() {
-                $( this ).data( 'obj' ).close();
+                $( this ).data( 'obj' ).close( true );
             },
             Cancel: function() {
-                $( this ).data( 'obj' ).close();
+                $( this ).data( 'obj' ).close( false );
             }
         },
     });
 
     this.open = function()
     {
+        $( '#fname' ).val( '' );
         this.elem.dialog( 'open' );
-        this.elem.focus();
-        this.elem.select();
+        $( '#fname' ).focus();
+        $( '#fname' ).select();
     };
+
+    this.submit = function( name, saveold )
+    {
+        var tab = tabs.active();
+
+        if( tab.data( 'obj' ) && name ) {
+            tab.data( 'obj' ).rename( name, saveold );
+        }
+    }
 
     this.close = function( submit )
     {
+        if( submit ) {
+            this.submit( $( '#fname' ).val(), 
+                    $( '#saveold' ).is( ':checked' ) );
+        }
         $( document ).focus();
         this.elem.dialog( 'close' );
     }

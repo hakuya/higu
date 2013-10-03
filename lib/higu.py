@@ -105,17 +105,35 @@ class Obj:
 
         return self.obj.name
 
-    def set_name( self, name ):
+    def set_name( self, name, saveold = False ):
 
+        oname = self.obj.name
         self.obj.name = name
 
-    def get_repr( self ):
+        if( saveold and oname is not None ):
+            self.add_name( oname )
 
-        name = self.get_name()
-        if( name is not None ):
-            return name
+    def add_name( self, name ):
+
+        name = make_unicode( name )
+
+        if( self.get_name() is None ):
+            self.set_name( name )
         else:
-            return '%016x' % ( self.obj.id )
+            try:
+                xnames = self.obj['altname']
+
+                if( len( xnames ) == 0 ):
+                    self.obj['altname'] = name
+                else:
+                    xnames = xnames.split( ':' )
+                    if( name not in xnames ):
+                        xnames.append( name )
+                        xnames = ':'.join( xnames )
+                        self.obj['altname'] = xnames
+
+            except KeyError:
+                self.obj['altname'] = name
 
     def get_names( self ):
 
@@ -129,22 +147,13 @@ class Obj:
 
         return names
 
-    def register_name( self, name ):
+    def get_repr( self ):
 
-        name = make_unicode( name )
-
-        if( self.get_name() is None ):
-            self.set_name( name )
+        name = self.get_name()
+        if( name is not None ):
+            return name
         else:
-            try:
-                xnames = self.obj['altname']
-                if( len( xnames ) == 0 ):
-                    xnames = name
-                else:
-                    xnames += ':' + name
-                self.obj['altname'] = xnames
-            except KeyError:
-                self.obj['altname'] = name
+            return '%016x' % ( self.obj.id )
 
     def __getitem__( self, key ):
 
@@ -689,7 +698,7 @@ class Database:
             if( ename is None ):
                 f.set_name( name )
             elif( ename != name ):
-                f.register_name( name )
+                f.add_name( name )
 
         if( f.get_path() is None ):
             self.imgdb.load_data( path, id )

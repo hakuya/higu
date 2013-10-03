@@ -163,10 +163,7 @@ $(document).keypress( function( e ) {
                 tag_dialog.open();
                 break;
             case 114: // r
-                /*
-                if( selection.length == 1 ) {
-                    load( '/dialog?kind=rename' );
-                }*/
+                name_dialog.open();
                 break;
             case 65: // A
                 select_all();
