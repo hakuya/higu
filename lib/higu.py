@@ -146,6 +146,14 @@ class Obj:
             except KeyError:
                 self.obj['altname'] = name
 
+    def __getitem__( self, key ):
+
+        return self.obj[key]
+
+    def __setitem__( self, key, value ):
+
+        self.obj[key] = value
+
     def __hash__( self ):
 
         return self.id
@@ -629,7 +637,7 @@ class Database:
     def delete_tag( self, tag ):
 
         tag = self.get_tag( tag )
-        self.db.delete_object( tag )
+        self.delete_object( tag )
 
     def move_tag( self, tag, target ):
 

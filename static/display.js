@@ -680,6 +680,24 @@ SelectionDisplay = function()
         tabs.on_event( { type: 'info_changed', affected: targets } );
     };
 
+    this.sort_by_id = function()
+    {
+        this.objs.sort( function( a, b ) {
+            return a[0] - b[0];
+        });
+
+        this.on_display();
+    };
+
+    this.sort_by_name = function()
+    {
+        this.objs.sort( function( a, b ) {
+            return a[1].localeCompare( b[0] );
+        });
+
+        this.on_display();
+    };
+
     this.reorder = function( obj_id, idx )
     {
         src_idx = this.find_item( obj_id )
@@ -720,15 +738,31 @@ SelectionDisplay = function()
         var li;
 
         li = $( document.createElement( 'li' ) ); ul.append( li );
+        var tool = $( '<a href="#">Sort by ID</a>' );
+        tool.data( 'obj', this );
+        tool.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.sort_by_id();
+        });
+        li.append( tool );
 
-        var mkgp = $( '<a href="#">Make Album</a>' );
-        mkgp.data( 'obj', this );
-        mkgp.click( function( e ) {
+        li = $( document.createElement( 'li' ) ); ul.append( li );
+        var tool = $( '<a href="#">Sort by Name</a>' );
+        tool.data( 'obj', this );
+        tool.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.sort_by_name();
+        });
+        li.append( tool );
+
+        li = $( document.createElement( 'li' ) ); ul.append( li );
+        var tool = $( '<a href="#">Make Album</a>' );
+        tool.data( 'obj', this );
+        tool.click( function( e ) {
             obj = $( this ).data( 'obj' );
             obj.make_group();
         });
-
-        li.append( mkgp );
+        li.append( tool );
     };
 
     this.on_display_disp = function()
