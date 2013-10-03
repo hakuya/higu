@@ -442,6 +442,13 @@ DisplayTab = function( title, provider )
         }
     }
 
+    this.rename = function( name, saveold )
+    {
+        if( this.display ) {
+            this.display.rename( name, saveold );
+        }
+    }
+
     this.set_duplication = function( original, variant, is_duplicate )
     {
         if( this.display ) {

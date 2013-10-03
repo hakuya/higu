@@ -14,7 +14,7 @@ def create_album( name, tags, files, order ):
     album = h.create_album()
 
     if( name != None ):
-        album.register_name( name )
+        album.add_name( name )
 
     for t in tags:
         album.assign( t )

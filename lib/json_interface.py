@@ -222,6 +222,20 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
+    def cmd_rename( self, data ):
+
+        target = self.db.get_object_by_id( data['target'] )
+
+        if( data.has_key( 'saveold' ) and data['saveold'] ):
+            saveold = True
+        else:
+            saveold = False
+
+        target.set_name( data['name'], saveold )
+        self.db.commit()
+
+        return { 'result' : 'ok' }
+
     def cmd_group_deorder( self, data ):
 
         group = self.db.get_object_by_id( data['group'] )
