@@ -401,7 +401,9 @@ class JsonInterface:
         tags = []
 
         for f in files:
-            tags.extend( f.get_tags() )
+            for t in f.get_tags():
+                if( t not in tags ):
+                    tags.append( t )
 
         for t in tags:
             group.assign( t )
