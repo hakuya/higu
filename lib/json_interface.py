@@ -4,6 +4,7 @@ import sys
 import uuid
 import time
 import threading
+import inspect
 
 VERSION = 0
 REVISION = 0
@@ -124,7 +125,37 @@ class JsonInterface:
 
         try:
             fn = getattr( self, 'cmd_' + data['action'] )
-            return fn( data )
+            argspec = inspect.getargspec( fn )
+            if( 'data' in argspec.args ):
+                # Old style
+                return fn( data )
+            elif( argspec.keywords is None ):
+                # Grab the required and optional
+                if( argspec.defaults is None ):
+                    req_args = argspec.args[1:]
+                    opt_args = []
+                else:
+                    req_args = argspec.args[1:-len( argspec.defaults )]
+                    opt_args = argspec.args[-len( argspec.defaults ):]
+
+                args = {}
+                for arg in req_args:
+                    assert data.has_key( arg )
+                    args[arg] = data[arg]
+                for arg in opt_args:
+                    if( data.has_key( arg ) ):
+                        args[arg] = data[arg]
+                return fn( **args )
+            else:
+                # Just make sure required arguments are present
+                if( argspec.defaults is None ):
+                    req_args = argspec.args[1:]
+                else:
+                    req_args = argspec.args[1:-len( argspec.defaults )]
+
+                for arg in req_args:
+                    assert data.has_key( arg )
+                return fn( **data )
         finally:
             self.db.rollback()
         #except:
@@ -133,7 +164,7 @@ class JsonInterface:
         #        'errmsg' : sys.exc_info()[0],
         #    }
 
-    def cmd_version( self, data ):
+    def cmd_version( self ):
 
         return {
             'result'    : 'ok',
@@ -142,12 +173,9 @@ class JsonInterface:
             'db_ver'    : [ model.VERSION, model.REVISION ],
         }
 
-    def cmd_info( self, data ):
+    def cmd_info( self, targets, items ):
 
-        targets = data['targets']
         targets = map( self.db.get_object_by_id, targets )
-
-        items = data['items']
 
         def fetch_info( target ):
 
@@ -199,14 +227,9 @@ class JsonInterface:
             'result' : 'ok',
         }
 
-    def cmd_tag( self, data ):
+    def cmd_tag( self, targets, add_tags, sub_tags, new_tags ):
 
-        targets = data['targets']
         targets = map( self.db.get_object_by_id, targets )
-
-        add_tags = data['add_tags']
-        sub_tags = data['sub_tags']
-        new_tags = data['new_tags']
 
         add = map( self.db.get_tag, add_tags )
         sub = map( self.db.get_tag, sub_tags )
@@ -222,33 +245,25 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
-    def cmd_rename( self, data ):
+    def cmd_rename( self, target, name, saveold = False ):
 
-        target = self.db.get_object_by_id( data['target'] )
-
-        if( data.has_key( 'saveold' ) and data['saveold'] ):
-            saveold = True
-        else:
-            saveold = False
+        target = self.db.get_object_by_id( target )
 
         target.set_name( data['name'], saveold )
         self.db.commit()
 
         return { 'result' : 'ok' }
 
-    def cmd_group_deorder( self, data ):
+    def cmd_group_deorder( self, group ):
 
-        group = self.db.get_object_by_id( data['group'] )
+        group = self.db.get_object_by_id( group )
         assert( isinstance( group, higu.OrderedGroup ) )
 
         group.clear_order()
 
         return { 'result' : 'ok' }
 
-    def cmd_group_reorder( self, data ):
-
-        group = data['group']
-        items = data['items']
+    def cmd_group_reorder( self, group, items ):
 
         group = self.db.get_object_by_id( group )
         assert( isinstance( group, higu.OrderedGroup ) )
@@ -261,7 +276,7 @@ class JsonInterface:
 
         return { 'result' : 'ok' }
 
-    def cmd_taglist( self, data ):
+    def cmd_taglist( self ):
 
         tags = self.db.all_tags()
         tags = map( lambda x: x.get_name(), tags )
@@ -321,10 +336,10 @@ class JsonInterface:
             'first' : sel.fetch( idx ),
         }
 
-    def cmd_selection_fetch( self, data ):
+    def cmd_selection_fetch( self, selection, index ):
 
-        sel_id = data['selection']
-        idx = data['index']
+        sel_id = selection
+        idx = index
 
         sel = self.cache.fetch( sel_id )
         obj_id = sel.fetch( idx )
@@ -334,18 +349,18 @@ class JsonInterface:
             'object_id' : obj_id
         }
 
-    def cmd_selection_close( self, data ):
+    def cmd_selection_close( self, selection ):
 
-        sel_id = data['selection']
+        sel_id = selection
         self.cache.close( sel_id )
         
         return {
             'result' : 'ok',
         }
 
-    def cmd_group_create( self, data ):
+    def cmd_group_create( self, targets ):
 
-        targets = map( self.db.get_object_by_id, data['targets'] )
+        targets = map( self.db.get_object_by_id, targets )
         for target in targets:
             assert( isinstance( target, higu.File ) )
 
@@ -362,9 +377,9 @@ class JsonInterface:
             'group' :   group.get_id(),
         }
 
-    def cmd_group_delete( self, data ):
+    def cmd_group_delete( self, group ):
 
-        group = self.db.get_object_by_id( data['group'] )
+        group = self.db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
         self.db.delete_object( group )
@@ -374,12 +389,12 @@ class JsonInterface:
             'result' : 'ok',
         }
 
-    def cmd_group_append( self, data ):
+    def cmd_group_append( self, group, targets ):
 
-        group = self.db.get_object_by_id( data['group'] )
+        group = self.db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
-        targets = map( self.db.get_object_by_id, data['targets'] )
+        targets = map( self.db.get_object_by_id, targets )
         for target in targets:
             assert( isinstance( target, higu.File ) )
             target.assign( group )
@@ -390,12 +405,12 @@ class JsonInterface:
             'result' : 'ok',
         }
 
-    def cmd_group_remove( self, data ):
+    def cmd_group_remove( self, group, targets ):
 
-        group = self.db.get_object_by_id( data['group'] )
+        group = self.db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
-        targets = map( self.db.get_object_by_id, data['targets'] )
+        targets = map( self.db.get_object_by_id, targets )
         for target in targets:
             assert( isinstance( target, higu.File ) )
             target.unassign( group )
@@ -406,9 +421,9 @@ class JsonInterface:
             'result' : 'ok',
         }
 
-    def cmd_group_gather_tags( self, data ):
+    def cmd_group_gather_tags( self, group ):
 
-        group = self.db.get_object_by_id( data['group'] )
+        group = self.db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
         files = group.get_files()
@@ -430,27 +445,27 @@ class JsonInterface:
             'result' : 'ok'
         }
 
-    def cmd_tag_delete( self, data ):
+    def cmd_tag_delete( self, tag ):
 
-        self.db.delete_tag( data['tag'] )
+        self.db.delete_tag( tag )
         self.db.commit()
 
         return {
             'result' : 'ok',
         }
 
-    def cmd_tag_move( self, data ):
+    def cmd_tag_move( self, tag, target ):
 
-        self.db.move_tag( data['tag'], data['target'] )
+        self.db.move_tag( tag, target )
         self.db.commit()
 
         return {
             'result' : 'ok',
         }
 
-    def cmd_tag_copy( self, data ):
+    def cmd_tag_copy( self, tag, target ):
 
-        self.db.copy_tag( data['tag'], data['target'] )
+        self.db.copy_tag( tag, target )
         self.db.commit()
 
         return {
@@ -458,19 +473,17 @@ class JsonInterface:
         }
 
 
-    def cmd_set_duplication( self, data ):
+    def cmd_set_duplication( self, original, duplicates = [], variants = [] ):
 
-        original = self.db.get_object_by_id( data['original'] )
+        original = self.db.get_object_by_id( original )
         
-        if( data.has_key( 'duplicates' ) ):
-            dups = map( self.db.get_object_by_id, data['duplicates'] )
-            for dup in dups:
-                dup.set_duplicate_of( original )
+        dups = map( self.db.get_object_by_id, duplicates )
+        for dup in dups:
+            dup.set_duplicate_of( original )
 
-        if( data.has_key( 'variants' ) ):
-            vars = map( self.db.get_object_by_id, data['variants'] )
-            for var in vars:
-                var.set_varient_of( original )
+        vars = map( self.db.get_object_by_id, variants )
+        for var in vars:
+            var.set_varient_of( original )
 
         self.db.commit()
 
@@ -478,9 +491,8 @@ class JsonInterface:
             'result' : 'ok',
         }
 
-    def cmd_clear_duplication( self, data ):
+    def cmd_clear_duplication( self, targets ):
 
-        targets = data['targets']
         targets = map( self.db.get_object_by_id, targets )
 
         for target in targets:
