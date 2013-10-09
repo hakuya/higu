@@ -293,8 +293,6 @@ class JsonInterface:
                 rs = self.db.all_albums_or_free_files()
             elif( data['mode'] == 'untagged' ):
                 rs = self.db.unowned_files()
-            elif( data['mode'] == 'albums' ):
-                rs = self.db.all_albums()
             elif( data['mode'] == 'album' ):
                 album = self.db.get_object_by_id( data['album'] )
                 rs = map( lambda x: x.get_id(), album.get_files() )
