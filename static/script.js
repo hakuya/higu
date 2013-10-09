@@ -204,11 +204,6 @@ $( 'a[href="#untagged"]' ).click( function() {
     new DisplayTab( 'Untagged', provider );
 });
 
-$( 'a[href="#albums"]' ).click( function() {
-    provider = new SearchProvider( { mode: 'albums' } );
-    new DisplayTab( 'Albums', provider );
-});
-
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
 

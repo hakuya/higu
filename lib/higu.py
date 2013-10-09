@@ -522,13 +522,6 @@ class Database:
 
         return model_obj_to_higu_obj( self, obj )
 
-    def all_albums( self ):
-
-        return ModelObjToHiguObjIterator( self,
-                self.session.query( model.Object )
-                    .filter( model.Object.type == TYPE_ALBUM )
-                    .order_by( 'RANDOM()' ) )
-
     def all_albums_or_free_files( self ):
 
         files = self.session.query( model.Object.id ) \
@@ -548,10 +541,12 @@ class Database:
 
     def unowned_files( self ):
 
+        from sqlalchemy import or_
+
         all_children = self.session.query( model.Relation.child )
         return ModelObjToHiguObjIterator( self,
                 self.session.query( model.Object )
-                    .filter( model.Object.type == TYPE_FILE )
+                    .filter( or_( model.Object.type == TYPE_FILE, model.Object.type == TYPE_ALBUM ) )
                     .filter( ~model.Object.id.in_( all_children ) )
                     .order_by( 'RANDOM()' ) )
 
