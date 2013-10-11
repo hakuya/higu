@@ -154,7 +154,7 @@ class JsonInterface:
                     req_args = argspec.args[1:-len( argspec.defaults )]
 
                 for arg in req_args:
-                    assert data.has_key( arg )
+                    assert data.has_key( arg ), 'Missing arg ' + arg
                 return fn( **data )
         finally:
             self.db.rollback()
@@ -227,13 +227,25 @@ class JsonInterface:
             'result' : 'ok',
         }
 
-    def cmd_tag( self, targets, add_tags, sub_tags, new_tags ):
+    def cmd_tag( self, targets, **args ):
 
         targets = map( self.db.get_object_by_id, targets )
 
-        add = map( self.db.get_tag, add_tags )
-        sub = map( self.db.get_tag, sub_tags )
-        add += map( self.db.make_tag, new_tags )
+        if( args.has_key( 'query' ) ):
+            tags = args['query'].split( ' ' )
+
+            add = [t for t in tags if t[0] != '-' and t[0] != '!']
+            new = [t[1:] for t in tags if t[0] == '!']
+            sub = [t[1:] for t in tags if t[0] == '-']
+
+        else:
+            add = args['add_tags'] if( args.has_key( 'add_tags' ) ) else []
+            sub = args['sub_tags'] if( args.has_key( 'sub_tags' ) ) else []
+            new = args['new_tags'] if( args.has_key( 'new_tags' ) ) else []
+
+        add = map( self.db.get_tag, add )
+        sub = map( self.db.get_tag, sub )
+        add += map( self.db.make_tag, new )
 
         for obj in targets:
             for t in sub:
@@ -289,6 +301,7 @@ class JsonInterface:
     def cmd_search( self, data ):
 
         if( data.has_key( 'mode' ) ):
+            # Search by directive
             if( data['mode'] == 'all' ):
                 rs = self.db.all_albums_or_free_files()
             elif( data['mode'] == 'untagged' ):
@@ -298,19 +311,56 @@ class JsonInterface:
                 rs = map( lambda x: x.get_id(), album.get_files() )
 
         else:
-            if( data.has_key( 'strict' ) and data['strict'] ):
-                strict = True
-            else:
+            if( data.has_key( 'query' ) ):
+                # Search by query
+                query = data['query']
                 strict = False
-
-            if( data.has_key( 'randomize' ) and not data['randomize'] ):
-                randomize = False
-            else:
                 randomize = True
 
-            req = data['req'] if data.has_key( 'req' ) else []
-            add = data['add'] if data.has_key( 'add' ) else []
-            sub = data['sub'] if data.has_key( 'sub' ) else []
+                while( len( query ) > 0 and query[0] == '$' ):
+                    try:
+                        sep = query.index( ' ' )
+                        cmd = query[1:sep]
+                        query = query[sep+1:]
+                    except IndexError:
+                        cmd = query[1:]
+                        query = ''
+
+                    if( cmd == 'strict' ):
+                        strict = True
+                    elif( cmd == 'norand' ):
+                        randomize = False
+
+                ls = query.split( ' ' )
+                req = []
+                add = []
+                sub = []
+
+                for tag in ls:
+                    if( len( tag ) == 0 ):
+                        continue
+                    elif( tag[0] == '?' ):
+                        add.append( tag[1:] )
+                    elif( tag[0] == '!' ):
+                        sub.append( tag[1:] )
+                    else:
+                        req.append( tag )
+
+            else:
+                # Search by parts
+                if( data.has_key( 'strict' ) and data['strict'] ):
+                    strict = True
+                else:
+                    strict = False
+
+                if( data.has_key( 'randomize' ) and not data['randomize'] ):
+                    randomize = False
+                else:
+                    randomize = True
+
+                req = data['req'] if data.has_key( 'req' ) else []
+                add = data['add'] if data.has_key( 'add' ) else []
+                sub = data['sub'] if data.has_key( 'sub' ) else []
 
             req = map( self.db.get_tag, req )
             add = map( self.db.get_tag, add )
@@ -319,6 +369,7 @@ class JsonInterface:
             rs = self.db.lookup_ids_by_tags( req, add, sub, strict,
                     random_order = randomize )
 
+        # Register the result set
         sel = Selection( rs )
         selid = self.cache.register( sel )
 

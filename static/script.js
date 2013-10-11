@@ -207,7 +207,7 @@ $( 'a[href="#untagged"]' ).click( function() {
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
 
-    provider = new SearchProvider( { tags: tags } );
+    provider = new SearchProvider( { query: tags } );
     new DisplayTab( tags, provider );
 
     $( this ).children( 'input' ).val( '' );

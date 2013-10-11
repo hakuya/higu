@@ -337,7 +337,7 @@ SearchProvider = function( query )
 
             request.mode = query.mode;
         } else {
-            request.tags = query.tags;
+            request.query = query.query;
         }
 
         if( query.index ) {
@@ -355,7 +355,7 @@ SearchProvider = function( query )
         this.sid = response.selection;
         this.last = response.index;
 
-        display = make_display( response.object_id );
+        display = make_display( response.first );
         eval( 'data.obj.' + data.callback + '( display )' );
     }
 
@@ -382,7 +382,7 @@ SearchProvider = function( query )
         };
         response = load_sync( request );
 
-        this.last = response.index;
+        this.last = idx;
         display = make_display( response.object_id );
         return display;
     };
