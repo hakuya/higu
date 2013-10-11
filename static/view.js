@@ -352,15 +352,24 @@ SearchProvider = function( query )
 
     this.on_init_load = function( data, response )
     {
-        this.sid = response.selection;
-        this.last = response.index;
+        if( response.results > 0 ) {
+            this.sid = response.selection;
+            this.last = response.index;
 
-        display = make_display( response.first );
+            display = make_display( response.first );
+        } else {
+            this.sid = null;
+            this.last = null;
+
+            display = new DummyDisplay( 'The search had no results' );
+        }
         eval( 'data.obj.' + data.callback + '( display )' );
     }
 
     this.close = function()
     {
+        if( !this.sid ) return null;
+        
         var request = {
             'action' : 'selection_close',
             'selection' : this.sid,
@@ -375,12 +384,18 @@ SearchProvider = function( query )
 
     this.fetch = function( idx )
     {
+        if( !this.sid ) return null;
+
         var request = {
             action:     'selection_fetch',
             selection:  this.sid,
             index:      idx,
         };
         response = load_sync( request );
+
+        if( response.result != 'ok' ) {
+            return null;
+        }
 
         this.last = idx;
         display = make_display( response.object_id );
