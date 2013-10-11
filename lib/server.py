@@ -5,7 +5,8 @@ import uuid
 import time
 import json
 
-from view import JsonWebView
+import json_interface
+
 from html import TextFormatter, HtmlGenerator
 
 import dialog
@@ -54,13 +55,13 @@ class Server:
         print '***'
         print data
 
-        view = JsonWebView()
-        result = view.execute( data )
+        jsif = json_interface.JsonInterface()
+        result = jsif.execute( data )
 
         print '==='
         print result
 
-        view.close()
+        jsif.close()
 
         return json.dumps( result )
 

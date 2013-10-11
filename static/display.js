@@ -184,8 +184,8 @@ var common_tag = function( tags )
 {
     var request = {
         'action' : 'tag',
-        'target' : this.obj_id,
-        'tags' : tags,
+        'targets' : [ this.obj_id ],
+        'query' : tags,
     };
     load_sync( request );
     tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
@@ -654,7 +654,7 @@ SelectionDisplay = function()
         var request = {
             'action' : 'tag',
             'targets' : targets,
-            'tags' : tags,
+            'query' : tags,
         };
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: targets } );
