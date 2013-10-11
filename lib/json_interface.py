@@ -48,11 +48,15 @@ class Selection:
         except StopIteration:
             self.loaded = self.loaded[:i]
 
-    def fetch( self, idx ):
+    def __len__( self ):
+
+        return len( self.loaded )
+
+    def __getitem__( self, idx ):
 
         assert( isinstance( idx, int ) )
         if( idx < 0 or idx >= len( self.loaded ) ):
-            raise StopIteration
+            raise IndexError
 
         return self.loaded[idx]
 
@@ -110,6 +114,19 @@ def get_default_cache():
 
     return default_cache
 
+def json_ok( **args ):
+
+    args['result'] = 'ok'
+    return args
+
+def json_err( etype, emsg ):
+
+    return {
+        'result' : 'err',
+        'except' : etype,
+        'msg'    : emsg,
+    }
+
 class JsonInterface:
 
     def __init__( self ):
@@ -166,12 +183,10 @@ class JsonInterface:
 
     def cmd_version( self ):
 
-        return {
-            'result'    : 'ok',
-            'json_ver'  : [ VERSION, REVISION ],
-            'higu_ver'  : [ higu.VERSION, higu.REVISION ],
-            'db_ver'    : [ model.VERSION, model.REVISION ],
-        }
+        return json_ok(
+            json_ver = [ VERSION, REVISION ],
+            higu_ver = [ higu.VERSION, higu.REVISION ],
+            db_ver   = [ model.VERSION, model.REVISION ] )
 
     def cmd_info( self, targets, items ):
 
@@ -222,10 +237,8 @@ class JsonInterface:
             return info
 
         results = map( fetch_info, targets )
-        return {
-            'info' : results,
-            'result' : 'ok',
-        }
+
+        return json_ok( info = results )
 
     def cmd_tag( self, targets, **args ):
 
@@ -255,7 +268,7 @@ class JsonInterface:
 
         self.db.commit()
 
-        return { 'result' : 'ok' }
+        return json_ok()
 
     def cmd_rename( self, target, name, saveold = False ):
 
@@ -264,7 +277,7 @@ class JsonInterface:
         target.set_name( data['name'], saveold )
         self.db.commit()
 
-        return { 'result' : 'ok' }
+        return json_ok()
 
     def cmd_group_deorder( self, group ):
 
@@ -273,7 +286,7 @@ class JsonInterface:
 
         group.clear_order()
 
-        return { 'result' : 'ok' }
+        return json_ok()
 
     def cmd_group_reorder( self, group, items ):
 
@@ -286,17 +299,14 @@ class JsonInterface:
 
         self.db.commit()
 
-        return { 'result' : 'ok' }
+        return json_ok()
 
     def cmd_taglist( self ):
 
         tags = self.db.all_tags()
         tags = map( lambda x: x.get_name(), tags )
 
-        return {
-            'result'    : 'ok',
-            'tags'      : tags,
-        }
+        return json_ok( tags = tags )
 
     def cmd_search( self, data ):
 
@@ -378,12 +388,23 @@ class JsonInterface:
         else:
             idx = 0
 
-        return {
-            'result' : 'ok',
-            'selection' : selid,
-            'index' : idx,
-            'first' : sel.fetch( idx ),
-        }
+        results = len( sel )
+        if( results > 0 ):
+            if( idx == 0 or idx >= results ):
+                return json_ok(
+                    selection = selid,
+                    results = results,
+                    index = 0,
+                    first = sel[0], )
+            else:
+                return json_ok(
+                    selection = selid,
+                    results = results,
+                    index = idx,
+                    first = sel[idx], )
+        else:
+            self.cache.close( selid )
+            return json_ok( results = 0 )
 
     def cmd_selection_fetch( self, selection, index ):
 
@@ -391,21 +412,24 @@ class JsonInterface:
         idx = index
 
         sel = self.cache.fetch( sel_id )
-        obj_id = sel.fetch( idx )
+        try:
+            obj_id = sel[idx]
+        except IndexError:
+            return json_err( 'index', 'Invalid index' )
 
-        return {
-            'result' : 'ok',
-            'object_id' : obj_id
-        }
+        return json_ok( object_id = obj_id )
 
     def cmd_selection_close( self, selection ):
 
-        sel_id = selection
-        self.cache.close( sel_id )
+        if( not isinstance( selection, str ) ):
+            return json_err( 'argument', 'selection is not a valid selection id' )
+
+        try:
+            self.cache.close( selection )
+        except KeyError:
+            pass
         
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_group_create( self, targets ):
 
@@ -421,10 +445,7 @@ class JsonInterface:
 
         self.db.commit()
 
-        return {
-            'result' :  'ok',
-            'group' :   group.get_id(),
-        }
+        return json_ok( group = group.get_id() )
 
     def cmd_group_delete( self, group ):
 
@@ -434,9 +455,7 @@ class JsonInterface:
         self.db.delete_object( group )
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_group_append( self, group, targets ):
 
@@ -450,9 +469,7 @@ class JsonInterface:
 
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_group_remove( self, group, targets ):
 
@@ -466,9 +483,7 @@ class JsonInterface:
 
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_group_gather_tags( self, group ):
 
@@ -490,37 +505,28 @@ class JsonInterface:
 
         self.db.commit()
 
-        return {
-            'result' : 'ok'
-        }
+        return json_ok()
 
     def cmd_tag_delete( self, tag ):
 
         self.db.delete_tag( tag )
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_tag_move( self, tag, target ):
 
         self.db.move_tag( tag, target )
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_tag_copy( self, tag, target ):
 
         self.db.copy_tag( tag, target )
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
-
+        return json_ok()
 
     def cmd_set_duplication( self, original, duplicates = [], variants = [] ):
 
@@ -536,9 +542,7 @@ class JsonInterface:
 
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
     def cmd_clear_duplication( self, targets ):
 
@@ -549,9 +553,7 @@ class JsonInterface:
 
         self.db.commit()
 
-        return {
-            'result' : 'ok',
-        }
+        return json_ok()
 
 init = higu.init
 init_default = higu.init_default

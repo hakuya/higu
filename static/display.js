@@ -16,7 +16,8 @@ var make_display = function( obj_id )
     } else if( info.type == 'album' ) {
         disp = new GroupDisplay( obj_id, info );
     } else {
-        disp = new DummyDisplay();
+        disp = new DummyDisplay( 'This is a placeholder for an object that'
+            + ' does not exist or has been removed.' );
     }
 
     return disp;
@@ -154,7 +155,7 @@ var common_on_event = function( e )
     } else if( e.type == 'files_changed' ) {
         this.refresh_info( true );
     } else if( e.type == 'removed' ) {
-        return new DummyDisplay();
+        return new DummyDisplay( 'This object has been removed' );
     }
 
     return null;
@@ -225,12 +226,13 @@ var common_set_duplication = function( original, variant, is_duplicate )
 /**
  * class DummyDisplay
  */
-DummyDisplay = function()
+DummyDisplay = function( msg )
 {
     this.pane = null;
 
     this.refresh_info = common_refresh_info;
     this.set_duplication = common_set_duplication;
+    this.msg = msg
 
     this.attach = function( pane )
     {
@@ -262,14 +264,13 @@ DummyDisplay = function()
     this.on_display_info = function()
     {
         var div = this.pane.find( '.info' );
-        div.html( 'Invalid object' );
+        div.html( '&nbsp;' );
     };
 
     this.on_display_disp = function()
     {
         var div = this.pane.find( '.disp' );
-        div.html( '<p>This is a placeholder for an object that does not'
-            + ' exist or has been removed.</p>' )
+        div.html( '<p>' + this.msg + '</p>' )
     }
 
     this.on_display = function()
