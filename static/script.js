@@ -119,7 +119,7 @@ function activate_links( par )
         $( this ).click( function() {
             tag = $( this ).attr( 'href' ).substring( 1 );
 
-            provider = new SearchProvider( { tags: tag } );
+            provider = new SearchProvider( { query: tag } );
             new DisplayTab( tag, provider );
         });
     });
