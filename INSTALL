@@ -1,0 +1,31 @@
+HIGU - A tag oriented image organizer with a JSON web interface
+
+PREREQS:
+
+  To function properly HIGU requires Python 2.6 or higher to be installed on
+  the machine and in the machine's PATH. Furthermore the following python
+  libraries must be installed and in the PYTHONPATH:
+
+  * SQLAlchemy (tested with version 0.5.8)
+  * CherryPy (tested with version 2.3.0)
+
+INSTALLATION:
+
+  (1) Extract or checkout the entire HIGU tree into a directory
+
+  (2) Make a copy of the configuration file 'test.cfg' into the same directory
+      and name it whatever you want. For the sake of these instructions we
+      will assume you named it 'site.cfg'.
+
+  (3) Open 'site.cfg' and change the library path. We recommend you use an
+      absolute path instead of a relative path. Read the comments and change
+      the other settings as you see fit.
+
+  (4) Symlink start.test.sh and addto.test.sh to start.site.sh and
+      addto.site.sh (or whatever you named your cfg).
+
+  (5) Run start.site.sh to start the http web-server
+
+  (6) Use the addto.site.sh script to add images to your library
+
+  (7) Enjoy!
