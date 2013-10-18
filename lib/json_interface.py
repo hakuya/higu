@@ -556,4 +556,3 @@ class JsonInterface:
         return json_ok()
 
 init = higu.init
-init_default = higu.init_default

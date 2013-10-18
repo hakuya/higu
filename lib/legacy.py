@@ -247,6 +247,7 @@ def update_legacy_database( dbfile ):
 
     while( True ):
         ver = dbi.get_version()
+        print 'Database is version v' + str( ver )
      
         if( ver != VERSION ):
 
@@ -301,6 +302,7 @@ def update_legacy_database( dbfile ):
 
         break
 
+    session.commit()
     session.close()
 
 class DatabaseInfo:

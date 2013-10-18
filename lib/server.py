@@ -3,6 +3,7 @@ import cherrypy
 import os
 import uuid
 import time
+import config
 import json
 
 import json_interface
@@ -30,17 +31,17 @@ CONFIG={
 
 class Server:
 
-    def __init__( self, database_path = None ):
+    def __init__( self ):
 
-        self.dialogs = {
-            'rename' : dialog.RenameDialog(),
-        }
-        self.searches = {}
+        self.cfg = config.config().subsection( 'www' )
 
-        if( database_path is None ):
-            higu.init_default()
-        else:
-            higu.init( database_path )
+    def get_host( self ):
+
+        return self.cfg['host']
+
+    def get_port( self ):
+
+        return int( self.cfg['port'] )
 
     @cherrypy.expose
     def callback_new( self ):
@@ -104,14 +105,15 @@ if( __name__ == '__main__' ):
 
     import sys
 
-    if( os.environ.has_key( 'HIGU_BINDADDR' ) ):
-        CONFIG['global']['server.socket_host'] = os.environ['HIGU_BINDADDR']
-    if( os.environ.has_key( 'HIGU_BINDPORT' ) ):
-        CONFIG['global']['server.socket_port'] = int( os.environ['HIGU_BINDPORT'] )
-
     if( len( sys.argv ) > 1 ):
-        cherrypy.quickstart( Server( sys.argv[1] ), config=CONFIG )
+        higu.init( sys.argv[1] )
     else:
-        cherrypy.quickstart( Server(), config=CONFIG )
+        higu.init()
+
+    server = Server()
+    CONFIG['global']['server.socket_host'] = server.get_host()
+    CONFIG['global']['server.socket_port'] = server.get_port()
+
+    cherrypy.quickstart( server, config=CONFIG )
 
 # vim:sts=4:et:sw=4

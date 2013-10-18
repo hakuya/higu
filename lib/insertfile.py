@@ -30,13 +30,13 @@ if( __name__ == '__main__' ):
     argv = sys.argv[1:]
 
     if( len( argv ) < 1 ):
-        print 'Usage: insertfile.py [-d database] [-r] [-a album] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
+        print 'Usage: insertfile.py [-c config] [-r] [-a album] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
 
-    if( argv[0] == '-d' ):
+    if( argv[0] == '-c' ):
         higu.init( argv[1] )
         argv = argv[2:]
     else:
-        higu.init_default()
+        higu.init()
 
     h = higu.Database()
 

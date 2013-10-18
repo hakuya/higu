@@ -2,11 +2,9 @@ import model
 import os
 import shutil
 import sys
-
-import db as dblib
+import config
 
 from hash import calculate_details
-from filemgmt import ResultIterator
 
 VERSION = 1
 REVISION = 0
@@ -318,8 +316,6 @@ class File( Obj ):
 
         return self.db.imgdb.get_thumb( self.obj.id, exp )
 
-env_path = None
-
 class ModelObjToHiguObjIterator:
 
     def __init__( self, db, iterable ):
@@ -339,7 +335,10 @@ class ImageDatabase:
 
     def __init__( self ):
 
-        self.data_path = os.path.join( env_path, HIGURASHI_DATA_PATH )
+        self.data_path = os.path.join(
+                config.config().get_path( 'library' ),
+                HIGURASHI_DATA_PATH )
+
         self.tmp_path = os.path.join( self.data_path, 'tmp' )
         self.to_commit = []
 
@@ -746,18 +745,15 @@ class Database:
         if( p != None ):
             os.remove( p )
 
-def init( environ ):
-    global env_path
+def init( config_file = None ):
 
-    if( not os.path.isdir( environ ) ):
-        os.makedirs( environ )
+    cfg = config.init( config_file )
+    lib = cfg.get_path( 'library' )
 
-    env_path = environ
-    model.init( os.path.join( env_path, HIGURASHI_DB_NAME ) )
+    if( not os.path.isdir( lib ) ):
+        os.makedirs( lib )
 
-def init_default():
-
-    init( DEFAULT_ENVIRON )
+    model.init( os.path.join( lib, HIGURASHI_DB_NAME ) )
 
 def compare_details( a, b ):
 
