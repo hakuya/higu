@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import config
+import tempfile
 
 from hash import calculate_details
 
@@ -144,6 +145,17 @@ class Obj:
             pass
 
         return names
+
+    def set_text( self, text ):
+
+        self.obj['text'] = text
+
+    def get_text( self ):
+
+        try:
+            return self.obj['text']
+        except KeyError:
+            return None
 
     def get_repr( self ):
 
@@ -341,6 +353,7 @@ class ImageDatabase:
 
         self.tmp_path = os.path.join( self.data_path, 'tmp' )
         self.to_commit = []
+        self.rm_dir = None
 
     def commit( self, commit_on_finish = None ):
 
@@ -354,8 +367,6 @@ class ImageDatabase:
             if( commit_on_finish is not None ):
                 commit_on_finish()
 
-            # Comitted
-            self.to_commit = []
         except:
             # Something went wrong, rollback
             for t in self.to_commit[:completion]:
@@ -370,6 +381,14 @@ class ImageDatabase:
                     pass
 
             raise
+
+        # Comitted
+        rm_dir = self.rm_dir
+        self.rm_dir = None
+        self.to_commit = []
+
+        if( rm_dir is not None ):
+            shutil.rmtree( rm_dir )
 
     def rollback( self ):
 
@@ -406,6 +425,17 @@ class ImageDatabase:
         tgt = os.path.join( tgt_path, '%016x%s' % ( id, ext ) )
         self.to_commit.append( ( path, tgt, ) )
 
+    def delete_data( self, id ):
+
+        if( self.rm_dir is None ):
+            self.rm_dir = tempfile.mkdtemp()
+
+        src_items = self.get_files( id )
+        for src in src_items:
+            name = os.path.split( src )[-1]
+            tgt = os.path.join( self.rm_dir, name )
+            self.to_commit.append( ( src, tgt, ) )
+
     def get_image( self, id ):
 
         try:
@@ -423,6 +453,26 @@ class ImageDatabase:
                 pass
 
         return None
+
+    def get_files( self, id ):
+
+        try:
+            d = self.get_dir_for_id( id )
+            ls = os.listdir( d )
+            ids = '%016x' % ( id )
+        except OSError:
+            return None
+
+        results = []
+
+        for f in ls:
+            try:
+                if( f.index( ids ) == 0 ):
+                    results.append( os.path.join( d, f ) )
+            except ValueError:
+                pass
+
+        return results
 
     def get_thumb( self, id, exp ):
 
@@ -694,10 +744,34 @@ class Database:
             elif( ename != name ):
                 f.add_name( name )
 
-        if( f.get_path() is None ):
+        if( not self.verify_file( f ) ):
             self.imgdb.load_data( path, id )
 
         return f
+
+    def verify_file( self, obj ):
+
+        assert isinstance( obj, File )
+        path = obj.get_path()
+
+        if( path is None ):
+            return False
+
+        if( not os.path.isfile( path ) ):
+            return False
+
+        details = calculate_details( path )
+
+        if( details[0] != obj.obj.fchk.len ):
+            return False
+        if( details[1] != obj.obj.fchk.crc32 ):
+            return False
+        if( details[2] != obj.obj.fchk.md5 ):
+            return False
+        if( details[3] != obj.obj.fchk.sha1 ):
+            return False
+
+        return True
 
     def recover_file( self, path ):
 
@@ -707,22 +781,20 @@ class Database:
         results = self.lookup_files_by_details( *details )
 
         try:
-            id = results.next().get_id()
+            f = results.next()
         except StopIteration:
             return False
 
-        self.imgdb.load_data( path, id )
+        if( not self.verify_file( f ) ):
+            self.imgdb.load_data( path, f.get_id() )
         return True
 
     def delete_object( self, obj ):
 
-        if( isinstance( obj, File ) ):
-            obj.purge_thumbs()
-            p = obj.get_path()
-        else:
-            p = None
-
         id = obj.get_id()
+
+        if( isinstance( obj, File ) ):
+            self.imgdb.delete_data( id )
 
         # Clear out similar to
         objs = [ o for o in obj.obj.similars ]
@@ -742,9 +814,6 @@ class Database:
         self.session.query( model.Object ) \
                 .filter( model.Object.id == id ).delete()
 
-        if( p != None ):
-            os.remove( p )
-
 def init( config_file = None ):
 
     cfg = config.init( config_file )
@@ -754,6 +823,10 @@ def init( config_file = None ):
         os.makedirs( lib )
 
     model.init( os.path.join( lib, HIGURASHI_DB_NAME ) )
+
+def dispose():
+
+    model.dispose()
 
 def compare_details( a, b ):
 

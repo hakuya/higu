@@ -177,9 +177,11 @@ class Metadata( Base ):
         return 'Metadata( %r, %r, %r )' % ( self.id, self.tag, self.value )
 
 Session = None
+engine = None
 
 def init( database_file ):
     global Session
+    global engine
 
     import legacy
     legacy.update_legacy_database( database_file )
@@ -189,6 +191,11 @@ def init( database_file ):
 
     session_factory = sessionmaker( bind = engine )
     Session = scoped_session( session_factory )
+
+def dispose():
+
+    Session = None
+    engine.dispose()
 
 def load():
 

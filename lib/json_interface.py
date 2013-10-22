@@ -201,6 +201,8 @@ class JsonInterface:
 
             if( 'type' in items ):
                 info['type'] = get_type_str( target )
+            if( 'text' in items ):
+                info['text'] = target.get_text()
             if( 'repr' in items ):
                 info['repr'] = target.get_repr()
             if( isinstance( target, higu.File ) and 'path' in items ):
