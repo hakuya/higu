@@ -10,8 +10,6 @@ import json_interface
 
 from html import TextFormatter, HtmlGenerator
 
-import dialog
-
 CONFIG={
     'global' : {
         'server.socket_host'    : '0.0.0.0',
