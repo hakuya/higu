@@ -4,7 +4,7 @@ import shutil
 import os
 import higu
 
-class DataStructureTest( unittest.TestCase ):
+class HiguLibCases( unittest.TestCase ):
 
     def setUp( self ):
 

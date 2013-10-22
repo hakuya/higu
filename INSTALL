@@ -7,7 +7,8 @@ PREREQS:
   libraries must be installed and in the PYTHONPATH:
 
   * SQLAlchemy (tested with version 0.5.8)
-  * CherryPy (tested with version 2.3.0)
+  * CherryPy (tested with version 3.1.2)
+  * PIL or Pillow (tested with version 1.1.7)
 
 INSTALLATION:
 
