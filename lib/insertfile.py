@@ -4,7 +4,9 @@ import higu
 import sys
 import os
 
-def create_album( name, tags, files, order ):
+MAX_TEXT_LEN = 2**18
+
+def create_album( name, text, tags, files, order ):
 
     if( order ):
         order = 0
@@ -13,8 +15,11 @@ def create_album( name, tags, files, order ):
 
     album = h.create_album()
 
-    if( name != None ):
+    if( name is not None ):
         album.add_name( name )
+
+    if( text is not None ):
+        album.set_text( text )
 
     for t in tags:
         album.assign( t )
@@ -30,7 +35,7 @@ if( __name__ == '__main__' ):
     argv = sys.argv[1:]
 
     if( len( argv ) < 1 ):
-        print 'Usage: insertfile.py [-c config] [-r] [-a album] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
+        print 'Usage: insertfile.py [-c config] [-r] [-a album] [-x textfile] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
 
     if( argv[0] == '-c' ):
         higu.init( argv[1] )
@@ -43,6 +48,7 @@ if( __name__ == '__main__' ):
     album = None
     add_name = True
     taglist = []
+    text_data = None
     order = False
     sort = False
     recovery = False
@@ -72,6 +78,12 @@ if( __name__ == '__main__' ):
             files = []
 
             album = argv[1]
+            argv = argv[2:]
+            continue
+        elif( argv[0] == '-x' ):
+            textfile = open( argv[1], 'r' )
+            text_data = textfile.read( MAX_TEXT_LEN )
+            assert textfile.read( 1 ) == '', 'Text file too long'
             argv = argv[2:]
             continue
         elif( argv[0] == '-t' ):
@@ -115,9 +127,9 @@ if( __name__ == '__main__' ):
         files.sort( sortfn )
     if( album != None ):
         if( album == '-' ):
-            create_album( None, taglist, files, order )
+            create_album( None, text_data, taglist, files, order )
         else:
-            create_album( album, taglist, files, order )
+            create_album( album, text_data, taglist, files, order )
 
     print 'Committing changes'
     h.commit()

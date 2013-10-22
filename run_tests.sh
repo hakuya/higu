@@ -8,6 +8,10 @@ cd $HIGUHOME
 
 PYTHONPATH=./lib:./test
 
+echo 'Testing system requirements to run HIGU'
+echo '============================================================'
+python test/req_cases.py || exit $?
+
 echo 'Testing HIGU core library and database functions'
 echo '============================================================'
-python test/higu_cases.py
+python test/higu_cases.py || exit $?
