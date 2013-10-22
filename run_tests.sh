@@ -6,7 +6,7 @@
 HIGUHOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $HIGUHOME
 
-PYTHONPATH=./lib:./test
+export PYTHONPATH=./lib:./test
 
 echo 'Testing system requirements to run HIGU'
 echo '============================================================'
