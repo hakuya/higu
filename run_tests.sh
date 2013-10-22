@@ -4,13 +4,10 @@
 # safety or for alternate installation configurations, you may hardcode the
 # path here.
 HIGUHOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-NAME=`basename $0`
-NAME=${NAME%.*}
-NAME=${NAME#*.}
-
-# Set the path to the main config file here
-HIGUCFG="$HIGUHOME/$NAME.cfg"
-
 cd $HIGUHOME
-python lib/server.py $HIGUCFG
+
+PYTHONPATH=./lib:./test
+
+echo 'Testing HIGU core library and database functions'
+echo '============================================================'
+python test/higu_cases.py
