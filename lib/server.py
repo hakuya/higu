@@ -64,6 +64,7 @@ class Server:
 
         return json.dumps( result )
 
+    @cherrypy.expose
     def img( self, id = None, exp = None ):
 
         db = higu.Database()
@@ -95,9 +96,6 @@ class Server:
         db.close()
 
         return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
-
-    img.exposed = True
-    dialog.exposed = True
 
 if( __name__ == '__main__' ):
 
