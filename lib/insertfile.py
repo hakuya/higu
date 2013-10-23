@@ -4,6 +4,9 @@ import higu
 import sys
 import os
 
+import logging
+log = logging.getLogger( __name__ )
+
 MAX_TEXT_LEN = 2**18
 
 def create_album( name, text, tags, files, order ):
@@ -103,12 +106,12 @@ if( __name__ == '__main__' ):
         elif( argv[0] == '-S' ):
             sort = True
         elif( not os.path.isfile( argv[0] ) ):
-            print argv[0] + ' is a directory and was skipped'
+            log.warn( '%s is a directory and was skipped', argv[0] )
         elif( pretend ):
             pass
         elif( recovery ):
             if( not h.recover_file( argv[0] ) ):
-                print argv[0] + ' was not found in the db and was ignored'
+                log.warn( '%s was not found in the db and was ignored', argv[0] )
         else:
             x = h.register_file( argv[0], add_name )
 
@@ -121,6 +124,7 @@ if( __name__ == '__main__' ):
         argv = argv[1:]
 
     if( recovery or pretend ):
+        h.commit()
         sys.exit( 0 )
 
     if( sort ):
@@ -131,7 +135,7 @@ if( __name__ == '__main__' ):
         else:
             create_album( album, text_data, taglist, files, order )
 
-    print 'Committing changes'
+    log.info( 'Committing changes' )
     h.commit()
 
 # vim:sts=4:et:sw=4
