@@ -615,7 +615,8 @@ class Database:
                 model.Object.id.in_( q ) )
         return ModelObjToHiguObjIterator( self, objs )
 
-    def lookup_ids_by_tags( self, require, add = [], sub = [], strict = False, type = None, random_order = False ):
+    def lookup_ids_by_tags( self, require = [], add = [], sub = [],
+            strict = False, type = None, random_order = False ):
 
         if( len( add ) > 0 ):
             add_q = map( lambda x: self.session.query( model.Relation.child ) \
@@ -638,19 +639,23 @@ class Database:
         else:
             req_q = None
 
+        query = self.session.query( model.Object )
+
         if( req_q is not None ):
             q = req_q
 
             if( add_q is not None ):
                 q = q.union( add_q )
-        else:
-            q = add_q
+
+            query = query.filter( model.Object.id.in_( q ) )
+        elif( add_q is not None ):
+            query = query.filter( model.Object.id.in_( add_q ) )
 
         if( sub_q is not None ):
-            q = q.except_( sub_q )
+            query = query.filter( ~model.Object.id.in_( sub_q ) )
 
-        query = self.session.query( model.Object ) \
-                    .filter( model.Object.id.in_( q ) )
+        if( type is not None ):
+            query = query.filter( model.Object.type == type )
         if( random_order ):
             query = query.order_by( 'RANDOM()' )
 

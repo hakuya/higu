@@ -3,6 +3,9 @@ import uuid
 import os
 import re
 
+import logging
+log = logging.getLogger( __name__ )
+
 from hash import calculate_details
 
 VERSION = 5
@@ -56,7 +59,7 @@ def check_sha1( hash ):
 
 def upgrade_from_0_to_1( db ):
 
-    print 'Database upgrade from VER 0 -> VER 1'
+    log.info( 'Database upgrade from VER 0 -> VER 1' )
 
     mfl = db.get_table( 'mfl' )
     dbi = db.get_table( 'dbi' )
@@ -69,7 +72,7 @@ def upgrade_from_0_to_1( db ):
 
 def upgrade_from_1_to_2( db ):
 
-    print 'Database upgrade from VER 1 -> VER 2'
+    log.info( 'Database upgrade from VER 1 -> VER 2' )
 
     mfl = db.get_table( 'mfl' )
     coll = db.get_table( 'coll' )
@@ -131,7 +134,7 @@ def upgrade_from_1_to_2( db ):
 
 def upgrade_from_2_to_3( db ):
 
-    print 'Database upgrade from VER 2 -> VER 3'
+    log.info( 'Database upgrade from VER 2 -> VER 3' )
 
     objl = db.get_table( 'objl' )
     meta = db.get_table( 'meta' )
@@ -162,7 +165,7 @@ def upgrade_from_2_to_3( db ):
 
 def upgrade_from_3_to_4( db ):
 
-    print 'Database upgrade from VER 3 -> VER 4'
+    log.info( 'Database upgrade from VER 3 -> VER 4' )
 
     objl = db.get_table( 'objl' )
     tagl = db.get_table( 'tagl' )
@@ -188,7 +191,7 @@ def upgrade_from_3_to_4( db ):
 
 def upgrade_from_4_to_5( db ):
 
-    print 'Database upgrade from VER 4 -> VER 5'
+    log.info( 'Database upgrade from VER 4 -> VER 5' )
 
     dbi = db.get_table( 'dbi' )
     objl = db.get_table( 'objl' )
@@ -247,7 +250,7 @@ def update_legacy_database( dbfile ):
 
     while( True ):
         ver = dbi.get_version()
-        print 'Database is version v' + str( ver )
+        log.debug( 'Database is version v%s', str( ver ) )
      
         if( ver != VERSION ):
 
