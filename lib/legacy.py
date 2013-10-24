@@ -57,29 +57,29 @@ def check_sha1( hash ):
     assert re.match( '^[0-9a-f]{40}$', hash )
     return hash
 
-def upgrade_from_0_to_1( db ):
+def upgrade_from_0_to_1( session ):
 
     log.info( 'Database upgrade from VER 0 -> VER 1' )
 
-    mfl = db.get_table( 'mfl' )
-    dbi = db.get_table( 'dbi' )
+    mfl = session.get_table( 'mfl' )
+    dbi = session.get_table( 'dbi' )
 
     mfl.add_col( 'parent', 'INTEGER' )
     mfl.add_col( 'gorder', 'INTEGER' )
     dbi.update( [ ( 'ver', 1, ), ( 'rev', 0, ) ] )
 
-    db.commit()
+    session.commit()
 
-def upgrade_from_1_to_2( db ):
+def upgrade_from_1_to_2( session ):
 
     log.info( 'Database upgrade from VER 1 -> VER 2' )
 
-    mfl = db.get_table( 'mfl' )
-    coll = db.get_table( 'coll' )
-    objl = db.get_table( 'objl' )
-    rell = db.get_table( 'rell' )
-    fchk = db.get_table( 'fchk' )
-    dbi = db.get_table( 'dbi' )
+    mfl = session.get_table( 'mfl' )
+    coll = session.get_table( 'coll' )
+    objl = session.get_table( 'objl' )
+    rell = session.get_table( 'rell' )
+    fchk = session.get_table( 'fchk' )
+    dbi = session.get_table( 'dbi' )
 
     objl.create( [ ( 'id',     'INTEGER PRIMARY KEY', ),
                    ( 'type',   'INTEGER NOT NULL', ), ] )
@@ -127,19 +127,22 @@ def upgrade_from_1_to_2( db ):
 
     mfl.drop()
     # Note: naming of collections was never fully implemented in ver. 1 so it is not preserved
-    coll.drop()
+    try:
+        coll.drop()
+    except db.QueryError:
+        pass
     dbi.update( [ ( 'ver', 2, ), ( 'rev', 0, ) ] )
 
-    db.commit()
+    session.commit()
 
-def upgrade_from_2_to_3( db ):
+def upgrade_from_2_to_3( session ):
 
     log.info( 'Database upgrade from VER 2 -> VER 3' )
 
-    objl = db.get_table( 'objl' )
-    meta = db.get_table( 'meta' )
-    naml = db.get_table( 'naml' )
-    dbi = db.get_table( 'dbi' )
+    objl = session.get_table( 'objl' )
+    meta = session.get_table( 'meta' )
+    naml = session.get_table( 'naml' )
+    dbi = session.get_table( 'dbi' )
 
     meta.create( [ ( 'id',     'INTEGER NOT NULL', ),
                    ( 'tag',    'TEXT NOT NULL', ),
@@ -150,7 +153,6 @@ def upgrade_from_2_to_3( db ):
     cursor = naml.select( order = 'id' )
 
     # Note: this code uses the former naming scheme where albums were called collections
-
     nameset_last = None
     for id, name in cursor:
         if( id == nameset_last ):
@@ -158,19 +160,21 @@ def upgrade_from_2_to_3( db ):
         else:
             objl.update( [ ( 'name', name, ), ], [ ( 'id', id, ) ] )
 
+        nameset_last = id
+
     naml.drop()
     dbi.update( [ ( 'ver', 3, ), ( 'rev', 0, ) ] )
 
-    db.commit()
+    session.commit()
 
-def upgrade_from_3_to_4( db ):
+def upgrade_from_3_to_4( session ):
 
     log.info( 'Database upgrade from VER 3 -> VER 4' )
 
-    objl = db.get_table( 'objl' )
-    tagl = db.get_table( 'tagl' )
-    rell = db.get_table( 'rell' )
-    dbi = db.get_table( 'dbi' )
+    objl = session.get_table( 'objl' )
+    tagl = session.get_table( 'tagl' )
+    rell = session.get_table( 'rell' )
+    dbi = session.get_table( 'dbi' )
 
     tagmap = {}
 
@@ -187,18 +191,18 @@ def upgrade_from_3_to_4( db ):
     tagl.drop()
     dbi.update( [ ( 'ver', 4, ), ( 'rev', 0, ) ] )
 
-    db.commit()
+    session.commit()
 
-def upgrade_from_4_to_5( db ):
+def upgrade_from_4_to_5( session ):
 
     log.info( 'Database upgrade from VER 4 -> VER 5' )
 
-    dbi = db.get_table( 'dbi' )
-    objl = db.get_table( 'objl' )
-    rell = db.get_table( 'rell' )
-    meta = db.get_table( 'meta' )
-    rel2 = db.get_table( 'rel2' )
-    mtda = db.get_table( 'mtda' )
+    dbi = session.get_table( 'dbi' )
+    objl = session.get_table( 'objl' )
+    rell = session.get_table( 'rell' )
+    meta = session.get_table( 'meta' )
+    rel2 = session.get_table( 'rel2' )
+    mtda = session.get_table( 'mtda' )
 
     # Step 1, create new tables
     objl.add_col( 'dup', 'INTEGER' )
@@ -240,8 +244,7 @@ def upgrade_from_4_to_5( db ):
 
     # Step 5, update the database file
     dbi.update( [ ( 'ver', 5, ), ( 'rev', 0, ) ] )
-    db.commit()
-
+    session.commit()
 
 def update_legacy_database( dbfile ):
 
