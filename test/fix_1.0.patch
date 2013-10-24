@@ -1,0 +1,17 @@
+diff --git a/lib/filemgmt.py b/lib/filemgmt.py
+index c4fd890..0bf5724 100644
+--- a/lib/filemgmt.py
++++ b/lib/filemgmt.py
+@@ -223,8 +223,11 @@ class MasterFileList:
+ 
+     def register( self, length, crc32, md5, sha1 ):
+ 
+-        if( len( self.lookup( length, crc32, md5, sha1 ) ) != 0 ):
++        try:
++            self.lookup( length, crc32, md5, sha1 ).next()
+             return False
++        except StopIteration:
++            pass
+ 
+         length = check_len( length )
+         crc32 = check_crc32( crc32 )

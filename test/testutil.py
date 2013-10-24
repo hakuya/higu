@@ -6,7 +6,7 @@ import higu
 
 class TestCase( unittest.TestCase ):
 
-    def init_env( self ):
+    def init_env( self, do_init = True ):
 
         self.data_dir = 'test/data'
         self.work_dir = tempfile.mkdtemp()
@@ -34,12 +34,18 @@ class TestCase( unittest.TestCase ):
         cfg_file.write( 'port = 60080\n' )
         cfg_file.close()
 
-        higu.init( self.cfg_file_path )
+
+        if( do_init ):
+            self._init_higu()
 
     def uninit_env( self ):
 
         higu.dispose()
         shutil.rmtree( self.work_dir )
+
+    def _init_higu( self ):
+
+        higu.init( self.cfg_file_path )
 
     def _load_data( self, fname, tname = None ):
 

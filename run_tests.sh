@@ -19,3 +19,11 @@ python test/higu_cases.py || exit $?
 echo 'Testing insertfile script'
 echo '============================================================'
 python test/insert_cases.py || exit $?
+
+echo 'Creating databases for next tests'
+echo '============================================================'
+test/build_legacy_dbs.sh || exit $?
+
+echo 'Testing legacy support'
+echo '============================================================'
+python test/legacy_cases.py || exit $?
