@@ -5,7 +5,7 @@ var make_display = function( obj_id )
         targets:    [ obj_id ],
         items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
             'similar_to', 'duplicates', 'variants', 'albums', 'files',
-            'path' ],
+            'path', 'text' ],
     };
     
     response = load_sync( request );
@@ -168,7 +168,7 @@ var common_refresh_info = function( reload_all )
         targets:    [ this.obj_id ],
         items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
             'similar_to', 'duplicates', 'variants', 'albums', 'files',
-            'path' ],
+            'path', 'text' ],
     };
     
     response = load_sync( request );
@@ -551,7 +551,18 @@ GroupDisplay = function( obj_id, info )
 
         this.common_info_display( div, this.info );
 
-        var gather = $( '<a href="#">Gather Tags</a>' );
+        if( this.info.text ) {
+            var view_text = $( '<a href="#">View text</a><br/>' );
+            view_text.data( 'obj', this );
+            view_text.click( function( e ) {
+                obj = $( this ).data( 'obj' );
+                text_dialog.open( obj.info.text );
+            });
+
+            div.append( view_text );
+        }
+
+        var gather = $( '<a href="#">Gather Tags</a><br/>' );
         gather.data( 'obj', this );
         gather.click( function( e ) {
             obj = $( this ).data( 'obj' );

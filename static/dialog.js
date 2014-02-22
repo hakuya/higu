@@ -181,6 +181,41 @@ name_dialog = new function()
 };
 
 /**
+ * class text_dialog
+ */
+text_dialog = new function()
+{
+    this.elem = $( '#text-dialog' );
+    this.elem.data( 'obj', this );
+
+    // Begin Constructor
+    this.elem.dialog({
+        autoOpen: false,
+        width: 800,
+        height: 500,
+        modal: true,
+        buttons: {
+            Cancel: function() {
+                $( this ).data( 'obj' ).close();
+            }
+        },
+    });
+    // End Constructor
+
+    this.open = function( text )
+    {
+        $( '#info-text' ).val( text );
+        this.elem.dialog( 'open' );
+    };
+
+    this.close = function()
+    {
+        $( document ).focus();
+        this.elem.dialog( 'close' );
+    }
+};
+
+/**
  * class error_dialog
  */
 error_dialog = new function()

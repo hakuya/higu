@@ -6,6 +6,7 @@ import os
 
 import logging
 log = logging.getLogger( __name__ )
+logging.basicConfig()
 
 MAX_TEXT_LEN = 2**18
 
@@ -85,7 +86,7 @@ if( __name__ == '__main__' ):
             continue
         elif( argv[0] == '-x' ):
             textfile = open( argv[1], 'r' )
-            text_data = textfile.read( MAX_TEXT_LEN )
+            text_data = unicode( textfile.read( MAX_TEXT_LEN ), 'utf-8' )
             assert textfile.read( 1 ) == '', 'Text file too long'
             argv = argv[2:]
             continue

@@ -13,7 +13,7 @@ NAME=${NAME#*.}
 HIGUCFG="$HIGUHOME/$NAME.cfg"
 
 if [[ $1 = '' ]]; then
-    echo "Usage: $(basename $0) [-a album] [-t taglist] [-n|-N] [-o|-O] file..."
+    echo "Usage: $(basename $0) [-a album [-x text]] [-t taglist] [-n|-N] [-o|-O] file..."
     exit
 fi
 
