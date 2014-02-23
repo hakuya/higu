@@ -29,10 +29,26 @@ class crc32:
              + chr( (self.__value >>  8) & 0xFF ) \
              + chr( (self.__value >>  0) & 0xFF )
 
-def calculate_details( path ):
+class length:
 
-    algs = [ sha1(), md5(), crc32() ]
-    f = open( path, 'rb' )
+    def __init__( self ):
+
+        self.__value = 0
+
+    def update( self, str ):
+
+        self.__value += len( str )
+
+    def digest( self ):
+
+        return self.__value
+
+def calculate_details( f ):
+
+    algs = [ sha1(), md5(), crc32(), length() ]
+
+    if( isinstance( f, str ) ):
+        f = open( f, 'rb' )
 
     while( True ):
         b = f.read( FBUFF )
@@ -43,7 +59,7 @@ def calculate_details( path ):
 
     f.close()
 
-    return  os.path.getsize( path ), \
+    return  algs[3].digest(), \
             str2hex( algs[2].digest() ), \
             str2hex( algs[1].digest() ), \
             str2hex( algs[0].digest() )

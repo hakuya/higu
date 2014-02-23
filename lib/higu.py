@@ -1,9 +1,8 @@
 import model
 import os
-import shutil
 import sys
 import config
-import tempfile
+import ark
 
 from hash import calculate_details
 
@@ -306,11 +305,11 @@ class File( Obj ):
         if( name is not None ):
             return name
         else:
-            p = self.get_path()
-            if( p == None ):
-                return 'unknown'
+            e = self.db.imgdb.get_ext( self.obj.id )
+            if( e == None ):
+                return '%016x' % ( self.get_id(), )
             else:
-                return os.path.split( p )[-1]
+                return '%016x.%s' % ( self.get_id(), e, )
 
     def get_length( self ):
 
@@ -320,13 +319,23 @@ class File( Obj ):
 
         return self.obj.fchk.sha1
 
-    def get_path( self ):
+    def get_mime( self ):
 
-        return self.db.imgdb.get_image( self.obj.id )
+        e = self.db.imgdb.get_ext( self.obj.id )
+        print 'sdkjfhdskjhfdsf'
+        print e
+        if( e is None ):
+            return None
+        else:
+            return 'image/' + e
 
-    def get_thumb( self, exp ):
+    def read( self ):
 
-        return self.db.imgdb.get_thumb( self.obj.id, exp )
+        return self.db.imgdb.read( self.obj.id )
+
+    def read_thumb( self, exp ):
+
+        return self.db.tbcache.read_thumb( self.obj.id, exp )
 
 class ModelObjToHiguObjIterator:
 
@@ -343,210 +352,31 @@ class ModelObjToHiguObjIterator:
 
         return model_obj_to_higu_obj( self.db, self.it.next() )
 
-class ImageDatabase:
-
-    def __init__( self ):
-
-        self.data_path = os.path.join(
-                config.config().get_path( 'library' ),
-                HIGURASHI_DATA_PATH )
-
-        self.tmp_path = os.path.join( self.data_path, 'tmp' )
-        self.to_commit = []
-        self.rm_dir = None
-
-    def commit( self, commit_on_finish = None ):
-
-        completion = 0
-
-        try:
-            for t in self.to_commit:
-                shutil.move( t[0], t[1] )
-                completion += 1
-
-            if( commit_on_finish is not None ):
-                commit_on_finish()
-
-        except:
-            # Something went wrong, rollback
-            for t in self.to_commit[:completion]:
-                shutil.move( t[1], t[0] )
-
-            # Sometimes move() seems to leave files behind
-            for t in self.to_commit:
-                try:
-                    if( os.path.isfile( t[1] ) ):
-                        os.remove( t[1] )
-                except:
-                    pass
-
-            raise
-
-        # Comitted
-        rm_dir = self.rm_dir
-        self.rm_dir = None
-        self.to_commit = []
-
-        if( rm_dir is not None ):
-            shutil.rmtree( rm_dir )
-
-    def rollback( self ):
-
-        self.to_commit = []
-
-    def get_dir_for_id( self, id ):
-
-        lv2 = (id >> 12) % 0xfff
-        lv3 = (id >> 24) % 0xfff
-        lv4 = id >> 36
-
-        assert lv4 == 0
-
-        return os.path.join( self.data_path, '%03x' % ( lv3 ),
-                                             '%03x' % ( lv2 ) )
-
-    def get_fname_base( self, id ):
-
-        fname = '%016x' % ( id, )
-        return os.path.join( self.get_dir_for_id( id ), fname )
-
-    def load_data( self, path, id ):
-
-        tgt_path = self.get_dir_for_id( id )
-        if( not os.path.isdir( tgt_path ) ):
-            os.makedirs( tgt_path )
-
-        name = os.path.split( path )[-1]
-        try:
-            ext = name[name.rindex( '.' ):]
-        except ValueError:
-            ext = '.dat'
-
-        tgt = os.path.join( tgt_path, '%016x%s' % ( id, ext ) )
-        self.to_commit.append( ( path, tgt, ) )
-
-    def delete_data( self, id ):
-
-        if( self.rm_dir is None ):
-            self.rm_dir = tempfile.mkdtemp()
-
-        src_items = self.get_files( id )
-        for src in src_items:
-            name = os.path.split( src )[-1]
-            tgt = os.path.join( self.rm_dir, name )
-            self.to_commit.append( ( src, tgt, ) )
-
-    def get_image( self, id ):
-
-        try:
-            d = self.get_dir_for_id( id )
-            ls = os.listdir( d )
-            ids = '%016x.' % ( id )
-        except OSError:
-            return None
-
-        for f in ls:
-            try:
-                if( f.index( ids ) == 0 ):
-                    return os.path.join( d, f )
-            except ValueError:
-                pass
-
-        return None
-
-    def get_files( self, id ):
-
-        try:
-            d = self.get_dir_for_id( id )
-            ls = os.listdir( d )
-            ids = '%016x' % ( id )
-        except OSError:
-            return None
-
-        results = []
-
-        for f in ls:
-            try:
-                if( f.index( ids ) == 0 ):
-                    results.append( os.path.join( d, f ) )
-            except ValueError:
-                pass
-
-        return results
-
-    def get_thumb( self, id, exp ):
-
-        from PIL import Image
-
-        t = self.get_fname_base( id ) + '_%02d.jpg' % ( exp, )
-        if( os.path.isfile( t ) ):
-            return t
-
-        f = self.get_image( id )
-        if( f is None ):
-            return None
-
-        i = Image.open( f )
-        s = 2**exp
-        w, h = i.size
-
-        if( w < s and h < s ):
-            return f
-
-        if( w > h ):
-            tw = s
-            th = h * s / w
-        else:
-            tw = w * s / h
-            th = s
-
-        r = i.resize( ( tw, th, ), Image.ANTIALIAS )
-        r.save( t )
-        return t
-
-    def make_thumb( self, id, exp ):
-
-        from PIL import Image
-
-        i = Image.open( self.get_image( id ) )
-        s = 2**exp
-        w, h = i.size
-
-        if( w < s and h < s ):
-            return
-
-        if( w > h ):
-            tw = s
-            ht = h * s / w
-        else:
-            tw = w * s / h
-            th = s
-
-        r = i.resize( ( tw, th, ), Image.ANTIALIAS )
-        
-        t = self.get_fname_base( id ) + '_%02d.jpg' % ( exp, )
-        if( os.path.isfile( t ) ):
-            os.remove( t )
-        r.save( t )
-
-    def purge_thumbs( self, id ):
-
-        from glob import glob
-    
-        fs = glob( self.db.get_fname_base( id ) + '_*.jpg' )
-        for f in fs:
-            os.remove( f )
-
 class Database:
 
     def __init__( self ):
 
+        imgpat = os.path.join( config.config().get_path( 'library' ),
+                HIGURASHI_DATA_PATH )
+
         self.session = model.Session()
-        self.imgdb = ImageDatabase()
+        self.imgdb = ark.ImageDatabase( imgpat )
+        self.tbcache = ark.ThumbCache( self.imgdb, imgpat )
+
+        self.obj_del_list = []
 
     def commit( self ):
 
-        self.imgdb.commit( self.session.commit )
+        try:
+            self.imgdb.commit()
+            self.session.commit()
+        except:
+            if( self.imgdb.get_state() == 'committed' ):
+                self.imgdb.rollback()
+
+        for id in self.obj_del_list:
+            self.tbcache.purge_thumbs( id )
+        self.obj_del_list = []
 
     def rollback( self ):
 
@@ -757,15 +587,12 @@ class Database:
     def verify_file( self, obj ):
 
         assert isinstance( obj, File )
-        path = obj.get_path()
+        fd = obj.read()
 
-        if( path is None ):
+        if( fd is None ):
             return False
 
-        if( not os.path.isfile( path ) ):
-            return False
-
-        details = calculate_details( path )
+        details = calculate_details( fd )
 
         if( details[0] != obj.obj.fchk.len ):
             return False
@@ -799,7 +626,8 @@ class Database:
         id = obj.get_id()
 
         if( isinstance( obj, File ) ):
-            self.imgdb.delete_data( id )
+            self.imgdb.delete( id )
+            self.obj_del_list.append( id )
 
         # Clear out similar to
         objs = [ o for o in obj.obj.similars ]

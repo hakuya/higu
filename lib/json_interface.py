@@ -205,8 +205,8 @@ class JsonInterface:
                 info['text'] = target.get_text()
             if( 'repr' in items ):
                 info['repr'] = target.get_repr()
-            if( isinstance( target, higu.File ) and 'path' in items ):
-                info['path'] = target.get_path()
+            if( isinstance( target, higu.File ) and 'mime' in items ):
+                info['mime'] = target.get_mime()
             if( 'tags' in items ):
                 tags = target.get_tags()
                 info['tags'] = map( lambda x: x.get_name(), tags )

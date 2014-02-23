@@ -47,9 +47,13 @@ class TestCase( unittest.TestCase ):
 
         higu.init( self.cfg_file_path )
 
+    def _data_path( self, fname ):
+
+        return os.path.join( self.data_dir, fname )
+
     def _load_data( self, fname, tname = None ):
 
-        src = os.path.join( self.data_dir, fname )
+        src = self._data_path( fname )
         if( tname is None ):
             tgt = os.path.join( self.work_dir, fname )
         else:
@@ -59,13 +63,23 @@ class TestCase( unittest.TestCase ):
 
         return tgt
 
-    def _diff_files( self, fname1, fname2 ):
+    def _diff_data( self, f, data ):
 
-        if( not os.path.isfile( fname1 ) or not os.path.isfile( fname2 ) ):
-            return False
+        return self._diff( f, self._data_path( data ) )
 
-        f1 = open( fname1, 'rb' )
-        f2 = open( fname2, 'rb' )
+    def _diff( self, f1, f2 ):
+
+        if( isinstance( f1, str ) ):
+            if( not os.path.isfile( f1 ) ):
+                return False
+
+            f1 = open( f1, 'rb' )
+
+        if( isinstance( f2, str ) ):
+            if( not os.path.isfile( f2 ) ):
+                return False
+
+            f2 = open( f2, 'rb' )
 
         try:
             while True:

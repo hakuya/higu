@@ -5,7 +5,7 @@ var make_display = function( obj_id )
         targets:    [ obj_id ],
         items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
             'similar_to', 'duplicates', 'variants', 'albums', 'files',
-            'path', 'text' ],
+            'mime', 'text' ],
     };
     
     response = load_sync( request );
@@ -168,7 +168,7 @@ var common_refresh_info = function( reload_all )
         targets:    [ this.obj_id ],
         items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
             'similar_to', 'duplicates', 'variants', 'albums', 'files',
-            'path', 'text' ],
+            'mime', 'text' ],
     };
     
     response = load_sync( request );
@@ -394,7 +394,7 @@ FileDisplay = function( obj_id, info )
         var div = this.pane.find( '.disp' );
         div.html( '' );
 
-        if( !this.info.path ) {
+        if( !this.info.mime ) {
             div.append( 'Image not available<br/>' );
             return;
         }

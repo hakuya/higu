@@ -139,17 +139,18 @@ class InsertCases( testutil.TestCase ):
         self.assertFalse( obj is None,
                 'Image not in DB' )
 
-        path = obj.get_path()
+        h.imgdb.delete( obj.get_id() )
+        h.imgdb.commit()
 
-        os.remove( path )
-        self.assertFalse( os.path.exists( path ),
-                'Image not removed' )
+        img_fd = obj.read()
+        self.assertFalse( img_fd is not None,
+                'Remove failed' )
 
         black = self._load_data( self.black )
         self._run( black, recover = True )
 
-        self.assertTrue( os.path.exists( path ),
-                'Recovery image was not loaded' )
+        self.assertTrue( self._diff_data( obj.read(), self.black ),
+                'Image not recovered' )
 
         self.assertFalse( os.path.exists( black ),
                 'Recovery image was not removed' )
