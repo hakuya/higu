@@ -39,9 +39,9 @@ class HiguLibCases( testutil.TestCase ):
                     os.path.join( self.db_path, 'imgdat' ) ),
                 'Image data directory not created' )
 
-        red_path = obj.get_path()
-        self.assertTrue( os.path.isfile( red_path ),
-                'Image not moved into library' )
+        red_fd = obj.read()
+        self.assertTrue( self._diff_data( red_fd, self.red ),
+                'Image not read from library' )
 
     def test_thumb( self ):
 
@@ -51,16 +51,20 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( blue, False )
         h.commit()
 
-        original = obj.get_path()
-        big_thumb = obj.get_thumb( 10 )
-        small_thumb = obj.get_thumb( 4 )
+        orig_fd = obj.read()
+        big_fd = obj.read_thumb( 10 )
+        small_fd = obj.read_thumb( 4 )
 
-        self.assertEqual( original, big_thumb,
-                'Bigger thumb created' )
-        self.assertTrue( os.path.isfile( big_thumb ),
+        self.assertFalse( big_fd is None,
                 'Invalid image returned for bigger thumb' )
-        self.assertTrue( os.path.isfile( small_thumb ),
+        self.assertFalse( small_fd is None,
                 'Invalid image returned for smaller thumb' )
+
+        self.assertTrue( self._diff( orig_fd, big_fd ),
+                'Bigger thumb created' )
+        orig_fd = obj.read()
+        self.assertFalse( self._diff( orig_fd, small_fd ),
+                'Smaller thumb not created' )
 
     def test_delete( self ):
 
@@ -70,23 +74,36 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( yellow, False )
         h.commit()
 
-        path = obj.get_path()
-        thumb = obj.get_thumb( 4 )
-        self.assertTrue( os.path.isfile( path ),
+        img_fd = obj.read()
+        tb_fd = obj.read_thumb( 4 )
+        self.assertFalse( img_fd is None,
                 'Invalid image returned' )
-        self.assertTrue( os.path.isfile( thumb ),
+        self.assertFalse( tb_fd is None,
                 'Invalid thumb returned' )
 
+        img_fd.close()
+        tb_fd.close()
+
         h.delete_object( obj )
-        self.assertTrue( os.path.isfile( path ),
+
+        img_fd = obj.read()
+        tb_fd = obj.read_thumb( 4 )
+        self.assertFalse( img_fd is None,
                 'Image removed before commit' )
-        self.assertTrue( os.path.isfile( thumb ),
+        self.assertFalse( tb_fd is None,
                 'Thumb removed before commit' )
+
+        img_fd.close()
+        tb_fd.close()
+
         h.commit()
-        self.assertFalse( os.path.isfile( path ),
-                'Image not removed' )
-        self.assertFalse( os.path.isfile( thumb ),
-                'Thumb not removed' )
+
+        img_fd = obj.read()
+        tb_fd = obj.read_thumb( 4 )
+        self.assertTrue( img_fd is None,
+                'Image returned after delete' )
+        self.assertTrue( tb_fd is None,
+                'Thumb returned after delete' )
 
     def test_double_add( self ):
 
@@ -99,9 +116,10 @@ class HiguLibCases( testutil.TestCase ):
         self.assertFalse( os.path.exists( green ),
                 'Old image was not removed' )
 
-        path = obj.get_path()
-        self.assertTrue( os.path.isfile( path ),
-                'Invalid image returned' )
+        img_fd = obj.read()
+        self.assertFalse( img_fd is None,
+                'Failed opening image' )
+        img_fd.close()
 
         green = self._load_data( self.green )
 
@@ -112,9 +130,10 @@ class HiguLibCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( green ),
                 'Double image was removed' )
 
-        path = obj.get_path()
-        self.assertTrue( self._diff_files( green, path ),
+        img_fd = obj.read()
+        self.assertFalse( img_fd is None,
                 'Invalid image returned after double-add' )
+        img_fd.close()
 
     def test_recover_missing( self ):
 
@@ -124,13 +143,16 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( cyan, False )
         h.commit()
         
-        path = obj.get_path()
-        self.assertTrue( os.path.isfile( path ),
-                'Invalid image returned' )
+        img_fd = obj.read()
+        self.assertFalse( img_fd is None,
+                'Failed opening image' )
+        img_fd.close()
 
-        os.remove( path )
+        h.imgdb.delete( obj.get_id() )
+        h.imgdb.commit()
 
-        self.assertFalse( os.path.isfile( path ),
+        img_fd = obj.read()
+        self.assertFalse( img_fd is not None,
                 'Remove failed' )
 
         cyan = self._load_data( self.cyan )
@@ -139,8 +161,8 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( cyan, False )
         h.commit()
         
-        cyan_src = os.path.join( self.data_dir, self.cyan )
-        self.assertTrue( self._diff_files( cyan_src, path ),
+        img_fd = obj.read()
+        self.assertTrue( self._diff_data( img_fd, self.cyan ),
                 'Image not recovered' )
 
     def test_recover_corrupted( self ):
@@ -151,19 +173,19 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( magenta, False )
         h.commit()
         
-        path = obj.get_path()
-        self.assertTrue( os.path.isfile( path ),
-                'Invalid image returned' )
+        img_fd = obj.read()
+        self.assertFalse( img_fd is None,
+                'Failed opening image' )
+        img_fd.close()
 
-        f = open( path, 'wb' )
+        img_fd = h.imgdb._debug_write( obj.get_id() )
 
         try:
-            f.write( 'this is junk' )
+            img_fd.write( 'this is junk' )
         finally:
-            f.close()
+            img_fd.close()
 
-        magenta_src = os.path.join( self.data_dir, self.magenta )
-        self.assertFalse( self._diff_files( magenta_src, path ),
+        self.assertFalse( self._diff_data( obj.read(), self.magenta ),
                 'Corruption failed' )
 
         magenta = self._load_data( self.magenta )
@@ -172,7 +194,7 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( magenta, False )
         h.commit()
         
-        self.assertTrue( self._diff_files( magenta_src, path ),
+        self.assertTrue( self._diff_data( obj.read(), self.magenta ),
                 'Image not recovered' )
 
     def test_name( self ):

@@ -81,21 +81,32 @@ class Server:
 
         f = db.get_object_by_id( id )
         if( exp is None ):
-            p = f.get_path()
+            p = f.read()
+            mime = f.get_mime()
         else:
-            p = f.get_thumb( exp )
+            p = f.read_thumb( exp )
+            mime = 'image/jpeg'
 
         if( p == None ):
             raise cherrypy.HTTPError( 404 )
 
-        name = os.path.split( p )[-1]
-        ext = name[name.rindex( '.' )+1:]
-
         name = f.get_repr()
+
+        cherrypy.response.headers["Content-Type"] = mime
+        cherrypy.response.headers["Content-Disposition"] = 'attachment; filename="%s"' % name
 
         db.close()
 
-        return cherrypy.lib.static.serve_file( p, 'image/' + ext, 'inline', name )
+        def stream():
+
+            with p:
+                while( 1 ):
+                    data = p.read( 4096 )
+                    if( len( data ) == 0 ):
+                        break
+                    yield data
+
+        return stream()
 
 if( __name__ == '__main__' ):
 

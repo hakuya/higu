@@ -12,6 +12,10 @@ echo 'Testing system requirements to run HIGU'
 echo '============================================================'
 python test/req_cases.py || exit $?
 
+echo 'Testing image database functions'
+echo '============================================================'
+python test/imgdb_cases.py || exit $?
+
 echo 'Testing HIGU core library and database functions'
 echo '============================================================'
 python test/higu_cases.py || exit $?
