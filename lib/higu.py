@@ -321,13 +321,7 @@ class File( Obj ):
 
     def get_mime( self ):
 
-        e = self.db.imgdb.get_ext( self.obj.id )
-        print 'sdkjfhdskjhfdsf'
-        print e
-        if( e is None ):
-            return None
-        else:
-            return 'image/' + e
+        return self.db.imgdb.get_mime( self.obj.id )
 
     def read( self ):
 

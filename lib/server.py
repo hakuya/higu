@@ -93,7 +93,7 @@ class Server:
         name = f.get_repr()
 
         cherrypy.response.headers["Content-Type"] = mime
-        cherrypy.response.headers["Content-Disposition"] = 'attachment; filename="%s"' % name
+        cherrypy.response.headers["Content-Disposition"] = 'filename="%s"' % name
 
         db.close()
 
