@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+import mimetypes
 
 class ZipVolume:
 
@@ -35,6 +36,15 @@ class ZipVolume:
             info = self.ls[id]
             fname = info.filename
             return fname[fname.rindex( '.' )+1:]
+        except ( KeyError, ValueError ):
+            return None
+
+    def get_mime( self, id ):
+
+        try:
+            info = self.ls[id]
+            fname = info.filename
+            return mimetypes.guess_type( fname )[0]
         except ( KeyError, ValueError ):
             return None
 
@@ -98,6 +108,14 @@ class FileVolume:
                 return p[p.rindex( '.' )+1:]
             except IndexError:
                 return None
+
+    def get_mime( self, id ):
+
+        p = self.__get_path( id )
+        if( p is None ):
+            return None
+        else:
+            return mimetypes.guess_type( p )[0]
 
     def read( self, id ):
 
@@ -360,6 +378,11 @@ class ImageDatabase:
 
         v = self.__get_vol_for_id( id )
         return v.get_ext( id )
+
+    def get_mime( self, id ):
+
+        v = self.__get_vol_for_id( id )
+        return v.get_mime( id )
 
     def read( self, id ):
 
