@@ -276,7 +276,7 @@ class JsonInterface:
 
         target = self.db.get_object_by_id( target )
 
-        target.set_name( data['name'], saveold )
+        target.set_name( name, saveold )
         self.db.commit()
 
         return json_ok()
