@@ -124,6 +124,9 @@ def json_err( err, emsg = None ):
     if( isinstance( err, KeyError ) ):
         etype = 'key'
         emsg = err.message
+    elif( isinstance( err, ValueError ) ):
+        etype = 'value'
+        emsg = err.message
     elif( isinstance( err, str ) ):
         etype = err
         if( emsg is None ):
@@ -264,7 +267,7 @@ class JsonInterface:
         targets = map( self.db.get_object_by_id, targets )
 
         if( args.has_key( 'query' ) ):
-            tags = args['query'].split( ' ' )
+            tags = filter( lambda x: x != '', args['query'].split( ' ' ) )
 
             add = [t for t in tags if t[0] != '-' and t[0] != '!']
             new = [t[1:] for t in tags if t[0] == '!']
@@ -279,7 +282,7 @@ class JsonInterface:
             add = map( self.db.get_tag, add )
             sub = map( self.db.get_tag, sub )
             add += map( self.db.make_tag, new )
-        except KeyError, e:
+        except ( KeyError, ValueError, ), e:
             return json_err( e )
 
         for obj in targets:
