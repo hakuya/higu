@@ -25,16 +25,22 @@ var make_display = function( obj_id )
 
 function make_draggable( elem, obj_id, repr, type )
 {
+    elem.data( 'obj_id', obj_id );
+    elem.data( 'repr', repr );
+    elem.data( 'type', type );
+
     elem.draggable( {
-        /*helper:     function() {
+        helper:     function() {
             orig = $( this );
             clone = orig.clone();
-            clone.data( 'obj_id', orig.data( 'obj_id' ) );
-            clone.data( 'repr', orig.data( 'repr' ) );
+
+            // FIXME: bugfix to prevent clone from calling onload which
+            // causes whacky image resizing when the dragable is created
+            clone[0].onload = null; 
             return clone;
-        },*/
+        },
         appendTo:   $( '#page' ),
-        helper:     'clone',
+        //helper:     'clone',
         //cursor:     'move',
         opacity:    0.3,
         distance:   30,
@@ -42,12 +48,12 @@ function make_draggable( elem, obj_id, repr, type )
             $( this ).draggable("option", "cursorAt", {
                 left:   Math.floor( ui.helper.width() / 2 ),
                 top:    Math.floor( ui.helper.height() / 2 )
-            }); 
+            });
         },
+        /*stop: function( event, ui ) { 
+            alert( ui.helper[0].width );
+        },*/
     });
-    elem.data( 'obj_id', obj_id );
-    elem.data( 'repr', repr );
-    elem.data( 'type', type );
 }
 
 function make_sortable( disp, elem, index )

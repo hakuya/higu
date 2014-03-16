@@ -169,19 +169,19 @@ $(document).keypress( function( e ) {
                 select_all();
                 break;
             case 97: // a
-                resize_image( tab, 0.5 );
+                resize_image( tab, -0.5 );
                 break;
             case 115: // s
-                resize_image( tab, 2.0 );
+                resize_image( tab, -2.0 );
                 break;
             case 122: // z
-                resize_image( tab, 0 );
+                resize_image( tab, 1.0 );
                 break;
             case 120: // x
-                resize_image( tab, -2 );
+                resize_image( tab, 'fit_outside' );
                 break;
             case 99:  // c
-                resize_image( tab, -1 );
+                resize_image( tab, 'fit_inside' );
                 break;
             case 106: // j
                 tab.data( 'obj' ).down();
@@ -249,6 +249,9 @@ $( window ).resize( function() {
 
     $( '#main' ).height( main_h - 50 );
     $( '#tabs' ).tabs( 'refresh' );
+
+    tab = tabs.active();
+    refresh_image( tab );
 } );
 
 init_view();
