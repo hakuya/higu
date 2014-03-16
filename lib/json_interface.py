@@ -119,13 +119,30 @@ def json_ok( **args ):
     args['result'] = 'ok'
     return args
 
-def json_err( etype, emsg ):
+def json_err( err, emsg = None ):
 
-    return {
-        'result' : 'err',
-        'except' : etype,
-        'msg'    : emsg,
-    }
+    if( isinstance( err, KeyError ) ):
+        etype = 'key'
+        emsg = err.message
+    elif( isinstance( err, str ) ):
+        etype = err
+        if( emsg is None ):
+            emsg = 'An %s error has occured' % ( etype, )
+    else:
+        etype = 'unknown'
+        emsg = 'An %s error has occured' % ( str( etype ), )
+
+    if( emsg is None ):
+        return {
+            'result' : 'err',
+            'except' : etype,
+        }
+    else:
+        return {
+            'result' : 'err',
+            'except' : etype,
+            'msg'    : emsg,
+        }
 
 class JsonInterface:
 
@@ -258,9 +275,12 @@ class JsonInterface:
             sub = args['sub_tags'] if( args.has_key( 'sub_tags' ) ) else []
             new = args['new_tags'] if( args.has_key( 'new_tags' ) ) else []
 
-        add = map( self.db.get_tag, add )
-        sub = map( self.db.get_tag, sub )
-        add += map( self.db.make_tag, new )
+        try:
+            add = map( self.db.get_tag, add )
+            sub = map( self.db.get_tag, sub )
+            add += map( self.db.make_tag, new )
+        except KeyError, e:
+            return json_err( e )
 
         for obj in targets:
             for t in sub:

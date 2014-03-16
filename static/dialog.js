@@ -36,6 +36,8 @@ tag_dialog = new function()
 
     this.open = function()
     {
+        $( '#tag-err-text' ).html( '' );
+
         this.elem.dialog( 'open' );
         $( '#tags' ).focus();
         $( '#tags' ).select();
@@ -46,17 +48,26 @@ tag_dialog = new function()
         var tab = tabs.active();
 
         if( tab.data( 'obj' ) ) {
-            tab.data( 'obj' ).tag( tags );
+            return tab.data( 'obj' ).tag( tags );
+        } else {
+            return { result: 'ok' };
         }
     }
 
     this.close = function( submit )
     {
+        r = { result: 'ok' };
+
         if( submit ) {
-            this.submit( $( '#tags' ).val() );
+            r = this.submit( $( '#tags' ).val() );
         }
-        $( document ).focus();
-        this.elem.dialog( 'close' );
+
+        if( r.result == 'ok' ) {
+            $( document ).focus();
+            this.elem.dialog( 'close' );
+        } else {
+            $( '#tag-err-text' ).html( r.msg );
+        }
     }
 };
 

@@ -503,7 +503,7 @@ class Database:
                 .filter( model.Object.type == TYPE_CLASSIFIER ) \
                 .filter( model.Object.name == name ).first()
         if( obj is None ):
-            raise KeyError, 'No such tag "%s"' % ( name )
+            raise KeyError, 'No such tag "%s"' % ( name, )
 
         return model_obj_to_higu_obj( self, obj )
 
