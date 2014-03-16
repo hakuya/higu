@@ -194,8 +194,14 @@ var common_tag = function( tags )
         'targets' : [ this.obj_id ],
         'query' : tags,
     };
-    load_sync( request );
-    tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
+    response = load_sync( request );
+
+    if( response.result == 'ok' ) {
+        tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
+        return { result: 'ok' };
+    } else {
+        return response;
+    }
 }
 
 var common_rename = function( name, saveold )
@@ -248,6 +254,7 @@ DummyDisplay = function( msg )
 
     this.tag = function( tags )
     {
+        return { result: 'notimpl' };
     };
 
     this.drop = function( obj_id, repr, type )
@@ -674,8 +681,14 @@ SelectionDisplay = function()
             'targets' : targets,
             'query' : tags,
         };
-        load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected: targets } );
+        response = load_sync( request );
+
+        if( response.result == 'ok' ) {
+            tabs.on_event( { type: 'info_changed', affected: targets } );
+            return { result: 'ok' };
+        } else {
+            return response;
+        }
     };
 
     this.rename = function( name, saveold )

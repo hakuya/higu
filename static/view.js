@@ -453,7 +453,9 @@ DisplayTab = function( title, provider )
     this.tag = function( tags )
     {
         if( this.display ) {
-            this.display.tag( tags );
+            return this.display.tag( tags );
+        } else {
+            return { result: 'ok' };
         }
     }
 
