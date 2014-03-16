@@ -3,6 +3,7 @@ import os
 import sys
 import config
 import ark
+import re
 
 from hash import calculate_details
 
@@ -19,6 +20,11 @@ TYPE_FILE_VAR   = model.TYPE_FILE_VAR
 TYPE_GROUP      = model.TYPE_GROUP
 TYPE_ALBUM      = model.TYPE_ALBUM
 TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
+
+def check_tag_name( s ):
+
+    if( re.match( '^[\w\-_:]+$', s ) is None ):
+        raise ValueError, '"%s" is not a valid tag name' % ( s, )
 
 def make_unicode( s ):
 
@@ -509,6 +515,7 @@ class Database:
 
     def make_tag( self, name ):
 
+        check_tag_name( name )
         try:
             return self.get_tag( name )
         except KeyError:
@@ -523,6 +530,7 @@ class Database:
 
     def move_tag( self, tag, target ):
 
+        check_tag_name( target )
         c = self.get_tag( tag ).obj
 
         try:
@@ -535,6 +543,7 @@ class Database:
 
     def copy_tag( self, tag, target ):
 
+        check_tag_name( target )
         c = self.get_tag( tag ).obj
 
         try:
