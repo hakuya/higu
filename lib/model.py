@@ -75,7 +75,7 @@ class Relation( Base ):
     def __repr__( self ):
 
         return 'Relation( %r, %r, %r )' % (
-                self.id, self.parent, self.sort )
+                self.child, self.parent, self.sort )
 
 class Object( Base ):
     __tablename__ = 'objl'
@@ -203,16 +203,3 @@ def load():
     info = session.Query(DatabaseInfo).first()
     assert( info.ver == VERSION )
     session.close()
-
-if __name__ == '__main__':
-
-    init( '/home/hakuya/.live/hfdb.dat' )
-    session = Session()
-
-    it_gen = session.query(Object).all()
-    c = 0
-    for i in it_gen:
-        c += 1
-        if c == 50:
-            break
-        print i, i.similar_to
