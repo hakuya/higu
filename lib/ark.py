@@ -461,6 +461,7 @@ class ThumbCache:
             tw = w * s / h
             th = s
 
+        i = i.convert( 'RGB' )
         r = i.resize( ( tw, th, ), Image.ANTIALIAS )
         r.save( t )
 
