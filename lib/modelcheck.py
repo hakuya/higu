@@ -25,6 +25,31 @@ def check_dups_objl():
     for item in q:
         print item
 
+def check_dups_tags():
+
+    s = model.Session()
+    q = s.query( model.Object ) \
+         .filter( model.Object.type == model.TYPE_CLASSIFIER ) \
+         .group_by( model.Object.name ) \
+         .having( func.count() > 1 )
+
+    print 'The following duplicate tags exist in objl:'
+    for item in q:
+        print item
+
+def check_tag_names():
+
+    s = model.Session()
+    q = s.query( model.Object ) \
+         .filter( model.Object.type == model.TYPE_CLASSIFIER )
+
+    print 'The following tags have bad names:'
+    for item in q:
+        try:
+            higu.check_tag_name( item.name )
+        except ValueError:
+            print item
+
 def check_dups_fchk():
 
     s = model.Session()
@@ -58,10 +83,12 @@ def check_dups_mtda():
     for item in q:
         print item
 
-def check_dups():
+def check():
 
     check_dups_dbi()
     check_dups_objl()
+    check_dups_tags()
+    check_tag_names()
     check_dups_fchk()
     check_dups_rel2()
     check_dups_mtda()
@@ -85,6 +112,6 @@ if( __name__ == '__main__' ):
     else:
         init()
 
-    check_dups()
+    check()
 
 # vim:sts=4:et:sw=4
