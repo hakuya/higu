@@ -1,1 +1,4 @@
 *.pyc
+.*.sw*
+test/data/hfdb_*.dat
+test.db/*
