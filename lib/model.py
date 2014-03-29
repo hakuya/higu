@@ -50,6 +50,7 @@ class DatabaseInfo( Base ):
     uuid = Column( Text, primary_key = True )
     ver = Column( Integer, nullable = False )
     rev = Column( Integer, nullable = False )
+    imgdb_ver = Column( Integer )
 
     def __init__( self, ver, rev ):
 
