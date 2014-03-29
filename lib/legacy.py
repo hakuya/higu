@@ -8,7 +8,7 @@ log = logging.getLogger( __name__ )
 
 from hash import calculate_details
 
-VERSION = 5
+VERSION = 6
 REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
@@ -246,6 +246,33 @@ def upgrade_from_4_to_5( session ):
     dbi.update( [ ( 'ver', 5, ), ( 'rev', 0, ) ] )
     session.commit()
 
+def upgrade_from_5_to_6( session ):
+
+    log.info( 'Database upgrade from VER 5 -> VER 6' )
+
+    dbi = session.get_table( 'dbi' )
+    dbi.add_col( 'imgdb_ver', 'INTEGER' )
+
+    dbi.update( [ ( 'ver', 6, ), ( 'rev', 0, ), ( 'imgdb_ver', 0, ), ] )
+    session.commit()
+
+def back_up_db_file( dbfile ):
+
+    f = file( dbfile, 'rb' )
+    n = 0
+    while( 1 ):
+        if( not os.path.isfile( dbfile + '.bak' + str( n ) ) ):
+            break
+        n += 1
+    g = file( dbfile + '.bak' + str( n ), 'wb' )
+    while( 1 ):
+        buff = f.read( 1024 )
+        if( len( buff ) == 0 ):
+            f.close()
+            g.close()
+            break
+        g.write( buff )
+
 def update_legacy_database( dbfile ):
 
     session = db.SqlLiteDatabase( dbfile )
@@ -258,45 +285,25 @@ def update_legacy_database( dbfile ):
         if( ver != VERSION ):
 
             # Back-up the dbfile
-            f = file( dbfile, 'rb' )
-            n = 0
-            while( 1 ):
-                if( not os.path.isfile( dbfile + '.bak' + str( n ) ) ):
-                    break
-                n += 1
-            g = file( dbfile + '.bak' + str( n ), 'wb' )
-            while( 1 ):
-                buff = f.read( 1024 )
-                if( len( buff ) == 0 ):
-                    f.close()
-                    g.close()
-                    break
-                g.write( buff )
+            back_up_db_file( dbfile )
 
             if( ver == 0 ): 
                 upgrade_from_0_to_1( session )
-                upgrade_from_1_to_2( session )
-                upgrade_from_2_to_3( session )
-                upgrade_from_3_to_4( session )
-                upgrade_from_4_to_5( session )
                 continue
             elif( ver == 1 ):
                 upgrade_from_1_to_2( session )
-                upgrade_from_2_to_3( session )
-                upgrade_from_3_to_4( session )
-                upgrade_from_4_to_5( session )
                 continue
             elif( ver == 2 ):
                 upgrade_from_2_to_3( session )
-                upgrade_from_3_to_4( session )
-                upgrade_from_4_to_5( session )
                 continue
             elif( ver == 3 ):
                 upgrade_from_3_to_4( session )
-                upgrade_from_4_to_5( session )
                 continue
             elif( ver == 4 ):
                 upgrade_from_4_to_5( session )
+                continue
+            elif( ver == 5 ):
+                upgrade_from_5_to_6( session )
                 continue
             else:
                 raise RuntimeError( 'Incompatible database version' )
@@ -318,9 +325,10 @@ class DatabaseInfo:
         self.dbi = dbi
 
         try:
-            self.dbi.create( [  ( 'uuid',   'TEXT', ),
-                                ( 'ver',    'VERSION', ),
-                                ( 'rev',    'INTEGER', ) ] )
+            self.dbi.create( [  ( 'uuid',       'TEXT', ),
+                                ( 'ver',        'INTEGER', ),
+                                ( 'rev',        'INTEGER', ),
+                                ( 'imgdb_ver',  'INTEGER', ) ] )
 
             self.dbi.insert( [ ( 'uuid', str( uuid.uuid1() ), ), ( 'ver', VERSION ), ( 'rev', REVISION, ) ] )
         except db.QueryError:
