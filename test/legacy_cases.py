@@ -4,6 +4,7 @@ import shutil
 import os
 import higu
 import types
+import datetime
 
 class LegacyCases( testutil.TestCase ):
 
@@ -69,6 +70,21 @@ class LegacyCases( testutil.TestCase ):
                 'Grey not found' )
         self.assertTrue( self.black in fnames,
                 'Black not found: ' + str( fnames ) )
+
+    def subtest_ensure_files_have_timestamp( self, ver ):
+
+        h = higu.Database()
+
+        files = self._lookup( h, type = higu.TYPE_FILE )
+        files.extend( self._lookup( h, type = higu.TYPE_FILE_DUP ) )
+        files.extend( self._lookup( h, type = higu.TYPE_FILE_VAR ) )
+
+        now = datetime.datetime.utcnow()
+        for f in files:
+            self.assertTrue( now - f.get_creation_time_utc()
+                           < datetime.timedelta( minutes = 5 ),
+                    'Unexpected timestamp in file, %r' % (
+                        f.get_creation_time_utc(), ) )
 
     def subtest_check_tagging( self, ver ):
 

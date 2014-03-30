@@ -2,13 +2,15 @@ import db
 import uuid
 import os
 import re
+import time
+import calendar
 
 import logging
 log = logging.getLogger( __name__ )
 
 from hash import calculate_details
 
-VERSION = 6
+VERSION = 7
 REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
@@ -256,6 +258,26 @@ def upgrade_from_5_to_6( session ):
     dbi.update( [ ( 'ver', 6, ), ( 'rev', 0, ), ( 'imgdb_ver', 0, ), ] )
     session.commit()
 
+def upgrade_from_6_to_7( session ):
+
+    log.info( 'Database upgrade from VER 6 -> VER 7' )
+
+    dbi = session.get_table( 'dbi' )
+    objl = session.get_table( 'objl' )
+
+    # Note, I normally wouldn't want to add a default, because having
+    # an exception thrown if we ever try to insert an empty time is
+    # a good way to catch errors. However, SqlLite doesn't provide
+    # any good mechinisms to add a not-null column, then revoke the
+    # default.
+    objl.add_col( 'create_ts', 'INTEGER NOT NULL', 0 )
+
+    ts_now = calendar.timegm( time.gmtime() )
+    print 'update', ts_now
+    objl.update( [ ( 'create_ts', ts_now, ) ] )
+    dbi.update( [ ( 'ver', 7, ), ( 'rev', 0, ), ] )
+    session.commit()
+
 def back_up_db_file( dbfile ):
 
     f = file( dbfile, 'rb' )
@@ -304,6 +326,9 @@ def update_legacy_database( dbfile ):
                 continue
             elif( ver == 5 ):
                 upgrade_from_5_to_6( session )
+                continue
+            elif( ver == 6 ):
+                upgrade_from_6_to_7( session )
                 continue
             else:
                 raise RuntimeError( 'Incompatible database version' )

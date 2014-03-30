@@ -4,6 +4,8 @@ from sqlalchemy.orm import relation, backref, sessionmaker, scoped_session
 from sqlalchemy.ext.associationproxy import association_proxy
 
 import re
+import time
+import calendar
 
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
@@ -13,7 +15,7 @@ TYPE_GROUP      = 2000
 TYPE_ALBUM      = 2001
 TYPE_CLASSIFIER = 2002
 
-VERSION = 5
+VERSION = 7
 REVISION = 0
 
 def check_len( length ):
@@ -83,6 +85,7 @@ class Object( Base ):
 
     id = Column( Integer, primary_key = True )
     type = Column( Integer, nullable = False )
+    create_ts = Column( Integer, nullable = False )
     name = Column( Text )
     dup = Column( Integer, ForeignKey( 'objl.id' ) )
 
@@ -105,6 +108,7 @@ class Object( Base ):
 
         self.type = type
         self.name = name
+        self.create_ts = calendar.timegm(time.gmtime())
 
     def __getitem__( self, key ):
 
@@ -133,7 +137,7 @@ class Object( Base ):
 
     def __repr__( self ):
 
-        return 'Object( %r, %r, %r )' % ( self.id, self.type, self.name )
+        return 'Object( %r, %r, %r )' % ( self.id, self.type, time.gmtime( self.create_ts ), self.name )
 
 class FileChecksum( Base ):
     __tablename__ = 'fchk'
@@ -193,6 +197,8 @@ def init( database_file ):
     session_factory = sessionmaker( bind = engine )
     Session = scoped_session( session_factory )
 
+    load()
+
 def dispose():
 
     Session = None
@@ -201,6 +207,6 @@ def dispose():
 def load():
 
     session = Session()
-    info = session.Query(DatabaseInfo).first()
+    info = session.query( DatabaseInfo ).one()
     assert( info.ver == VERSION )
     session.close()

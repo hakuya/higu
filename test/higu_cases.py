@@ -3,6 +3,8 @@ import testutil
 import shutil
 import os
 import higu
+import time
+import datetime
 
 class HiguLibCases( testutil.TestCase ):
 
@@ -104,6 +106,26 @@ class HiguLibCases( testutil.TestCase ):
                 'Image returned after delete' )
         self.assertTrue( tb_fd is None,
                 'Thumb returned after delete' )
+
+    def test_timestamp( self ):
+
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        obj_id = h.register_file( blue, False ).get_id()
+        h.commit()
+
+        time.sleep( 5 )
+        obj = h.get_object_by_id( obj_id )
+
+        now = datetime.datetime.utcnow()
+        d_5sec = datetime.timedelta( seconds = 5 )
+        d_10sec = datetime.timedelta( seconds = 10 )
+
+        self.assertTrue( now - obj.get_creation_time_utc() < d_10sec,
+                'Unexpected timestamp > 10secs away' )
+        self.assertTrue( now - obj.get_creation_time_utc() > d_5sec,
+                'Unexpected timestamp < 5secs away' )
 
     def test_double_add( self ):
 

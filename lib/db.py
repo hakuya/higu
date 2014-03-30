@@ -379,14 +379,18 @@ class Table:
         except sqlite3.OperationalError, ex:
             raise QueryError( ex )
 
-    def add_col( self, name, type ):
+    def add_col( self, name, type, default = None ):
 
         check_name( name )
         check_type( type )
 
+        query = 'ALTER TABLE %s ADD %s %s' % ( self.name, name, type )
+        if( default is not None ):
+            query += ' DEFAULT %r' % ( default, )
+
         try:
             c = self.db.cursor()
-            c.execute( 'ALTER TABLE %s ADD %s %s' % ( self.name, name, type ) )
+            c.execute( query )
         except sqlite3.OperationalError, ex:
             raise QueryError( ex )
 
