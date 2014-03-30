@@ -4,6 +4,7 @@ import sys
 import config
 import ark
 import re
+import datetime
 
 from hash import calculate_details
 
@@ -60,6 +61,14 @@ class Obj:
     def get_type( self ):
 
         return self.obj.type
+
+    def get_creation_time( self ):
+
+        return datetime.datetime.fromtimestamp( self.obj.create_ts )
+
+    def get_creation_time_utc( self ):
+
+        return datetime.datetime.utcfromtimestamp( self.obj.create_ts )
 
     def get_tags( self ):
 
