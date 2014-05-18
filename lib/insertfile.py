@@ -10,12 +10,7 @@ logging.basicConfig()
 
 MAX_TEXT_LEN = 2**18
 
-def create_album( name, text, tags, files, order ):
-
-    if( order ):
-        order = 0
-    else:
-        order = None
+def create_album( name, text, tags ):
 
     album = h.create_album()
 
@@ -28,115 +23,99 @@ def create_album( name, text, tags, files, order ):
     for t in tags:
         album.assign( t )
 
-    for f in files:
-        f[1].assign( album )
-        #album.add_file( f[1], order )
-        #if( order != None ):
-        #    order += 1
+    return album
 
 if( __name__ == '__main__' ):
 
-    argv = sys.argv[1:]
+    import optparse
 
-    if( len( argv ) < 1 ):
-        print 'Usage: insertfile.py [-c config] [-r] [-a album] [-x textfile] [-t taglist] [-n|-N] [-o|-O] [-s|-S] file...'
+    parser = optparse.OptionParser( usage = 'Usage: %prog [options] files...' )
 
-    if( argv[0] == '-c' ):
-        higu.init( argv[1] )
-        argv = argv[2:]
+    parser.add_option( '-c', '--config',
+        dest = 'config',
+        help = 'Configuration File' )
+    parser.add_option( '-p', '--pretend',
+        dest = 'pretend', action = 'store_true', default = False,
+        help = 'Pretend, don\'t actually do anything' )
+    parser.add_option( '-r', '--recovery',
+        dest = 'recovery', action = 'store_true', default = False,
+        help = 'Recovery mode' )
+    parser.add_option( '-a', '--album',
+        dest = 'album',
+        help = 'Create album and add files to album' )
+    parser.add_option( '-x', '--text',
+        dest = 'text_data',
+        help = 'Add text description to album (txt file)' )
+    parser.add_option( '-t', '--tags',
+        dest = 'taglist',
+        help = 'List of tags (\',\' separated) to apply' )
+    parser.add_option( '-T', '--newtags',
+        dest = 'taglist_new',
+        help = 'Same as -t, but creates tags if they don\'t exist' )
+    parser.add_option( '-n', '--nosavename',
+        dest = 'save_name', action = 'store_false',
+        help = 'Don\'t save the original file name in the metadata' )
+    parser.add_option( '-N', '--savename',
+        dest = 'save_name', action = 'store_true', default = True,
+        help = 'Save the original file name in the metadata' )
+
+    opts, files = parser.parse_args()
+
+    if( len( files ) < 1 ):
+        parser.print_help()
+        sys.exit( 0 )
+
+    if( opts.config is not None ):
+        higu.init( opts.config )
     else:
         higu.init()
 
     h = higu.Database()
 
-    album = None
-    add_name = True
-    taglist = []
-    text_data = None
-    order = False
-    sort = False
-    recovery = False
-    pretend = False
+    if( opts.recovery ):
+        # Recovery mode, all we do is reload file data
 
-    files = []
+        for f in files:
+            if( not h.recover_file( f ) ):
+                log.warn( '%s was not found in the db and was ignored', f )
 
-    def sortfn( a, b ):
-        if( a[0] < b[0] ):
-            return -1
-        elif( a[0] > b[0] ):
-            return 1
-        else:
-            return 0
-
-    while( len( argv ) > 0 ):
-        if( argv[0] == '-r' ):
-            recovery = True
-        elif( argv[0] == '-a' ):
-            if( album != None ):
-                if( sort ):
-                    files.sort( sortfn )
-                if( album == '-' ):
-                    create_album( None, taglist, files, order )
-                else:
-                    create_album( album, taglist, files, order )
-            files = []
-
-            album = argv[1]
-            argv = argv[2:]
-            continue
-        elif( argv[0] == '-x' ):
-            textfile = open( argv[1], 'r' )
-            text_data = unicode( textfile.read( MAX_TEXT_LEN ), 'utf-8' )
-            assert textfile.read( 1 ) == '', 'Text file too long'
-            argv = argv[2:]
-            continue
-        elif( argv[0] == '-t' ):
-            taglist = map( h.get_tag, argv[1].split( ',' ) )
-            argv = argv[2:]
-            continue
-        elif( argv[0] == '-n' ):
-            add_name = False
-        elif( argv[0] == '-N' ):
-            add_name = True
-        elif( argv[0] == '-o' ):
-            order = False
-        elif( argv[0] == '-O' ):
-            order = True
-        elif( argv[0] == '-s' ):
-            sort = False
-        elif( argv[0] == '-S' ):
-            sort = True
-        elif( not os.path.isfile( argv[0] ) ):
-            log.warn( '%s is a directory and was skipped', argv[0] )
-        elif( pretend ):
-            pass
-        elif( recovery ):
-            if( not h.recover_file( argv[0] ) ):
-                log.warn( '%s was not found in the db and was ignored', argv[0] )
-        else:
-            x = h.register_file( argv[0], add_name )
-
-            if( album == None ):
-                for t in taglist:
-                    x.assign( t )
-
-            files.append( ( argv[0], x, ) )
-
-        argv = argv[1:]
-
-    if( recovery or pretend ):
         h.commit()
         sys.exit( 0 )
 
-    if( sort ):
-        files.sort( sortfn )
-    if( album != None ):
-        if( album == '-' ):
-            create_album( None, text_data, taglist, files, order )
-        else:
-            create_album( album, text_data, taglist, files, order )
+    # Load tags
+    taglist = []
+    if( opts.taglist is not None ):
+        taglist += map( h.get_tag, opts.taglist.split( ',' ) )
+    if( opts.taglist_new is not None ):
+        taglist += map( h.make_tag, opts.taglist_new.split( ',' ) )
 
-    log.info( 'Committing changes' )
-    h.commit()
+    if( opts.album is not None ):
+        # Create album
+        if( opts.text_data is not None ):
+            textfile = open( opts.text_data, 'r' )
+            text_data = unicode( textfile.read( MAX_TEXT_LEN ), 'utf-8' )
+            assert textfile.read( 1 ) == '', 'Text file too long'
+        else:
+            text_data = None
+
+        if( opts.album == '-' ):
+            album = create_album( None, text_data, taglist )
+        else:
+            album = create_album( opts.album, text_data, taglist )
+    else:
+        album = None
+
+    for f in files:
+        x = h.register_file( f, opts.save_name )
+
+        if( album is not None ):
+            x.assign( album )
+        else:
+            for t in taglist:
+                x.assign( t )
+
+    if( not opts.pretend ):
+        log.info( 'Committing changes' )
+        h.commit()
 
 # vim:sts=4:et:sw=4

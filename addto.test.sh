@@ -12,9 +12,4 @@ NAME=${NAME#*.}
 # Set the path to the main config file here
 HIGUCFG="$HIGUHOME/$NAME.cfg"
 
-if [[ $1 = '' ]]; then
-    echo "Usage: $(basename $0) [-a album [-x text]] [-t taglist] [-n|-N] [-o|-O] file..."
-    exit
-fi
-
 python $HIGUHOME/lib/insertfile.py -c $HIGUCFG "$@"
