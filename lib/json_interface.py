@@ -397,9 +397,12 @@ class JsonInterface:
                 add = data['add'] if data.has_key( 'add' ) else []
                 sub = data['sub'] if data.has_key( 'sub' ) else []
 
-            req = map( self.db.get_tag, req )
-            add = map( self.db.get_tag, add )
-            sub = map( self.db.get_tag, sub )
+            try:
+                req = map( self.db.get_tag, req )
+                add = map( self.db.get_tag, add )
+                sub = map( self.db.get_tag, sub )
+            except ( KeyError, ValueError, ), e:
+                return json_err( e )
 
             rs = self.db.lookup_ids_by_tags( req, add, sub, strict,
                     random_order = randomize )
