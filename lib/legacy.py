@@ -273,7 +273,6 @@ def upgrade_from_6_to_7( session ):
     objl.add_col( 'create_ts', 'INTEGER NOT NULL', 0 )
 
     ts_now = calendar.timegm( time.gmtime() )
-    print 'update', ts_now
     objl.update( [ ( 'create_ts', ts_now, ) ] )
     dbi.update( [ ( 'ver', 7, ), ( 'rev', 0, ), ] )
     session.commit()

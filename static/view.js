@@ -352,7 +352,18 @@ SearchProvider = function( query )
 
     this.on_init_load = function( data, response )
     {
-        if( response.results > 0 ) {
+        if( response.result != 'ok' ) {
+            this.sid = null;
+            this.last = null;
+
+            if( response.msg ) {
+                display = new DummyDisplay(
+                    'The search failed: ' + response.msg );
+            } else {
+                display = new DummyDisplay(
+                    'The search failed: ' + response.except + ' error' );
+            }
+        } else if( response.results > 0 ) {
             this.sid = response.selection;
             this.last = response.index;
 
