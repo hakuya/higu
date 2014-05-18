@@ -16,7 +16,7 @@ class InsertCases( testutil.TestCase ):
         self.uninit_env()
 
     def _run( self, files, album = None, text = None, taglist = [],
-            recover = None, name = None, order = None, sort = None ):
+            newtags = [], recover = None, name = None ):
 
         cmd = [ 'python', 'lib/insertfile.py', '-c', self.cfg_file_path ]
 
@@ -38,6 +38,12 @@ class InsertCases( testutil.TestCase ):
             cmd.append( '-t' )
             cmd.append( tags )
 
+        if( len( newtags ) > 0 ):
+            tags = ','.join( newtags )
+
+            cmd.append( '-T' )
+            cmd.append( tags )
+
         if( recover is not None ):
             cmd.append( '-r' )
 
@@ -46,18 +52,6 @@ class InsertCases( testutil.TestCase ):
                 cmd.append( '-N' )
             else:
                 cmd.append( '-n' )
-
-        if( order is not None ):
-            if( order ):
-                cmd.append( '-O' )
-            else:
-                cmd.append( '-o' )
-
-        if( sort is not None ):
-            if( sort ):
-                cmd.append( '-S' )
-            else:
-                cmd.append( '-s' )
 
         if( isinstance( files, str ) ):
             cmd.append( files )
@@ -263,6 +257,25 @@ class InsertCases( testutil.TestCase ):
         self.assertEqual( len( files ), 1,
                 'Unexpected number of files' )
 
+    def test_create_tag( self ):
+
+        h = higu.Database()
+
+        black = self._load_data( self.black )
+        self._run( black, newtags = [ 'black' ] )
+
+        h = higu.Database()
+        try:
+            tag = h.get_tag( 'black' )
+        except KeyError:
+            self.fail( 'Failed creating tag' )
+        except StopIteration:
+            pass
+
+        files = tag.get_files()
+        self.assertEqual( len( files ), 1,
+                'Unexpected number of files' )
+
     def test_tag_multi_file( self ):
 
         h = higu.Database()
@@ -350,10 +363,10 @@ class InsertCases( testutil.TestCase ):
         self._run( [ white, grey, black ], album = 'bw' )
 
         h = higu.Database()
-        wo = h.get_object_by_id( 1 )
-        lo = h.get_object_by_id( 2 )
-        ko = h.get_object_by_id( 3 )
-        al = h.get_object_by_id( 4 )
+        al = h.get_object_by_id( 1 )
+        wo = h.get_object_by_id( 2 )
+        lo = h.get_object_by_id( 3 )
+        ko = h.get_object_by_id( 4 )
 
         self.assertTrue( isinstance( al, higu.Album ),
                 'Expected album' )
@@ -380,10 +393,10 @@ class InsertCases( testutil.TestCase ):
         self._run( [ white, grey, black ], album = 'bw', taglist = [ 'bw' ] )
 
         h = higu.Database()
-        wo = h.get_object_by_id( 2 )
-        lo = h.get_object_by_id( 3 )
-        ko = h.get_object_by_id( 4 )
-        al = h.get_object_by_id( 5 )
+        al = h.get_object_by_id( 2 )
+        wo = h.get_object_by_id( 3 )
+        lo = h.get_object_by_id( 4 )
+        ko = h.get_object_by_id( 5 )
 
         self.assertTrue( isinstance( al, higu.Album ),
                 'Expected album' )
