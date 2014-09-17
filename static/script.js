@@ -24,48 +24,6 @@ function do_show_html( target, response )
     load_html( target, response.data );
 }
 
-function load3( request, target )
-{
-    $.ajax( {
-        url:            '/callback_new',
-        type:           'POST',
-        contentType:    'application/json',
-        data:           JSON.stringify( request ),
-        processData:    false,
-        dataType:       'json',
-        success:        function( response ) {
-            if( response.action == 'begin-display' ) {
-                do_begin_display( target, response )
-            } else if( response.action == 'step-display' ) {
-                do_step_display( target, response )
-            } else if( response.action == 'show-html' ) {
-                do_show_html( target, response )
-            }
-        },
-        error:          function( xhr ) {
-            error_dialog.open( xhr.responseText );
-        }
-    } );
-}
-
-function load4( request, obj, callback )
-{
-    $.ajax( {
-        url:            '/callback_new',
-        type:           'POST',
-        contentType:    'application/json',
-        data:           JSON.stringify( request ),
-        processData:    false,
-        dataType:       'json',
-        success:        function( response ) {
-            eval( 'obj.' + callback + '( response )' );
-        },
-        error:          function( xhr ) {
-            error_dialog.open( xhr.responseText );
-        }
-    } );
-}
-
 function load_async( request, obj, callback, data )
 {
     $.ajax( {
@@ -169,25 +127,25 @@ $(document).keypress( function( e ) {
                 select_all();
                 break;
             case 97: // a
-                resize_image( tab, -0.5 );
+                obj.on_event( { type: 'zoom', zoom: -0.5 } )
                 break;
             case 115: // s
-                resize_image( tab, -2.0 );
+                obj.on_event( { type: 'zoom', zoom: -2.0 } )
                 break;
             case 122: // z
-                resize_image( tab, 1.0 );
+                obj.on_event( { type: 'zoom', zoom: 1.0 } )
                 break;
             case 120: // x
-                resize_image( tab, 'fit_outside' );
+                obj.on_event( { type: 'zoom', zoom: 'fit_outside' } )
                 break;
             case 99:  // c
-                resize_image( tab, 'fit_inside' );
+                obj.on_event( { type: 'zoom', zoom: 'fit_inside' } )
                 break;
             case 106: // j
-                tab.data( 'obj' ).down();
+                obj.down();
                 break;
             case 107: // k
-                tab.data( 'obj' ).up();
+                obj.up();
                 break;
             default:
         }
@@ -251,7 +209,10 @@ $( window ).resize( function() {
     $( '#tabs' ).tabs( 'refresh' );
 
     tab = tabs.active();
-    refresh_image( tab );
+    obj = tab.data( 'obj' );
+    if( obj && obj.display ) {
+        obj.on_event( { type: 'resized' } );
+    }
 } );
 
 init_view();
