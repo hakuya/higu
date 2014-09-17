@@ -38,15 +38,16 @@ html body {
 
 .info{
     width: 20em;
+    height: 100%;
     float: left;
     overflow:auto;
 }
 
-/*
+
 .disp{
     height: 100%;
     float: left;
-}*/
+}
 
 .taglist {
     overflow: hidden;

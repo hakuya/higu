@@ -1,7 +1,7 @@
 /**
  * class Viewer
  */
-ImageViewer = function( tab, im )
+ImageViewer = function( pane, im )
 {
     /**
      * apply_zoom( zoom ) - zoom the image to the given amount
@@ -15,11 +15,9 @@ ImageViewer = function( tab, im )
     this.compute_zoom = function()
     {
         if( this.zoom == 'fit_inside' || this.zoom == 'fit_outside' ) {
-            tab_div = this.tab.find( '.tab' );
-            info_div = this.tab.find( '.info' );
-
-            container_width = this.tab.width() - info_div.width() - 20;
-            container_height = this.tab.height();
+            tab = this.pane.closest( '.tab' );
+            container_width = tab.width() - tab.find( '.info' ).width() - 20;
+            container_height = this.pane.height();
 
             width_ratio = 1.0 * container_width / this.im_width;
             height_ratio = 1.0 * container_height / this.im_height;
@@ -72,41 +70,25 @@ ImageViewer = function( tab, im )
     };
 
     this.im = im;
-    this.tab = tab;
+    this.pane = pane;
 
     this.im_width = this.im.width;
     this.im_height = this.im.height;
     this.zoom = 'fit_inside';
 
-    tab.data( 'viewer', this );
+    pane.data( 'viewer', this );
 
     this.refresh();
 };
 
 function register_image( im )
 {
-    tab = $( im ).closest( '.tab' );
-    return new ImageViewer( tab, im );
+    pane = $( im ).closest( '.disp' );
+    return new ImageViewer( pane, im );
 }
 
 function get_viewer( elem )
 {
-    tab = $( elem ).closest( '.tab' );
-    return tab.data( 'viewer' );
-}
-
-function resize_image( elem, zoom )
-{
-    viewer = get_viewer( elem );
-    if( viewer ) {
-        viewer.set_zoom( zoom );
-    }
-}
-
-function refresh_image( elem )
-{
-    viewer = get_viewer( elem );
-    if( viewer ) {
-        viewer.refresh();
-    }
+    pane = $( elem ).find( '.disp' )
+    return pane.data( 'viewer' );
 }

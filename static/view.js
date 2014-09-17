@@ -23,6 +23,9 @@ tabs = new function()
     this.elem.tabs({
         fit : true,
         heightStyle : 'fill',
+        activate: function( e ) {
+            tabs.on_select();
+        }
     });
 
     this.elem.delegate( "span.ui-icon-close", "click", function() {
@@ -67,6 +70,18 @@ tabs = new function()
                 obj.on_event( e );
             }
         });
+    }
+
+    /**
+     * on_select()
+     */
+    this.on_select = function()
+    {
+        tab = tabs.active();
+        obj = tab.data( 'obj' );
+        if( obj && obj.display ) {
+            obj.on_event( { type: 'focused' } );
+        }
     }
 
     /**
@@ -118,7 +133,7 @@ taglist_tab = new function()
     TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
 
     // Member functions
-    this.on_tags_loaded = function( response )
+    this.on_tags_loaded = function( data, response )
     {
         this.elem.html( '' );
         this.elem.append( "<ul class='taglist'></ul>" );
@@ -138,7 +153,7 @@ taglist_tab = new function()
 
     this.on_tags_changed = function()
     {
-        load4( { 'action' : 'taglist' }, this, 'on_tags_loaded' );
+        load_async( { 'action' : 'taglist' }, this, 'on_tags_loaded', null );
     };
 
     // Constructor

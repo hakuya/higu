@@ -152,7 +152,7 @@ var common_info_display = function( div )
 
 var common_on_event = function( e )
 {
-    if( e.affected.indexOf( this.obj_id ) == -1 ) {
+    if( e.affected && e.affected.indexOf( this.obj_id ) == -1 ) {
         return null;
     }
     
@@ -160,6 +160,16 @@ var common_on_event = function( e )
         this.refresh_info( false );
     } else if( e.type == 'files_changed' ) {
         this.refresh_info( true );
+    } else if( e.type == 'resized' || e.type == 'focused' ) {
+        viewer = get_viewer( this.pane );
+        if( viewer ) {
+            viewer.refresh();
+        }
+    } else if( e.type == 'zoom' ) {
+        viewer = get_viewer( this.pane );
+        if( viewer ) {
+            viewer.set_zoom( e.zoom );
+        }
     } else if( e.type == 'removed' ) {
         return new DummyDisplay( 'This object has been removed' );
     }
