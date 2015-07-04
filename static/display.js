@@ -422,12 +422,8 @@ FileDisplay = function( obj_id, info )
             return;
         }
 
-        img = $( '<img class="objitem" src="/img?id=' + this.obj_id
-                + '&exp=10" class="picture" onload="register_image( this )"'
-                + ' onclick="nextfile( 1 )"/>' );
-        make_draggable( img, this.obj_id, this.info.repr, this.info.type );
+        attach_image( div, this.obj_id, this.info.repr, this.info.type );
 
-        div.append( img );
         div.append( '<br/>' );
     }
 
@@ -443,8 +439,21 @@ FileDisplay = function( obj_id, info )
  */
 GroupDisplay = function( obj_id, info )
 {
-    GROUPLINK_TEMPLATE = '<a class="albumlink objitem sortable"'
-            + ' href="##{grp}-#{idx}"><img src="/img?id=#{obj}&exp=7"/></a>'
+    // Calculate the thumb tile exponent
+    exp_w = 0;
+    while( (window.width / (1 << exp_w)) > 16 ) exp_w++;
+
+    // Calculate the exponent for the thumb image
+    factor_i = 0;
+    while( window.devicePixelRatio > (1 << factor_i) ) factor_i++;
+    exp_i = exp_w + factor_i;
+
+    GROUPLINK_TEMPLATE =
+        '<a class="albumlink objitem sortable" href="##{grp}-#{idx}">'
+      + '  <img src="/img?id=#{obj}&exp='
+        + exp_i + '" style="max-width: 100%; max-height: 100%"/>'
+      + '</a>';
+    GROUPLINK_LI_SIZE = (1 << exp_w);
 
     this.obj_id = obj_id;
     this.info = info
@@ -626,11 +635,15 @@ GroupDisplay = function( obj_id, info )
             make_sortable( this, li, i );
 
             li.append( img );
+            li.width( GROUPLINK_LI_SIZE );
+            li.height( GROUPLINK_LI_SIZE );
             ls.append( li );
         }
         var li = $( '<li></li>' );
         make_sortable( this, li, i );
 
+        li.width( GROUPLINK_LI_SIZE );
+        li.height( GROUPLINK_LI_SIZE );
         ls.append( li );
 
         activate_links( div );
@@ -669,7 +682,21 @@ GroupDisplay = function( obj_id, info )
  */
 SelectionDisplay = function()
 {
-    GROUPLINK_TEMPLATE = '<a class="albumlink objitem sortable" href="#"><img alt="#{repr}" src="/img?id=#{obj}&exp=7"/></a>'
+    // Calculate the thumb tile exponent
+    exp_w = 0;
+    while( (window.width / (1 << exp_w)) > 16 ) exp_w++;
+
+    // Calculate the exponent for the thumb image
+    factor_i = 0;
+    while( window.devicePixelRatio > (1 << factor_i) ) factor_i++;
+    exp_i = exp_w + factor_i;
+
+    GROUPLINK_TEMPLATE =
+        '<a class="albumlink objitem sortable" href="#">'
+      + '  <img alt="#{repr}" src="/img?id=#{obj}&exp='
+        + exp_i + '" style="max-width: 100%; max-height: 100%"/>'
+      + '</a>';
+    GROUPLINK_LI_SIZE = (1 << exp_w);
 
     this.objs = [];
 
@@ -857,11 +884,17 @@ SelectionDisplay = function()
 
             var li = $( '<li></li>' );
             make_sortable( this, li, i );
+
             li.append( img );
+            li.width( GROUPLINK_LI_SIZE );
+            li.height( GROUPLINK_LI_SIZE );
             ls.append( li );
         }
         var li = $( '<li></li>' );
         make_sortable( this, li, i );
+
+        li.width( GROUPLINK_LI_SIZE );
+        li.height( GROUPLINK_LI_SIZE );
         ls.append( li );
     };
 
