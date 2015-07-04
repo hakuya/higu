@@ -149,6 +149,9 @@ taglist_tab = new function()
 
     this.on_event = function( e )
     {
+        if( e.type == 'info_changed' ) {
+            this.on_tags_changed();
+        }
     }
 
     this.on_tags_changed = function()
