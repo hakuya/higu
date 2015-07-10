@@ -1,3 +1,6 @@
+window_width = 0;
+window_height = 0;
+
 function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
         load( '/callback?id=' + selected + '&action=rm' );
@@ -77,8 +80,8 @@ function activate_links( par )
         $( this ).click( function() {
             tag = $( this ).attr( 'href' ).substring( 1 );
 
-            provider = new SearchProvider( { query: tag } );
-            new DisplayTab( tag, provider );
+            provider = new tabs.SearchProvider( { query: tag } );
+            tabs.create_display_tab( tag, provider );
         });
     });
 
@@ -86,12 +89,12 @@ function activate_links( par )
         $( this ).click( function() {
             var target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
 
-            provider = new SearchProvider( {
+            provider = new tabs.SearchProvider( {
                 mode:   'album',
                 album:  parseInt( target[0] ),
                 index:  parseInt( target[1] ),
             });
-            new DisplayTab( 'Album', provider );
+            tabs.create_display_tab( 'Album', provider );
         });
     });
 
@@ -153,20 +156,20 @@ $(document).keypress( function( e ) {
 });
 
 $( 'a[href="#allimg"]' ).click( function() {
-    provider = new SearchProvider( { mode: 'all' } );
-    new DisplayTab( 'All', provider );
+    provider = new tabs.SearchProvider( { mode: 'all' } );
+    tabs.create_display_tab( 'All', provider );
 });
 
 $( 'a[href="#untagged"]' ).click( function() {
-    provider = new SearchProvider( { mode: 'untagged' } );
-    new DisplayTab( 'Untagged', provider );
+    provider = new tabs.SearchProvider( { mode: 'untagged' } );
+    tabs.create_display_tab( 'Untagged', provider );
 });
 
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
 
-    provider = new SearchProvider( { query: tags } );
-    new DisplayTab( tags, provider );
+    provider = new tabs.SearchProvider( { query: tags } );
+    tabs.create_display_tab( tags, provider );
 
     $( this ).children( 'input' ).val( '' );
     $( document ).focus();
@@ -188,8 +191,8 @@ $( '#trash' ).droppable({
 });
 
 $( 'a[href="#newsel"]' ).click( function() {
-    provider = new SelectionProvider();
-    new DisplayTab( 'Selection', provider );
+    provider = new tabs.SelectionProvider();
+    tabs.create_display_tab( 'Selection', provider );
 });
 
 
@@ -215,7 +218,7 @@ $( window ).resize( function() {
     }
 } );
 
-init_view();
+tabs.init();
 init_dialog();
 
 $( window ).resize();
