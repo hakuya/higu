@@ -114,10 +114,9 @@ ImageViewer = function( pane, obj_id, repr, type )
 
     img_tag = $( '<img class="objitem" src="/img?id=' + obj_id
             + '&exp=' + exp + '" class="picture" '
-            + 'onload="on_image_loaded( this )" '
-            + 'onclick="nextfile( 1 )"/>' );
+            + 'onload="on_image_loaded( this )"/>' );
 
-    make_draggable( img_tag, obj_id, repr, type );
+    util.make_draggable( img_tag, obj_id, repr, type );
     pane.append( img_tag );
 
     pane.data( 'viewer', this );

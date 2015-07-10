@@ -351,13 +351,14 @@ class JsonInterface:
                 query = data['query']
                 strict = False
                 randomize = True
+                obj_type = None
 
                 while( len( query ) > 0 and query[0] == '$' ):
                     try:
                         sep = query.index( ' ' )
                         cmd = query[1:sep]
                         query = query[sep+1:]
-                    except IndexError:
+                    except ValueError:
                         cmd = query[1:]
                         query = ''
 
@@ -365,6 +366,16 @@ class JsonInterface:
                         strict = True
                     elif( cmd == 'norand' ):
                         randomize = False
+                    elif( cmd == 'type:orig' ):
+                        obj_type = model.TYPE_FILE;
+                    elif( cmd == 'type:dup' ):
+                        obj_type = model.TYPE_FILE_DUP;
+                    elif( cmd == 'type:var' ):
+                        obj_type = model.TYPE_FILE_VAR;
+                    elif( cmd == 'type:album' ):
+                        obj_type = model.TYPE_ALBUM;
+                    else:
+                        raise ValueError, 'Bad Command'
 
                 ls = query.split( ' ' )
                 req = []
@@ -405,7 +416,7 @@ class JsonInterface:
                 return json_err( e )
 
             rs = self.db.lookup_ids_by_tags( req, add, sub, strict,
-                    random_order = randomize )
+                    type = obj_type, random_order = randomize )
 
         # Register the result set
         sel = Selection( rs )
