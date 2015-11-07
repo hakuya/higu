@@ -1,40 +1,83 @@
-var tag_dialog;
-var dup_dialog;
-var error_dialog;
+// module
+var dialogs = (function() {
 
-function init_dialog()
-{
+TAG_DIALOG_TEMPLATE =
+    "<div id='tag-dialog' title='Tag Image'>"
+  + "    <p>Enter a series of tags separated by spaces."
+  + "    Prefix a tag with a dash to remove it<br/>"
+  + "    <span id='tag-err-text' class='err-text'></span></p>"
+  + "    <form id='tag-dialog-form' onsubmit='return false'><fieldset>"
+  + "    <label for='tags'>Tags</label>"
+  + "    <input type='text' name='tags' id='tags'/>"
+  + "    </fieldset></form>"
+  + "</div>";
+
+DUP_DIALOG_TEMPLATE =
+    "<div id='dup-dialog' title='Duplicate Image'>"
+  + "    <p>Select the relationship of the dropped image:</p>"
+  + ""
+  + "    <form id='dup-dialog-form' onsubmit='return false'><fieldset>"
+  + "    <input type='radio' name='dup' value='orig_dup'>Original of the duplicate in the tab</input><br/>"
+  + "    <input type='radio' name='dup' value='orig_var'>Original of the variant in the tab</input><br/>"
+  + "    <input type='radio' name='dup' value='duplicate'>Duplicate of the original in the tab</input><br/>"
+  + "    <input type='radio' name='dup' value='variant'>Variant of the original in the tab</input><br/>"
+  + "    </fieldset></form>"
+  + "</div>";
+
+NAME_DIALOG_TEMPLATE =
+    "<div id='name-dialog' title='Tag Image'>"
+  + "    <p>Enter a new filename</p>"
+  + ""
+  + "    <form id='name-dialog-form' onsubmit='return false'><fieldset>"
+  + "    <label for='fname'>Name</label>"
+  + "    <input type='text' name='fname' id='fname'/>"
+  + "    <label for='saveold'>Save old name</label>"
+  + "    <input type='checkbox' name='saveold' id='saveold'/>"
+  + "    </fieldset></form>"
+  + "</div>";
+
+TEXT_DIALOG_TEMPLATE =
+    "<div id='text-dialog' title='Info'>"
+  + "    <textarea id='info-text' style='width:100%;height:100%;resize:none' readonly='true'></textarea>"
+  + "</div>";
+
+ERROR_DIALOG_TEMPLATE =
+    "<div id='error-dialog' title='Oops, something went wrong'>"
+  + "    <span id='error-msg'></span>"
+  + "</div>";
 
 /**
- * class tag_dialog
+ * class TagDialog
  */
-tag_dialog = new function()
-{
-    this.elem = $( '#tag-dialog' );
-    this.elem.data( 'obj', this );
+var TagDialog = function()
 
-    // Begin Constructor
-    this.elem.dialog({
-        autoOpen: false,
-        width: 600,
-        height: 300,
-        modal: true,
-        buttons: {
-            'Apply': function() {
-                $( this ).data( 'obj' ).close( true );
+    // Constructor
+    {
+        this.elem = $( TAG_DIALOG_TEMPLATE );
+        this.elem.data( 'obj', this );
+        $( 'body' ).append( this.elem );
+
+        this.elem.dialog({
+            autoOpen: false,
+            width: 600,
+            height: 300,
+            modal: true,
+            buttons: {
+                'Apply': function() {
+                    $( this ).data( 'obj' ).close( true );
+                },
+                Cancel: function() {
+                    $( this ).data( 'obj' ).close( false );
+                }
             },
-            Cancel: function() {
-                $( this ).data( 'obj' ).close( false );
-            }
-        },
-    });
+        });
 
-    $( '#tag-dialog-form' ).submit( function() {
-        $( '#tag-dialog' ).data( 'obj' ).close( true );
-    });
-    // End Constructor
+        $( '#tag-dialog-form' ).submit( function() {
+            $( '#tag-dialog' ).data( 'obj' ).close( true );
+        });
+    };
 
-    this.open = function()
+    TagDialog.prototype.open = function()
     {
         $( '#tag-err-text' ).html( '' );
 
@@ -43,7 +86,7 @@ tag_dialog = new function()
         $( '#tags' ).select();
     };
 
-    this.submit = function( tags )
+    TagDialog.prototype.submit = function( tags )
     {
         var tab = tabs.active();
 
@@ -52,9 +95,9 @@ tag_dialog = new function()
         } else {
             return { result: 'ok' };
         }
-    }
+    };
 
-    this.close = function( submit )
+    TagDialog.prototype.close = function( submit )
     {
         r = { result: 'ok' };
 
@@ -68,49 +111,50 @@ tag_dialog = new function()
         } else {
             $( '#tag-err-text' ).html( r.msg );
         }
-    }
-};
+    };
 
 /**
- * class dup_dialog
+ * class DupDialog
  */
-dup_dialog = new function()
-{
-    this.elem = $( '#dup-dialog' );
-    this.elem.data( 'obj', this );
+var DupDialog = function()
 
-    this.dropped = null;
-    this.received = null;
+    // Constructor
+    {
+        this.elem = $( DUP_DIALOG_TEMPLATE );
+        this.elem.data( 'obj', this );
+        $( 'body' ).append( this.elem );
 
-    // Begin Constructor
-    this.elem.dialog({
-        autoOpen: false,
-        width: 600,
-        height: 300,
-        modal: true,
-        buttons: {
-            'Apply': function() {
-                $( this ).data( 'obj' ).close( true );
+        this.dropped = null;
+        this.received = null;
+
+        this.elem.dialog({
+            autoOpen: false,
+            width: 600,
+            height: 300,
+            modal: true,
+            buttons: {
+                'Apply': function() {
+                    $( this ).data( 'obj' ).close( true );
+                },
+                Cancel: function() {
+                    $( this ).data( 'obj' ).close( false );
+                }
             },
-            Cancel: function() {
-                $( this ).data( 'obj' ).close( false );
-            }
-        },
-    });
+        });
 
-    $( '#dup-dialog-form' ).submit( function() {
-        $( 'dup-dialog' ).data( 'obj' ).close( true );
-    });
-    // End Constructor
+        $( '#dup-dialog-form' ).submit( function() {
+            $( 'dup-dialog' ).data( 'obj' ).close( true );
+        });
+    };
 
-    this.open = function( dropped, received )
+    DupDialog.prototype.open = function( dropped, received )
     {
         this.dropped = dropped;
         this.received = received;
         this.elem.dialog( 'open' );
     };
 
-    this.submit = function( result )
+    DupDialog.prototype.submit = function( result )
     {
         var tab = tabs.active();
 
@@ -129,7 +173,7 @@ dup_dialog = new function()
         }
     };
 
-    this.close = function( submit )
+    DupDialog.prototype.close = function( submit )
     {
         if( submit ) {
             var result = this.elem.find( 'input:radio:checked' ).val();
@@ -138,32 +182,35 @@ dup_dialog = new function()
         $( document ).focus();
         this.elem.dialog( 'close' );
     };
-};
 
 /**
- * class name_dialog
+ * class NameDialog
  */
-name_dialog = new function()
-{
-    this.elem = $( '#name-dialog' );
-    this.elem.data( 'obj', this );
+var NameDialog = function()
 
-    this.elem.dialog({
-        autoOpen: false,
-        width: 600,
-        height: 300,
-        modal: true,
-        buttons: {
-            'Apply': function() {
-                $( this ).data( 'obj' ).close( true );
+    // Constructor
+    {
+        this.elem = $( NAME_DIALOG_TEMPLATE );
+        this.elem.data( 'obj', this );
+        $( 'body' ).append( this.elem );
+
+        this.elem.dialog({
+            autoOpen: false,
+            width: 600,
+            height: 300,
+            modal: true,
+            buttons: {
+                'Apply': function() {
+                    $( this ).data( 'obj' ).close( true );
+                },
+                Cancel: function() {
+                    $( this ).data( 'obj' ).close( false );
+                }
             },
-            Cancel: function() {
-                $( this ).data( 'obj' ).close( false );
-            }
-        },
-    });
+        });
+    };
 
-    this.open = function()
+    NameDialog.prototype.open = function()
     {
         $( '#fname' ).val( '' );
         this.elem.dialog( 'open' );
@@ -171,16 +218,16 @@ name_dialog = new function()
         $( '#fname' ).select();
     };
 
-    this.submit = function( name, saveold )
+    NameDialog.prototype.submit = function( name, saveold )
     {
         var tab = tabs.active();
 
         if( tab.data( 'obj' ) && name ) {
             tab.data( 'obj' ).rename( name, saveold );
         }
-    }
+    };
 
-    this.close = function( submit )
+    NameDialog.prototype.close = function( submit )
     {
         if( submit ) {
             this.submit( $( '#fname' ).val(), 
@@ -188,83 +235,137 @@ name_dialog = new function()
         }
         $( document ).focus();
         this.elem.dialog( 'close' );
-    }
-};
+    };
 
 /**
- * class text_dialog
+ * class TextDialog
  */
-text_dialog = new function()
-{
-    this.elem = $( '#text-dialog' );
-    this.elem.data( 'obj', this );
+var TextDialog = function()
 
-    // Begin Constructor
-    this.elem.dialog({
-        autoOpen: false,
-        width: 800,
-        height: 500,
-        modal: true,
-        buttons: {
-            Cancel: function() {
-                $( this ).data( 'obj' ).close();
-            }
-        },
-    });
-    // End Constructor
+    // Constructor
+    {
+        this.elem = $( TEXT_DIALOG_TEMPLATE );
+        this.elem.data( 'obj', this );
+        $( 'body' ).append( this.elem );
 
-    this.open = function( text )
+        this.elem.dialog({
+            autoOpen: false,
+            width: 800,
+            height: 500,
+            modal: true,
+            buttons: {
+                Cancel: function() {
+                    $( this ).data( 'obj' ).close();
+                }
+            },
+        });
+    };
+
+    TextDialog.prototype.open = function( text )
     {
         $( '#info-text' ).val( text );
         this.elem.dialog( 'open' );
     };
 
-    this.close = function()
+    TextDialog.prototype.close = function()
     {
         $( document ).focus();
         this.elem.dialog( 'close' );
-    }
-};
+    };
 
 /**
- * class error_dialog
+ * class ErrorDialog
  */
-error_dialog = new function()
-{
-    this.elem = $( '#error-dialog' );
-    this.elem.data( 'obj', this );
+var ErrorDialog = function()
 
-    // Begin Constructor
-    this.elem.dialog({
-        autoOpen: false,
-        width: 800,
-        height: 500,
-        modal: true,
-        buttons: {
-            Cancel: function() {
-                $( this ).data( 'obj' ).close();
-            }
-        },
-    });
-    // End Constructor
+    // Constructor
+    {
+        this.elem = $( ERROR_DIALOG_TEMPLATE );
+        this.elem.data( 'obj', this );
+        $( 'body' ).append( this.elem );
 
-    this.open = function( msg )
+        this.elem.dialog({
+            autoOpen: false,
+            width: 800,
+            height: 500,
+            modal: true,
+            buttons: {
+                Cancel: function() {
+                    $( this ).data( 'obj' ).close();
+                }
+            },
+        });
+    };
+
+    ErrorDialog.prototype.open = function( msg )
     {
         $( '#error-msg' ).html( msg );
         this.elem.dialog( 'open' );
     };
 
-    this.close = function()
+    ErrorDialog.prototype.close = function()
     {
         $( document ).focus();
         this.elem.dialog( 'close' );
-    }
+    };
+
+var tag_dialog = null;
+var dup_dialog = null;
+var name_dialog = null;
+var text_dialog = null;
+var error_dialog = null;
+
+var public_show_tag_dialog = function()
+{
+    if( tag_dialog == null ) {
+        tag_dialog = new TagDialog();
+    };
+
+    tag_dialog.open();
 };
 
-} // end init_dialog()
+var public_show_dup_dialog = function( dropped, received )
+{
+    if( dup_dialog == null ) {
+        dup_dialog = new DupDialog();
+    };
 
-function open_rename_dialog( saveold_allowed ) {
-    $( '#saveold' ).disabled( !saveold_allowed );
-    $( '#name-dialog' ).dialog( 'open' );
-    $( '#fname' ).focus();
-}
+    dup_dialog.open( dropped, received );
+};
+
+var public_show_name_dialog = function()
+{
+    if( name_dialog == null ) {
+        name_dialog = new NameDialog();
+    };
+
+    name_dialog.open();
+};
+
+var public_show_text_dialog = function( text )
+{
+    if( text_dialog == null ) {
+        text_dialog = new TextDialog();
+    };
+
+    text_dialog.open( text );
+};
+
+var public_show_error_dialog = function( msg )
+{
+    if( error_dialog == null ) {
+        error_dialog = new ErrorDialog();
+    };
+
+    error_dialog.open( msg );
+};
+
+return {
+    show_tag_dialog: public_show_tag_dialog,
+    show_dup_dialog: public_show_dup_dialog,
+    show_name_dialog: public_show_name_dialog,
+    show_text_dialog: public_show_text_dialog,
+    show_error_dialog: public_show_error_dialog,
+};
+
+})();

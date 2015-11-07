@@ -40,7 +40,7 @@ function load_async( request, obj, callback, data )
             eval( 'obj.' + callback + '( data, response )' );
         },
         error:          function( xhr ) {
-            error_dialog.open( xhr.responseText );
+            dialogs.show_error_dialog( xhr.responseText );
         }
     } );
 }
@@ -61,7 +61,7 @@ function load_sync( request )
             result = response;
         },
         error:          function( xhr ) {
-            error_dialog.open( xhr.responseText );
+            dialogs.show_error_dialog( xhr.responseText );
         }
     } );
 
@@ -121,10 +121,10 @@ $(document).keypress( function( e ) {
     if( obj && obj.display ) {
         switch( e.charCode ) {
             case 116: // t
-                tag_dialog.open();
+                dialogs.show_tag_dialog();
                 break;
             case 114: // r
-                name_dialog.open();
+                dialogs.show_name_dialog();
                 break;
             case 65: // A
                 select_all();
@@ -219,7 +219,6 @@ $( window ).resize( function() {
 } );
 
 tabs.init();
-init_dialog();
 
 $( window ).resize();
 });

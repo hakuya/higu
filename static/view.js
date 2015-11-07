@@ -517,7 +517,7 @@ public_SearchProvider = function( query )
             this.sid = null;
             this.last = null;
 
-            display = new DummyDisplay( 'The search had no results' );
+            display = displib.make_dummy_display( 'The search had no results' );
         }
         eval( 'data.obj.' + data.callback + '( display )' );
     };

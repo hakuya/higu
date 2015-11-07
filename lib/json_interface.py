@@ -524,12 +524,19 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_gather_tags( self, group ):
+    def cmd_gather_tags( self, target ):
 
-        group = self.db.get_object_by_id( group )
-        assert( isinstance( group, higu.Album ) )
+        obj = self.db.get_object_by_id( target )
 
-        files = group.get_files()
+        if( isinstance( obj, higu.Album ) ):
+            files = obj.get_files()
+
+        elif( isinstance( obj, higu.File ) ):
+            files = obj.get_duplicates()
+
+        else:
+            assert False
+
         tags = []
 
         for f in files:
@@ -538,7 +545,7 @@ class JsonInterface:
                     tags.append( t )
 
         for t in tags:
-            group.assign( t )
+            obj.assign( t )
             for f in files:
                 f.unassign( t )
 
