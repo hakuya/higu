@@ -208,7 +208,7 @@ DisplayableObject = function( obj_id, info )
                 return;
             }
 
-            dup_dialog.open( obj_id, this.obj_id );
+            dialogs.show_dup_dialog( obj_id, this.obj_id );
         } else {
             if( this.find_item( obj_id ) != -1 ) {
                 alert( repr + ' already in album' );
@@ -274,13 +274,17 @@ DisplayableObject = function( obj_id, info )
     DisplayableObject.prototype.gather_tags = function()
     {
         var request = {
-            action:     'group_gather_tags',
-            group:      this.obj_id,
+            action:     'gather_tags',
+            target:     this.obj_id,
         };
 
         load_sync( request );
-        affected = this.obj_id_list();
-        affected.push( this.obj_id );
+        if( this.info.type == 'file') {
+            affected = [ this.obj_id ];
+        } else {
+            affected = this.obj_id_list();
+            affected.push( this.obj_id );
+        }
 
         tabs.on_event( { type: 'info_changed', affected: affected } );
     };
@@ -460,6 +464,15 @@ DisplayableObject = function( obj_id, info )
             div.append( 'Duplicates: ' );
             div.append( util.make_link_list( this.info.duplicates ) );
             div.append( '<br/>' );
+
+            var gather = $( '<a href="#">Gather Tags</a><br/>' );
+            gather.data( 'obj', this );
+            gather.click( function( e ) {
+                obj = $( this ).data( 'obj' );
+                obj.gather_tags();
+            });
+
+            div.append( gather );
         }
 
         var vieworig = $( '<a href="/img?id=' + this.obj_id +'">'
@@ -476,7 +489,7 @@ DisplayableObject = function( obj_id, info )
             view_text.data( 'obj', this );
             view_text.click( function( e ) {
                 obj = $( this ).data( 'obj' );
-                text_dialog.open( obj.info.text );
+                dialogs.show_text_dialog( obj.info.text );
             });
 
             div.append( view_text );
@@ -904,6 +917,11 @@ Display = function( disp, view )
         return this.disp.tag( tags );
     };
 
+    Display.prototype.rename = function( name, saveold )
+    {
+        this.disp.rename( name, saveold );
+    };
+
     Display.prototype.drop = function( obj_id, repr, type )
     {
         this.disp.drop( obj_id, repr, type );
@@ -912,6 +930,12 @@ Display = function( disp, view )
     Display.prototype.rm = function( obj_id, repr, type )
     {
         this.disp.rm( obj_id, repr, type );
+    };
+
+    Display.prototype.set_duplication = function(
+            original, variant, is_duplicate )
+    {
+        this.disp.set_duplication( original, variant, is_duplicate );
     };
 
     Display.prototype.clear_duplication = function()
@@ -933,7 +957,7 @@ Display = function( disp, view )
          && e.affected.indexOf( this.disp.get_obj_id() ) != -1
          && e.type == 'removed' )
         {
-            return public_make_dummy_display();
+            return public_make_dummy_display( 'This object has been removed' );
         } else {
             return null;
         }
@@ -1003,7 +1027,7 @@ var public_make_object_display = function( obj_id )
     } else if( info.type == 'album' ) {
         return make_group_display( obj_id, info );
     } else {
-        return make_dummy_display( 'This is a placeholder for an object '
+        return public_make_dummy_display( 'This is a placeholder for an object '
             + 'that does not exist or has been removed.' );
     }
 };
