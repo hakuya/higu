@@ -3,9 +3,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relation, backref, sessionmaker, scoped_session
 from sqlalchemy.ext.associationproxy import association_proxy
 
+import calendar
+import numbers
 import re
 import time
-import calendar
 
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
@@ -15,7 +16,7 @@ TYPE_GROUP      = 2000
 TYPE_ALBUM      = 2001
 TYPE_CLASSIFIER = 2002
 
-VERSION = 7
+VERSION = 8
 REVISION = 0
 
 def check_len( length ):
@@ -116,15 +117,22 @@ class Object( Base ):
         if( row is None ):
             raise KeyError
 
-        return row.value
+        if( row.num is not None ):
+            return row.num
+        else:
+            return row.value
 
     def __setitem__( self, key, value ):
 
+        value_s = str( value )
+        value_i = value if( isistance( value, numbers.Number ) ) else None
+
         row = self.meta.filter( Metadata.key == key ).first()
         if( row is not None ):
-            row.value = value
+            row.value = value_s
+            row.num = value_i
         else:
-            row = Metadata( key, value )
+            row = Metadata( key, value_s, value_i )
             self.meta.append( row )
 
     def __delitem__( self, key ):
@@ -169,13 +177,15 @@ class Metadata( Base ):
     id = Column( Integer, ForeignKey( 'objl.id' ), primary_key = True )
     key = Column( Text, nullable = False, primary_key = True )
     value = Column( Text )
+    num = Column( Integer )
 
     obj = relation( 'Object', backref = backref( 'meta', lazy = 'dynamic' ) )
 
-    def __init__( self, key, value = None ):
+    def __init__( self, key, value, num ):
 
         self.key = key
         self.value = value
+        self.num = num
 
     def __repr__( self ):
 

@@ -10,7 +10,7 @@ log = logging.getLogger( __name__ )
 
 from hash import calculate_details
 
-VERSION = 7
+VERSION = 8
 REVISION = 0
 
 GFDB_PATH = os.path.join( os.environ['HOME'], '.gfdb' )
@@ -277,6 +277,18 @@ def upgrade_from_6_to_7( session ):
     dbi.update( [ ( 'ver', 7, ), ( 'rev', 0, ), ] )
     session.commit()
 
+def upgrade_from_7_to_8( session ):
+
+    log.info( 'Database upgrade from VER 7 -> VER 8' )
+
+    dbi = session.get_table( 'dbi' )
+    mtda = session.get_table( 'mtda' )
+
+    mtda.add_col( 'num', 'INTEGER' )
+
+    dbi.update( [ ( 'ver', 8, ), ( 'rev', 0, ), ] )
+    session.commit()
+
 def back_up_db_file( dbfile ):
 
     f = file( dbfile, 'rb' )
@@ -328,6 +340,9 @@ def update_legacy_database( dbfile ):
                 continue
             elif( ver == 6 ):
                 upgrade_from_6_to_7( session )
+                continue
+            elif( ver == 7 ):
+                upgrade_from_7_to_8( session )
                 continue
             else:
                 raise RuntimeError( 'Incompatible database version' )
