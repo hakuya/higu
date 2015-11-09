@@ -136,38 +136,45 @@ class Obj:
 
         return self.obj.name
 
+    def _set_name( self, name, saveold ):
+
+        oname = self.obj.name
+        self.obj.name = name
+
+        if( saveold and oname is not None ):
+            self._add_name( oname )
+
     def set_name( self, name, saveold = False ):
 
         with self.db._access( write = True ):
-            oname = self.obj.name
-            self.obj.name = name
+            self._set_name( name, saveold )
 
-            if( saveold and oname is not None ):
-                self.add_name( oname )
+    def _add_name( self, name ):
+
+        name = make_unicode( name )
+
+        if( self.get_name() is None ):
+            self._set_name( name, False )
+        else:
+            try:
+                xnames = self.obj['altname']
+
+                if( len( xnames ) == 0 ):
+                    self.obj['altname'] = name
+                else:
+                    xnames = xnames.split( ':' )
+                    if( name not in xnames ):
+                        xnames.append( name )
+                        xnames = ':'.join( xnames )
+                        self.obj['altname'] = xnames
+
+            except KeyError:
+                self.obj['altname'] = name
 
     def add_name( self, name ):
 
         with self.db._access( write = True ):
-
-            name = make_unicode( name )
-
-            if( self.get_name() is None ):
-                self.set_name( name )
-            else:
-                try:
-                    xnames = self.obj['altname']
-
-                    if( len( xnames ) == 0 ):
-                        self.obj['altname'] = name
-                    else:
-                        xnames = xnames.split( ':' )
-                        if( name not in xnames ):
-                            xnames.append( name )
-                            xnames = ':'.join( xnames )
-                            self.obj['altname'] = xnames
-
-                except KeyError:
-                    self.obj['altname'] = name
+            self._add_name( name )
 
     def get_names( self ):
 
@@ -759,7 +766,7 @@ class Database:
             album.obj['text'] = text
 
         for t in tags:
-            album._assign( t )
+            album._assign( t, None )
 
         return album
 
@@ -782,16 +789,17 @@ class Database:
         id = f.get_id()
 
         if( add_name ):
-            ename = f.get_name()
-            if( ename is None ):
-                f.set_name( name )
-            elif( ename != name ):
-                f.add_name( name )
+            f._add_name( name )
 
         if( not self.verify_file( f ) ):
             self.imgdb.load_data( path, id )
 
         return f
+
+    def register_file( self, path, add_name = True ):
+
+        with self._access( write = True ):
+            return self.__register_file( path, add_name )
 
     def batch_add_files( self, files, tags = [], tags_new = [], save_name = False,
                          create_album = False, album_name = None, album_text = None ):
@@ -804,18 +812,18 @@ class Database:
             taglist += map( self._make_tag, tags_new )
 
             if( create_album ):
-                album = create_album( taglist, album_name, album_text )
+                album = self.__create_album( taglist, album_name, album_text )
             else:
                 album = None
 
             for f in files:
-                x = h.__register_file( f, save_name )
+                x = self.__register_file( f, save_name )
 
                 if( album is not None ):
-                    x._assign( album )
+                    x._assign( album, None )
                 else:
                     for t in taglist:
-                        x._assign( t )
+                        x._assign( t, None )
 
     def delete_object( self, obj ):
 

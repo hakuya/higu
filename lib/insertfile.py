@@ -71,6 +71,7 @@ if( __name__ == '__main__' ):
         higu.init()
 
     h = higu.Database()
+    h.enable_write_access()
 
     if( opts.recovery ):
         h.recover_files( files )

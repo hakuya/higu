@@ -57,7 +57,8 @@ run 3.0 2c94321e777e130d1df40c916f30beeb65543dda
 run 4.0 5408d42b1ad501c4b69ffb548d9714214123d4f4
 run 5.0 6342ce3b0c2862d8353c65f92086987acf1f0593
 run 6.0 cd56151a1ff3fc9f54eabda571a8ccb11b7838e6
-run 7.0 master
+run 7.0 dadd6da530a2ef4fbe9ffcb24b813c6368cb5f77
+run 8.0 master
 
 cd
 rm -rf $WORK_DIR

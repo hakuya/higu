@@ -15,6 +15,9 @@ if( __name__ == '__main__' ):
         higu.init( 'build_dbs.cfg' )
         h = higu.Database()
 
+    if( ver[0] >= 8 ):
+        h.enable_write_access()
+
     mo = h.register_file( 'magenta_sq.png' )
     ro = h.register_file( 'red_sq.png' )
     yo = h.register_file( 'yellow_sq.png' )
