@@ -1,7 +1,7 @@
 /**
  * class Viewer
  */
-ImageViewer = function( pane, obj_id, repr, type )
+ImageViewer = function( pane, obj_id, gen, repr, type )
 {
     this.get_container_dims = function()
     {
@@ -113,7 +113,7 @@ ImageViewer = function( pane, obj_id, repr, type )
     exp = Math.min( exp_w, exp_h );
 
     img_tag = $( '<img class="objitem" src="/img?id=' + obj_id
-            + '&exp=' + exp + '" class="picture" '
+            + '&exp=' + exp + '&gen=' + gen + '" class="picture" '
             + 'onload="on_image_loaded( this )"/>' );
 
     util.make_draggable( img_tag, obj_id, repr, type );
@@ -122,9 +122,9 @@ ImageViewer = function( pane, obj_id, repr, type )
     pane.data( 'viewer', this );
 };
 
-function attach_image( pane, id, repr, type )
+function attach_image( pane, id, gen, repr, type )
 {
-    return new ImageViewer( pane, id, repr, type );
+    return new ImageViewer( pane, id, gen, repr, type );
 }
 
 function on_image_loaded( im )

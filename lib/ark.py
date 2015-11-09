@@ -4,6 +4,8 @@ import tempfile
 import zipfile
 import mimetypes
 
+MIN_THUMB_EXP = 7
+
 class ZipVolume:
 
     def __init__( self, path ):
@@ -435,62 +437,122 @@ class ThumbCache:
 
         return None
 
-    def read_thumb( self, id, exp ):
+    def read_thumb( self, obj, exp ):
 
-        from PIL import Image
-
-        t = self.__get_fname_base( id ) + '_%02d.jpg' % ( exp, )
-        if( os.path.isfile( t ) ):
+        t = self.make_thumb( obj, exp, False )
+        if( t is None ):
+            return self.imgdb.read( obj.get_id() )
+        else:
             return open( t, 'rb' )
 
-        f = self.imgdb.read( id )
-        if( f is None ):
-            return None
+    def make_thumb( self, obj, exp, force = True ):
 
-        i = Image.open( f )
-        s = 2**exp
-        w, h = i.size
-
-        if( w < s and h < s ):
-            return self.imgdb.read( id )
-
-        if( w > h ):
-            tw = s
-            th = h * s / w
-        else:
-            tw = w * s / h
-            th = s
-
-        i = i.convert( 'RGB' )
-        r = i.resize( ( tw, th, ), Image.ANTIALIAS )
-        r.save( t )
-
-        return open( t, 'rb' )
-
-    def make_thumb( self, id, exp ):
+        if( exp < MIN_THUMB_EXP ):
+            exp = MIN_THUMB_EXP 
 
         from PIL import Image
 
-        i = Image.open( self.imgdb.read( id ) )
+        id = obj.get_id()
         s = 2**exp
-        w, h = i.size
+        img = None
 
-        if( w < s and h < s ):
-            return
+        # Read the iamge metadata from the obejct
+        try:
+            w = obj['original-width']
+        except:
+            w = None
 
-        if( w > h ):
-            tw = s
-            ht = h * s / w
-        else:
-            tw = w * s / h
-            th = s
+        try:
+            h = obj['original-height']
+        except:
+            h = None
 
-        r = i.resize( ( tw, th, ), Image.ANTIALIAS )
-        
-        t = self.__get_fname_base( id ) + '_%02d.jpg' % ( exp, )
-        if( os.path.isfile( t ) ):
-            os.remove( t )
-        r.save( t )
+        try:
+            rot = obj['rotation']
+        except:
+            rot = 0
+
+        # If image size info is not present, read it from the file and write it
+        # back to the obejct
+        if( w is None or h is None ):
+            f = self.imgdb.read( id )
+            if( f is None ):
+                return None
+
+            img = Image.open( f )
+            w, h = img.size
+
+            obj['original-width'] = w
+            obj['original-height'] = h
+
+        try:
+            obj['width']
+        except:
+            obj['width'] = w
+
+        try:
+            obj['height']
+        except:
+            obj['height'] = h
+
+        t = None
+
+        # Do we need to resize?
+        if( w > s or h > s ):
+            t = self.__get_fname_base( id ) + '_%02d.jpg' % ( exp, )
+
+        # Do we need to rotate?
+        if( t is None and rot != 0 ):
+            t = self.__get_fname_base( id ) + '_max.jpg'
+
+        # If no operations are necessary, we won't create a thumb
+        if( t is None ):
+            return None
+
+        # Is the thumb already created?
+        if( os.path.isfile( t ) and not force ):
+            return t
+
+        # At this point, we need to create a thumb, open the file
+        if( img is None ):
+            f = self.imgdb.read( id )
+            if( f is None ):
+                return None
+
+            img = Image.open( f )
+
+        if( rot == 1 or rot == 3 ):
+            w, h = h, w
+
+        obj['width'] = w
+        obj['height'] = h
+
+        # Always operate in RGB
+        img = img.convert( 'RGB' )
+
+        # Do the rotate
+        if( rot == 1 ):
+            img = img.transpose( Image.ROTATE_270 )
+        elif( rot == 2 ):
+            img = img.transpose( Image.ROTATE_180 )
+        elif( rot == 3 ):
+            img = img.transpose( Image.ROTATE_90 )
+
+        # Do the resize
+        if( w > s or h > s ):
+            if( w > h ):
+                tw = s
+                th = h * s / w
+            else:
+                tw = w * s / h
+                th = s
+
+            img = img.resize( ( tw, th, ), Image.ANTIALIAS )
+
+        # Save the image
+        img.save( t )
+
+        return t
 
     def purge_thumbs( self, id ):
 

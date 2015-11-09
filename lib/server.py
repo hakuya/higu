@@ -65,9 +65,12 @@ class Server:
         return json.dumps( result )
 
     @cherrypy.expose
-    def img( self, id = None, exp = None ):
+    def img( self, id = None, exp = None, gen = None ):
 
         db = higu.Database()
+
+        # The thumb cache requires the ability to write to the database
+        db.enable_write_access()
 
         if( id == None ):
             raise cherrypy.HTTPError( 404 )
@@ -108,6 +111,17 @@ class Server:
 
         return stream()
 
+def background_thumb_generator():
+
+    print 'Running thumb generator'
+    db = higu.Database()
+
+    # The thumb cache requires the ability to write to the database
+    db.enable_write_access()
+
+    db.generate_thumbs( 9, False, 2 )
+    db.close()
+
 if( __name__ == '__main__' ):
 
     import sys
@@ -117,10 +131,15 @@ if( __name__ == '__main__' ):
     else:
         higu.init()
 
+    print 'Starting thumb generator'
+    thumb_generator = cherrypy.process.plugins.BackgroundTask( 2, background_thumb_generator )
+    thumb_generator.start()
+
     server = Server()
     CONFIG['global']['server.socket_host'] = server.get_host()
     CONFIG['global']['server.socket_port'] = server.get_port()
 
+    print 'Starting server'
     cherrypy.quickstart( server, config=CONFIG )
 
 # vim:sts=4:et:sw=4

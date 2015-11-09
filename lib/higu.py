@@ -1,12 +1,15 @@
-import model
-import os
-import sys
-import config
-import ark
-import re
 import datetime
+import os
+import re
+import sys
+import time
+import threading
 
 from hash import calculate_details
+
+import ark
+import config
+import model
 
 VERSION = 1
 REVISION = 0
@@ -75,7 +78,7 @@ class Obj:
         tag_objs = [ obj for obj in self.obj.parents if obj.type == TYPE_CLASSIFIER ]
         return map( lambda x: Tag( self.db, x ), tag_objs )
 
-    def assign( self, group, order = None ):
+    def _assign( self, group, order ):
 
         rel = self.db.session.query( model.Relation ) \
                 .filter( model.Relation.parent == group.obj.id ) \
@@ -87,7 +90,12 @@ class Obj:
         rel.parent_obj = group.obj
         rel.child_obj = self.obj
 
-    def unassign( self, group ):
+    def assign( self, group, order = None ):
+
+        with self.db._access( write = True ):
+            self._assign( group, order )
+
+    def _unassign( self, group ):
 
         rel = self.db.session.query( model.Relation ) \
                 .filter( model.Relation.parent == group.obj.id ) \
@@ -96,7 +104,12 @@ class Obj:
         if( rel is not None ):
             self.db.session.delete( rel )
 
-    def reorder( self, group, order = None ):
+    def unassign( self, group ):
+
+        with self.db._access( write = True ):
+            self._unassign( group )
+
+    def _reorder( self, group, order ):
 
         rel = self.db.session.query( model.Relation ) \
                 .filter( model.Relation.parent == group.obj.id ) \
@@ -104,6 +117,11 @@ class Obj:
         if( rel is None ):
             raise ValueError, str( self ) + ' is not in ' + str( group )
         rel.sort = order
+
+    def reorder( self, group, order = None ):
+
+        with self.db._access( write = True ):
+            self._reorder( group, order )
 
     def get_order( self, group ):
 
@@ -120,33 +138,36 @@ class Obj:
 
     def set_name( self, name, saveold = False ):
 
-        oname = self.obj.name
-        self.obj.name = name
+        with self.db._access( write = True ):
+            oname = self.obj.name
+            self.obj.name = name
 
-        if( saveold and oname is not None ):
-            self.add_name( oname )
+            if( saveold and oname is not None ):
+                self.add_name( oname )
 
     def add_name( self, name ):
 
-        name = make_unicode( name )
+        with self.db._access( write = True ):
 
-        if( self.get_name() is None ):
-            self.set_name( name )
-        else:
-            try:
-                xnames = self.obj['altname']
+            name = make_unicode( name )
 
-                if( len( xnames ) == 0 ):
+            if( self.get_name() is None ):
+                self.set_name( name )
+            else:
+                try:
+                    xnames = self.obj['altname']
+
+                    if( len( xnames ) == 0 ):
+                        self.obj['altname'] = name
+                    else:
+                        xnames = xnames.split( ':' )
+                        if( name not in xnames ):
+                            xnames.append( name )
+                            xnames = ':'.join( xnames )
+                            self.obj['altname'] = xnames
+
+                except KeyError:
                     self.obj['altname'] = name
-                else:
-                    xnames = xnames.split( ':' )
-                    if( name not in xnames ):
-                        xnames.append( name )
-                        xnames = ':'.join( xnames )
-                        self.obj['altname'] = xnames
-
-            except KeyError:
-                self.obj['altname'] = name
 
     def get_names( self ):
 
@@ -185,7 +206,8 @@ class Obj:
 
     def __setitem__( self, key, value ):
 
-        self.obj[key] = value
+        with self.db._access( write = True ):
+            self.obj[key] = value
 
     def __hash__( self ):
 
@@ -234,18 +256,20 @@ class OrderedGroup( Group ):
 
     def set_order( self, children ):
 
-        all_objs = self.get_files()
-        
-        for child in enumerate( children ):
-            assert( child[1] in all_objs )
-            all_objs.remove( child[1] )
+        with self.db._access( write = True ):
+
+            all_objs = self.get_files()
             
-            child[1].reorder( self, child[0] )
+            for child in enumerate( children ):
+                assert( child[1] in all_objs )
+                all_objs.remove( child[1] )
+                
+                child[1].reorder( self, child[0] )
 
-        offset = len( children )
+            offset = len( children )
 
-        for child in enumerate( all_objs ):
-            child[1].reorder( self, offset + child[0] )
+            for child in enumerate( all_objs ):
+                child[1].reorder( self, offset + child[0] )
 
 class Tag( Group ):
 
@@ -334,6 +358,31 @@ class File( Obj ):
 
         return self.obj.fchk.sha1
 
+    def rotate( self, rot ):
+
+        with self.db._access( write = True ):
+            try:
+                rotation = self.obj['rotation']
+            except:
+                rotation = 0;
+
+            rotation += int( rot )
+            rotation %= 4
+
+            if( rotation < 0 ):
+                rotation += 4
+
+            try:
+                gen = self.obj['thumb-gen']
+                gen += 1
+            except:
+                gen = 1
+
+            self.obj['rotation'] = rotation
+            self.obj['thumb-gen'] = gen
+
+            self.db.tbcache.purge_thumbs( self.obj.id )
+
     def get_mime( self ):
 
         return self.db.imgdb.get_mime( self.obj.id )
@@ -344,7 +393,7 @@ class File( Obj ):
 
     def read_thumb( self, exp ):
 
-        return self.db.tbcache.read_thumb( self.obj.id, exp )
+        return self.db.tbcache.read_thumb( self, exp )
 
 class ModelObjToHiguObjIterator:
 
@@ -361,6 +410,67 @@ class ModelObjToHiguObjIterator:
 
         return model_obj_to_higu_obj( self.db, self.it.next() )
 
+class _AccessContext:
+
+    def __init__( self, db, manager, write, auto_commit = True ):
+
+        self.__db = db
+        self.__manager = manager
+        self.__write = write
+        self.__auto_commit = auto_commit
+        self.__active = False
+
+    def __enter__( self ):
+
+        self.__manager._begin_access( self.__write )
+        self.__active = True
+        return self
+
+    def __exit__( self, type, value, trace ):
+
+        self.__active = False
+
+        if( type is None and self.__write and self.__auto_commit ):
+            self.__db._commit()
+
+        self.__manager._end_access()
+        if( type is not None ):
+            raise type, value, trace
+
+    def commit( self ):
+
+        assert self.__write, 'Can only commit with write access'
+        self.__db._commit()
+
+    def rollback( self ):
+
+        self.__db._rollback()
+
+class AccessManager:
+
+    def __init__( self, db ):
+
+        self.__db = db
+        self.__write_lock = threading.Lock()
+        self.__write_permitted = False
+
+    def _begin_access( self, write ):
+
+        assert not write or self.__write_permitted, 'Read-Only Access'
+        self.__write_lock.__enter__()
+
+    def _end_access( self ):
+
+        self.__write_lock.__exit__()
+
+    def enable_writes( self ):
+
+        self.__write_permitted = True
+
+    def __call__( self, **kwargs ):
+
+        return _AccessContext( self.__db, self, **kwargs )
+
 class Database:
 
     def __init__( self ):
@@ -372,9 +482,11 @@ class Database:
         self.imgdb = ark.ImageDatabase( imgpat )
         self.tbcache = ark.ThumbCache( self.imgdb, imgpat )
 
+        self._access = AccessManager( self )
+
         self.obj_del_list = []
 
-    def commit( self ):
+    def _commit( self ):
 
         try:
             self.imgdb.commit()
@@ -387,20 +499,18 @@ class Database:
             self.tbcache.purge_thumbs( id )
         self.obj_del_list = []
 
-    def rollback( self ):
+    def _rollback( self ):
 
         self.imgdb.rollback()
         self.session.rollback()
 
+    def enable_write_access( self ):
+
+        self._access.enable_writes()
+
     def close( self ):
 
         self.session.close()
-
-    def create_album( self ):
-
-        album = model.Object( TYPE_ALBUM )
-        self.session.add( album )
-        return model_obj_to_higu_obj( self, album )
 
     def get_object_by_id( self, id ):
 
@@ -426,6 +536,22 @@ class Database:
                 self.session.query( model.Object )
                     .filter( model.Object.id.in_( select_ids ) )
                     .order_by( 'RANDOM()' ) )
+
+    def generate_thumbs( self, max_exp, force = False, sleep = None ):
+
+        files = self.session.query( model.Object ) \
+                    .filter( model.Object.type == TYPE_FILE ) \
+                    .order_by( 'RANDOM()' )
+
+        for f in ModelObjToHiguObjIterator( self, files ):
+            print 'Generating thumbs for', f.get_id()
+
+            exp = ark.MIN_THUMB_EXP
+            while( self.tbcache.make_thumb( f, exp ) is not None and exp <= max_exp ):
+                exp += 1
+
+            if( sleep is not None ):
+                time.sleep( sleep )
 
     def unowned_files( self ):
 
@@ -522,7 +648,7 @@ class Database:
 
         return model_obj_to_higu_obj( self, obj )
 
-    def make_tag( self, name ):
+    def _make_tag( self, name ):
 
         check_tag_name( name )
         try:
@@ -532,6 +658,11 @@ class Database:
             self.session.add( obj )
             return model_obj_to_higu_obj( self, obj )
 
+    def make_tag( self, name ):
+
+        with self._access( write = True ):
+            return self._make_tag( name )
+
     def delete_tag( self, tag ):
 
         tag = self.get_tag( tag )
@@ -539,34 +670,100 @@ class Database:
 
     def move_tag( self, tag, target ):
 
-        check_tag_name( target )
-        c = self.get_tag( tag ).obj
+        with self._access( write = True ):
 
-        try:
-            d = self.get_tag( target ).obj
-            self.session.query( model.Relation ).filter( model.Relation.parent == c.id ).update( { 'parent' : d.id } )
-            self.session.delete( c )
+            check_tag_name( target )
+            c = self.get_tag( tag ).obj
 
-        except KeyError:
-            c.name = target
+            try:
+                d = self.get_tag( target ).obj
+                self.session.query( model.Relation ).filter( model.Relation.parent == c.id ).update( { 'parent' : d.id } )
+                self.session.delete( c )
+
+            except KeyError:
+                c.name = target
 
     def copy_tag( self, tag, target ):
 
-        check_tag_name( target )
-        c = self.get_tag( tag ).obj
+        with self._access( write = True ):
+
+            check_tag_name( target )
+            c = self.get_tag( tag ).obj
+
+            try:
+                d = self.get_tag( target ).obj
+            except KeyError:
+                d = model.Object( TYPE_CLASSIFIER, target )
+                self.session.add( d )
+
+            for rel in c.child_rel:
+                rel_copy = model.Relation( rel.sort )
+                rel_copy.parent_obj = d
+                rel_copy.child_obj = rel.child_obj
+
+    def verify_file( self, obj ):
+
+        assert isinstance( obj, File )
+        fd = obj.read()
+
+        if( fd is None ):
+            return False
+
+        details = calculate_details( fd )
+
+        if( details[0] != obj.obj.fchk.len ):
+            return False
+        if( details[1] != obj.obj.fchk.crc32 ):
+            return False
+        if( details[2] != obj.obj.fchk.md5 ):
+            return False
+        if( details[3] != obj.obj.fchk.sha1 ):
+            return False
+
+        return True
+
+    def __recover_file( self, path ):
+
+        name = os.path.split( path )[1]
+
+        details = calculate_details( path )
+        results = self.lookup_files_by_details( *details )
 
         try:
-            d = self.get_tag( target ).obj
-        except KeyError:
-            d = model.Object( TYPE_CLASSIFIER, target )
-            self.session.add( d )
+            f = results.next()
+        except StopIteration:
+            return False
 
-        for rel in c.child_rel:
-            rel_copy = model.Relation( rel.sort )
-            rel_copy.parent_obj = d
-            rel_copy.child_obj = rel.child_obj
+        if( not self.verify_file( f ) ):
+            self.imgdb.load_data( path, f.get_id() )
+        return True
 
-    def register_file( self, path, add_name = True ):
+    def recover_files( self, files ):
+
+        with self._access( write = True ):
+            for f in files:
+                if( not self.__recover_file( f ) ):
+                    #log.warn( '%s was not found in the db and was ignored', f )
+                    pass
+
+    def __create_album( self, tags = [], name = None, text = None ):
+
+        album = model.Object( TYPE_ALBUM )
+        self.session.add( album )
+        album = model_obj_to_higu_obj( self, album )
+
+        if( name is not None ):
+            album.obj.name = name
+
+        if( text is not None ):
+            album.obj['text'] = text
+
+        for t in tags:
+            album._assign( t )
+
+        return album
+
+    def __register_file( self, path, add_name ):
 
         name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
         details = calculate_details( path )
@@ -596,68 +793,57 @@ class Database:
 
         return f
 
-    def verify_file( self, obj ):
+    def batch_add_files( self, files, tags = [], tags_new = [], save_name = False,
+                         create_album = False, album_name = None, album_text = None ):
 
-        assert isinstance( obj, File )
-        fd = obj.read()
+        with self._access( write = True ):
 
-        if( fd is None ):
-            return False
+            # Load tags
+            taglist = []
+            taglist += map( self.get_tag, tags )
+            taglist += map( self._make_tag, tags_new )
 
-        details = calculate_details( fd )
+            if( create_album ):
+                album = create_album( taglist, album_name, album_text )
+            else:
+                album = None
 
-        if( details[0] != obj.obj.fchk.len ):
-            return False
-        if( details[1] != obj.obj.fchk.crc32 ):
-            return False
-        if( details[2] != obj.obj.fchk.md5 ):
-            return False
-        if( details[3] != obj.obj.fchk.sha1 ):
-            return False
+            for f in files:
+                x = h.__register_file( f, save_name )
 
-        return True
-
-    def recover_file( self, path ):
-
-        name = os.path.split( path )[1]
-
-        details = calculate_details( path )
-        results = self.lookup_files_by_details( *details )
-
-        try:
-            f = results.next()
-        except StopIteration:
-            return False
-
-        if( not self.verify_file( f ) ):
-            self.imgdb.load_data( path, f.get_id() )
-        return True
+                if( album is not None ):
+                    x._assign( album )
+                else:
+                    for t in taglist:
+                        x._assign( t )
 
     def delete_object( self, obj ):
 
-        id = obj.get_id()
+        with self._access( write = True ):
 
-        if( isinstance( obj, File ) ):
-            self.imgdb.delete( id )
-            self.obj_del_list.append( id )
+            id = obj.get_id()
 
-        # Clear out similar to
-        objs = [ o for o in obj.obj.similars ]
-        for o in objs:
-            if( o.type == TYPE_FILE_DUP or o.type == TYPE_FILE_VAR ):
-                o.type = TYPE_FILE
-            o.similar_to = None
+            if( isinstance( obj, File ) ):
+                self.imgdb.delete( id )
+                self.obj_del_list.append( id )
 
-        self.session.query( model.Metadata ) \
-                .filter( model.Metadata.id == id ).delete()
-        self.session.query( model.Relation ) \
-                .filter( model.Relation.parent == id ).delete()
-        self.session.query( model.Relation ) \
-                .filter( model.Relation.child == id ).delete()
-        self.session.query( model.FileChecksum ) \
-                .filter( model.FileChecksum.id == id ).delete()
-        self.session.query( model.Object ) \
-                .filter( model.Object.id == id ).delete()
+            # Clear out similar to
+            objs = [ o for o in obj.obj.similars ]
+            for o in objs:
+                if( o.type == TYPE_FILE_DUP or o.type == TYPE_FILE_VAR ):
+                    o.type = TYPE_FILE
+                o.similar_to = None
+
+            self.session.query( model.Metadata ) \
+                    .filter( model.Metadata.id == id ).delete()
+            self.session.query( model.Relation ) \
+                    .filter( model.Relation.parent == id ).delete()
+            self.session.query( model.Relation ) \
+                    .filter( model.Relation.child == id ).delete()
+            self.session.query( model.FileChecksum ) \
+                    .filter( model.FileChecksum.id == id ).delete()
+            self.session.query( model.Object ) \
+                    .filter( model.Object.id == id ).delete()
 
 def init( config_file = None ):
 

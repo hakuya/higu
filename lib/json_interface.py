@@ -152,6 +152,8 @@ class JsonInterface:
     def __init__( self ):
 
         self.db = higu.Database()
+        self.db.enable_write_access()
+
         self.cache = get_default_cache()
 
     def close( self ):
@@ -194,7 +196,7 @@ class JsonInterface:
                     assert data.has_key( arg ), 'Missing arg ' + arg
                 return fn( **data )
         finally:
-            self.db.rollback()
+            pass
         #except:
         #    return {
         #        'result' : 'error',
@@ -255,6 +257,21 @@ class JsonInterface:
             if( isinstance( target, higu.Album ) and 'files' in items ):
                 files = target.get_files()
                 info['files'] = map( make_obj_tuple, files )
+            if( isinstance( target, higu.File ) and 'thumb_gen' in items ):
+                try:
+                    info['thumb_gen'] = target['thumb-gen']
+                except:
+                    info['thumb_gen'] = 0
+            if( isinstance( target, higu.File ) and 'width' in items ):
+                try:
+                    info['width'] = target['width']
+                except:
+                    info['width'] = 0
+            if( isinstance( target, higu.File ) and 'height' in items ):
+                try:
+                    info['height'] = target['height']
+                except:
+                    info['height'] = 0
 
             return info
 
@@ -290,8 +307,6 @@ class JsonInterface:
                 obj.unassign( t )
             for t in add:
                 obj.assign( t )
-
-        self.db.commit()
 
         return json_ok()
 
@@ -597,6 +612,14 @@ class JsonInterface:
         for target in targets:
             target.clear_duplication()
 
+        self.db.commit()
+
+        return json_ok()
+
+    def cmd_rotate( self, target, rot ):
+
+        target = self.db.get_object_by_id( target )
+        target.rotate( rot )
         self.db.commit()
 
         return json_ok()
