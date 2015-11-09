@@ -238,8 +238,9 @@ class InsertCases( testutil.TestCase ):
     def test_tag_file( self ):
 
         h = higu.Database()
+        h.enable_write_access()
+
         tag = h.make_tag( 'black' )
-        h.commit()
 
         files = tag.get_files()
         self.assertEqual( len( files ), 0,
@@ -279,10 +280,11 @@ class InsertCases( testutil.TestCase ):
     def test_tag_multi_file( self ):
 
         h = higu.Database()
+        h.enable_write_access()
+
         h.make_tag( 'magenta' )
         h.make_tag( 'yellow' )
         h.make_tag( 'cyan' )
-        h.commit()
         h.close()
 
         red = self._load_data( self.red )
@@ -382,8 +384,8 @@ class InsertCases( testutil.TestCase ):
     def test_tag_album( self ):
 
         h = higu.Database()
+        h.enable_write_access()
         tag = h.make_tag( 'bw' )
-        h.commit()
         h.close()
 
         white = self._load_data( self.white )
