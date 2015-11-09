@@ -125,7 +125,7 @@ class Object( Base ):
     def __setitem__( self, key, value ):
 
         value_s = str( value )
-        value_i = value if( isistance( value, numbers.Number ) ) else None
+        value_i = value if( isinstance( value, numbers.Number ) ) else None
 
         row = self.meta.filter( Metadata.key == key ).first()
         if( row is not None ):

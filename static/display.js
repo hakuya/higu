@@ -124,6 +124,7 @@ DisplayableBase = function()
     DisplayableBase.prototype.set_duplication = function(
             original, variant, is_duplicate ) {};
     DisplayableBase.prototype.clear_duplication = function() {};
+    DisplayableBase.prototype.rotate = function( rot ) {};
     DisplayableBase.prototype.reorder = function( obj_id, idx ) {};
     DisplayableBase.prototype.on_event = function( e ) { return null; };
     DisplayableBase.prototype.refresh_info = function( e ) {};
@@ -351,6 +352,22 @@ DisplayableObject = function( obj_id, info )
                 [ this.obj_id, dup_id ] } );
     };
 
+    DisplayableObject.prototype.rotate = function( rot )
+    {
+        if( this.info.type != 'file') {
+            return;
+        }
+
+        var request = {
+            action:     'rotate',
+            target:     this.obj_id,
+            rot:        rot,
+        };
+        load_sync( request );
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+    };
+
     DisplayableObject.prototype.on_event = function( e )
     {
         if( e.affected && e.affected.indexOf( this.obj_id ) == -1 ) {
@@ -371,7 +388,7 @@ DisplayableObject = function( obj_id, info )
             targets:    [ this.obj_id ],
             items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
                 'similar_to', 'duplicates', 'variants', 'albums', 'files',
-                'mime', 'text' ],
+                'mime', 'text', 'thumb_gen', 'width', 'height' ],
         };
         
         response = load_sync( request );
@@ -427,6 +444,8 @@ DisplayableObject = function( obj_id, info )
 
     DisplayableObject.prototype.display_file_info = function( div )
     {
+        div.append( 'Size: ' + this.info.width + 'x' + this.info.height + '<br/>' );
+
         if( this.info.similar_to ) {
             if( this.info.duplication == 'duplicate' ) {
                 div.append( 'Duplicate of: ' );
@@ -474,6 +493,24 @@ DisplayableObject = function( obj_id, info )
 
             div.append( gather );
         }
+
+        div.append( 'Rotate: ' );
+        var rotate_ccw = $( '<a href="#">ccw</a>' );
+        rotate_ccw.data( 'obj', this );
+        rotate_ccw.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.rotate( -1 );
+        });
+        div.append( rotate_ccw );
+        div.append( ', ' );
+        var rotate_cw = $( '<a href="#">cw</a>' );
+        rotate_cw.data( 'obj', this );
+        rotate_cw.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.rotate( 1 );
+        });
+        div.append( rotate_cw );
+        div.append( '<br/>' );
 
         var vieworig = $( '<a href="/img?id=' + this.obj_id +'">'
                 + 'View Original</a>' );
@@ -776,7 +813,7 @@ ImageView = function()
         }
 
         this.viewer = attach_image(
-            div, disp.obj_id, disp.info.repr, disp.info.type );
+            div, disp.obj_id, disp.info.thumb_gen, disp.info.repr, disp.info.type );
 
         div.append( '<br/>' );
     };
@@ -1016,7 +1053,7 @@ var public_make_object_display = function( obj_id )
         targets:    [ obj_id ],
         items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
             'similar_to', 'duplicates', 'variants', 'albums', 'files',
-            'mime', 'text' ],
+            'mime', 'text', 'thumb_gen', 'width', 'height' ],
     };
     
     response = load_sync( request );

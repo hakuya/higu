@@ -73,49 +73,23 @@ if( __name__ == '__main__' ):
     h = higu.Database()
 
     if( opts.recovery ):
-        # Recovery mode, all we do is reload file data
-
-        for f in files:
-            if( not h.recover_file( f ) ):
-                log.warn( '%s was not found in the db and was ignored', f )
-
-        h.commit()
+        h.recover_files( files )
         sys.exit( 0 )
 
-    # Load tags
-    taglist = []
-    if( opts.taglist is not None ):
-        taglist += map( h.get_tag, opts.taglist.split( ',' ) )
-    if( opts.taglist_new is not None ):
-        taglist += map( h.make_tag, opts.taglist_new.split( ',' ) )
+    tags = opts.taglist.split( ',' ) if( opts.taglist is not None ) else []
+    tags_new = opts.taglist_new.split( ',' ) if( opts.taglist_new is not None ) else []
 
-    if( opts.album is not None ):
-        # Create album
-        if( opts.text_data is not None ):
-            textfile = open( opts.text_data, 'r' )
-            text_data = unicode( textfile.read( MAX_TEXT_LEN ), 'utf-8' )
-            assert textfile.read( 1 ) == '', 'Text file too long'
-        else:
-            text_data = None
+    create_album = opts.album is not None
+    album_name = opts.album if( opts.album != '-' ) else None
 
-        if( opts.album == '-' ):
-            album = create_album( None, text_data, taglist )
-        else:
-            album = create_album( opts.album, text_data, taglist )
+    if( create_album and opts.text_data is not None ):
+        textfile = open( opts.text_data, 'r' )
+        text_data = unicode( textfile.read( MAX_TEXT_LEN ), 'utf-8' )
+        assert textfile.read( 1 ) == '', 'Text file too long'
     else:
-        album = None
+        text_data = None
 
-    for f in files:
-        x = h.register_file( f, opts.save_name )
-
-        if( album is not None ):
-            x.assign( album )
-        else:
-            for t in taglist:
-                x.assign( t )
-
-    if( not opts.pretend ):
-        log.info( 'Committing changes' )
-        h.commit()
+    h.batch_add_files( files, tags, tags_new, opts.save_name,
+                       create_album, album_name, text_data )
 
 # vim:sts=4:et:sw=4
