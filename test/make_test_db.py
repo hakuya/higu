@@ -146,6 +146,7 @@ if( __name__ == '__main__' ):
     lo.set_varient_of( wo )
     ko.set_duplicate_of( lo )
 
-    h.commit()
+    if( ver[0] < 8 ):
+        h.commit()
 
 # vim:sts=4:et:sw=4

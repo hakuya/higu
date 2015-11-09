@@ -770,6 +770,11 @@ class Database:
 
         return album
 
+    def create_album( self, tags = [], name = None, text = None ):
+
+        with self._access( write = True ):
+            self.__create_album( self, tags, name, text )
+
     def __register_file( self, path, add_name ):
 
         name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
