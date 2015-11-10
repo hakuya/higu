@@ -313,9 +313,7 @@ class JsonInterface:
     def cmd_rename( self, target, name, saveold = False ):
 
         target = self.db.get_object_by_id( target )
-
         target.set_name( name, saveold )
-        self.db.commit()
 
         return json_ok()
 
@@ -334,10 +332,7 @@ class JsonInterface:
         assert( isinstance( group, higu.OrderedGroup ) )
 
         items = map( self.db.get_object_by_id, items )
-
         group.set_order( items )
-
-        self.db.commit()
 
         return json_ok()
 
@@ -497,8 +492,6 @@ class JsonInterface:
         for target in targets:
             target.assign( group )
 
-        self.db.commit()
-
         return json_ok( group = group.get_id() )
 
     def cmd_group_delete( self, group ):
@@ -507,7 +500,6 @@ class JsonInterface:
         assert( isinstance( group, higu.Album ) )
 
         self.db.delete_object( group )
-        self.db.commit()
 
         return json_ok()
 
@@ -521,8 +513,6 @@ class JsonInterface:
             assert( isinstance( target, higu.File ) )
             target.assign( group )
 
-        self.db.commit()
-
         return json_ok()
 
     def cmd_group_remove( self, group, targets ):
@@ -534,8 +524,6 @@ class JsonInterface:
         for target in targets:
             assert( isinstance( target, higu.File ) )
             target.unassign( group )
-
-        self.db.commit()
 
         return json_ok()
 
@@ -564,29 +552,21 @@ class JsonInterface:
             for f in files:
                 f.unassign( t )
 
-        self.db.commit()
-
         return json_ok()
 
     def cmd_tag_delete( self, tag ):
 
         self.db.delete_tag( tag )
-        self.db.commit()
-
         return json_ok()
 
     def cmd_tag_move( self, tag, target ):
 
         self.db.move_tag( tag, target )
-        self.db.commit()
-
         return json_ok()
 
     def cmd_tag_copy( self, tag, target ):
 
         self.db.copy_tag( tag, target )
-        self.db.commit()
-
         return json_ok()
 
     def cmd_set_duplication( self, original, duplicates = [], variants = [] ):
@@ -601,8 +581,6 @@ class JsonInterface:
         for var in vars:
             var.set_varient_of( original )
 
-        self.db.commit()
-
         return json_ok()
 
     def cmd_clear_duplication( self, targets ):
@@ -612,15 +590,12 @@ class JsonInterface:
         for target in targets:
             target.clear_duplication()
 
-        self.db.commit()
-
         return json_ok()
 
     def cmd_rotate( self, target, rot ):
 
         target = self.db.get_object_by_id( target )
         target.rotate( rot )
-        self.db.commit()
 
         return json_ok()
 
