@@ -412,5 +412,136 @@ class HiguLibCases( testutil.TestCase ):
         self.assertTrue( ct in blue_in, 
                 'Blue does not have cyan' )
 
+    def test_create_album( self ):
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        obj_id = h.create_album().get_id()
+
+        album = h.get_object_by_id( obj_id )
+        self.assertTrue( album is not None,
+                'Unable to get album after creation' )
+        self.assertTrue( isinstance( album, higu.Group ),
+                'Created album is not a group' )
+
+    def test_create_album_with_text( self ):
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        obj_id = h.create_album( text = 'This is some test text' ).get_id()
+
+        album = h.get_object_by_id( obj_id )
+        self.assertEqual( album.get_text(), 'This is some test text',
+                'Album text not properly returned' )
+
+    def test_album_set_text( self ):
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        album = h.create_album()
+        album.set_text( 'This is some test text' )
+        obj_id = album.get_id()
+
+        h = higu.Database()
+        album = h.get_object_by_id( obj_id )
+
+        self.assertEqual( album.get_text(), 'This is some test text',
+                'Album text not properly returned' )
+
+    def test_add_files_to_album( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        album = h.create_album()
+
+        ro = h.register_file( red, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        ro.assign( album )
+        go.assign( album )
+        bo.assign( album )
+
+        files = album.get_files()
+
+        self.assertTrue( ro in files, 'Red not in album' )
+        self.assertTrue( go in files, 'Green not in album' )
+        self.assertTrue( bo in files, 'Blue not in album' )
+
+    def test_order_then_reorder( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        album = h.create_album()
+
+        ro = h.register_file( red, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        ro.assign( album, 2 )
+        go.assign( album, 0 )
+        bo.assign( album, 1 )
+
+        files = album.get_files()
+
+        self.assertEqual( files[0], go, 'Green not in first position after add with order' )
+        self.assertEqual( files[1], bo, 'Blue not in second position after add with order' )
+        self.assertEqual( files[2], ro, 'Red not in third position after add with order' )
+
+        ro.reorder( album, 2 )
+        go.reorder( album, 1 )
+        bo.reorder( album, 0 )
+
+        files = album.get_files()
+
+        self.assertEqual( files[0], bo, 'Blue not in first position after reorder' )
+        self.assertEqual( files[1], go, 'Green not in second position after reorder' )
+        self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
+
+    def test_set_order_in_album( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        album = h.create_album()
+
+        ro = h.register_file( red, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        ro.assign( album, 2 )
+        go.assign( album, 0 )
+        bo.assign( album, 1 )
+
+        files = album.get_files()
+
+        self.assertEqual( files[0], go, 'Green not in first position after add with order' )
+        self.assertEqual( files[1], bo, 'Blue not in second position after add with order' )
+        self.assertEqual( files[2], ro, 'Red not in third position after add with order' )
+
+        album.set_order( [ bo, go, ro, ] )
+        files = album.get_files()
+
+        self.assertEqual( files[0], bo, 'Blue not in first position after reorder' )
+        self.assertEqual( files[1], go, 'Green not in second position after reorder' )
+        self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
+
 if( __name__ == '__main__' ):
     unittest.main()

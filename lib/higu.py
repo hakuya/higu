@@ -271,12 +271,12 @@ class OrderedGroup( Group ):
                 assert( child[1] in all_objs )
                 all_objs.remove( child[1] )
                 
-                child[1].reorder( self, child[0] )
+                child[1]._reorder( self, child[0] )
 
             offset = len( children )
 
             for child in enumerate( all_objs ):
-                child[1].reorder( self, offset + child[0] )
+                child[1]._reorder( self, offset + child[0] )
 
 class Tag( Group ):
 
@@ -328,22 +328,25 @@ class File( Obj ):
 
     def set_duplicate_of( self, parent ):
 
-        assert( isinstance( parent, File ) )
+        with self.db._access( write = True ):
+            assert( isinstance( parent, File ) )
 
-        self.obj.type = TYPE_FILE_DUP
-        self.obj.similar_to = parent.obj
+            self.obj.type = TYPE_FILE_DUP
+            self.obj.similar_to = parent.obj
 
     def set_varient_of( self, parent ):
 
-        assert( isinstance( parent, File ) )
+        with self.db._access( write = True ):
+            assert( isinstance( parent, File ) )
 
-        self.obj.type = TYPE_FILE_VAR
-        self.obj.similar_to = parent.obj
+            self.obj.type = TYPE_FILE_VAR
+            self.obj.similar_to = parent.obj
 
     def clear_duplication( self ):
 
-        self.obj.type = TYPE_FILE
-        self.obj.similar_to = None
+        with self.db._access( write = True ):
+            self.obj.type = TYPE_FILE
+            self.obj.similar_to = None
 
     def get_repr( self ):
 
