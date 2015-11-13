@@ -403,7 +403,7 @@ class InsertCases( testutil.TestCase ):
         self.assertTrue( isinstance( al, higu.Album ),
                 'Expected album' )
 
-        it = h.lookup_ids_by_tags( [ h.get_tag( 'bw' ) ] ).__iter__()
+        it = h.lookup_objects( [ h.get_tag( 'bw' ) ] ).__iter__()
 
         self.assertEqual( it.next(), al,
                 'Unexpected tagged item' )
@@ -424,7 +424,7 @@ class InsertCases( testutil.TestCase ):
         self._run( [ white, grey, black ], album = 'bw', text = bw_desc )
 
         h = higu.Database()
-        al = h.lookup_ids_by_tags( type = higu.TYPE_ALBUM ).__iter__().next()
+        al = h.lookup_objects( type = higu.TYPE_ALBUM ).__iter__().next()
 
         self.assertTrue( isinstance( al, higu.Album ),
                 'Expected album' )

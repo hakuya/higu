@@ -363,15 +363,15 @@ class JsonInterface:
                 randomize = True
                 obj_type = None
 
-                while( len( query ) > 0 and query[0] == '$' ):
-                    try:
-                        sep = query.index( ' ' )
-                        cmd = query[1:sep]
-                        query = query[sep+1:]
-                    except ValueError:
-                        cmd = query[1:]
-                        query = ''
+                clauses = query.split( ' ' )
+                clauses = [i for i in clauses if( len( i ) > 0 )]
 
+                commands = [i[1:] for i in clauses if( i[0] == '$' )]
+                add = [i[1:] for i in clauses if( i[0] == '?' )]
+                sub = [i[1:] for i in clauses if( i[0] == '!' )]
+                req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
+
+                for command in commands:
                     if( cmd == 'strict' ):
                         strict = True
                     elif( cmd == 'norand' ):
@@ -386,21 +386,6 @@ class JsonInterface:
                         obj_type = model.TYPE_ALBUM;
                     else:
                         raise ValueError, 'Bad Command'
-
-                ls = query.split( ' ' )
-                req = []
-                add = []
-                sub = []
-
-                for tag in ls:
-                    if( len( tag ) == 0 ):
-                        continue
-                    elif( tag[0] == '?' ):
-                        add.append( tag[1:] )
-                    elif( tag[0] == '!' ):
-                        sub.append( tag[1:] )
-                    else:
-                        req.append( tag )
 
             else:
                 # Search by parts
@@ -418,15 +403,54 @@ class JsonInterface:
                 add = data['add'] if data.has_key( 'add' ) else []
                 sub = data['sub'] if data.has_key( 'sub' ) else []
 
+            def create_constraint( pstr ):
+
+                ops = [ ( '>=', higu.ParameterConstraint.Set_ge, ),
+                        ( '<=', higu.ParameterConstraint.Set_le, ),
+                        ( '>', higu.ParameterConstraint.Set_gt, ),
+                        ( '<', higu.ParameterConstraint.Set_lt, ),
+                        ( '!=', higu.ParameterConstraint.Set_ne, ),
+                        ( '=', higu.ParameterConstraint.Set_eq, ), ]
+                int_ops = [ '>=', '<=', '>', '<' ]
+
+                key = None
+                op = None
+                value = None
+
+                for i in ops:
+                    try:
+                        idx = pstr.index( i[0] )
+                        key = pstr[0:idx]
+                        op = i
+                        value = pstr[idx+len(i[0]):]
+                        break
+                    except:
+                        pass
+
+                if( key is None ):
+                    return self.db.get_tag( pstr )
+
+                if( len( key ) == 0 ):
+                    raise ValueError, 'Bad Parameter Constraint'
+
+                if( op[0] in int_ops ):
+                    value = int( value )
+
+                c = higu.ParameterConstraint( key )
+                i[1]( c, value )
+
+                return c
+
+
             try:
-                req = map( self.db.get_tag, req )
-                add = map( self.db.get_tag, add )
-                sub = map( self.db.get_tag, sub )
+                req = map( create_constraint, req )
+                add = map( create_constraint, add )
+                sub = map( create_constraint, sub )
             except ( KeyError, ValueError, ), e:
                 return json_err( e )
 
-            rs = self.db.lookup_ids_by_tags( req, add, sub, strict,
-                    type = obj_type, random_order = randomize )
+            rs = self.db.lookup_objects( req, add, sub,
+                    strict, type = obj_type, random_order = randomize )
 
         # Register the result set
         sel = Selection( rs )

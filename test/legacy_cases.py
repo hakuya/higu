@@ -29,7 +29,7 @@ class LegacyCases( testutil.TestCase ):
         tags = map( lambda x: h.get_tag( x ), tags )
 
         return [ obj for obj in
-                h.lookup_ids_by_tags( tags, type = type ) ]
+                h.lookup_objects( tags, type = type ) ]
 
     def subtest_ensure_files_present( self, ver ):
 
