@@ -481,6 +481,43 @@ class AccessManager:
 
         return _AccessContext( self.__db, self, **kwargs )
 
+class ParameterConstraint:
+
+    def __init__( self, parameter ):
+
+        self.__parameter = parameter
+        self.__constraint = None
+
+    def Set_eq( self, value ):
+
+        self.__constraint = (model.Metadata.value == str( value ))
+
+    def Set_ne( self, value ):
+
+        self.__constraint = (model.Metadata.value != str( value ))
+
+    def Set_gt( self, value ):
+
+        self.__constraint = (model.Metadata.num > value )
+
+    def Set_ge( self, value ):
+
+        self.__constraint = (model.Metadata.num >= value )
+
+    def Set_lt( self, value ):
+
+        self.__constraint = (model.Metadata.num < value )
+
+    def Set_le( self, value ):
+
+        self.__constraint = (model.Metadata.num <= value )
+
+    def _Get_constraint( self ):
+
+        from sqlalchemy import and_
+
+        return and_( model.Metadata.key == self.__parameter, self.__constraint )
+
 class Database:
 
     def __init__( self ):
@@ -590,26 +627,38 @@ class Database:
                 model.Object.id.in_( q ) )
         return ModelObjToHiguObjIterator( self, objs )
 
-    def lookup_ids_by_tags( self, require = [], add = [], sub = [],
+    def lookup_objects( self, require = [], add = [], sub = [],
             strict = False, type = None, random_order = False ):
 
+        def gen_query( constraints ):
+
+            parameters = [i for i in constraints if( isinstance( i, ParameterConstraint ) )]
+            tags = [i for i in constraints if( i not in parameters )]
+
+            q = []
+            if( len( tags ) > 0 ):
+                q.extend( map( lambda x: self.session.query( model.Relation.child ) \
+                        .filter( model.Relation.parent == x.obj.id ), tags ) )
+            if( len( parameters ) > 0 ):
+                q.extend( map( lambda x: self.session.query( model.Metadata.id ) \
+                        .filter( x._Get_constraint() ), parameters ) )
+
+            return q
+
         if( len( add ) > 0 ):
-            add_q = map( lambda x: self.session.query( model.Relation.child ) \
-                    .filter( model.Relation.parent == x.obj.id ), add )
+            add_q = gen_query( add )
             add_q = add_q[0].union( *add_q[1:] )
         else:
             add_q = None
 
         if( len( sub ) > 0 ):
-            sub_q = map( lambda x: self.session.query( model.Relation.child ) \
-                    .filter( model.Relation.parent == x.obj.id ), sub )
+            sub_q = gen_query( sub )
             sub_q = sub_q[0].union( *sub_q[1:] )
         else:
             sub_q = None
 
         if( len( require ) > 0 ):
-            req_q = map( lambda x: self.session.query( model.Relation.child ) \
-                    .filter( model.Relation.parent == x.obj.id ), require )
+            req_q = gen_query( require )
             req_q = req_q[0].intersect( *req_q[1:] )
         else:
             req_q = None
@@ -631,6 +680,7 @@ class Database:
 
         if( type is not None ):
             query = query.filter( model.Object.type == type )
+
         if( random_order ):
             query = query.order_by( 'RANDOM()' )
 
