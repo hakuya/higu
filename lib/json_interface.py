@@ -371,7 +371,7 @@ class JsonInterface:
                 sub = [i[1:] for i in clauses if( i[0] == '!' )]
                 req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
 
-                for command in commands:
+                for cmd in commands:
                     if( cmd == 'strict' ):
                         strict = True
                     elif( cmd == 'norand' ):
