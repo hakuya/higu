@@ -603,7 +603,7 @@ class JsonInterface:
 
         vars = map( self.db.get_object_by_id, variants )
         for var in vars:
-            var.set_varient_of( original )
+            var.set_variant_of( original )
 
         return json_ok()
 

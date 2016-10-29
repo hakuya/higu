@@ -103,7 +103,7 @@ class Object( Base ):
     parents = association_proxy( 'parent_rel', 'parent_obj' )
     children = association_proxy( 'child_rel', 'child_obj' )
 
-    similars = relation( 'Object', backref = backref( 'similar_to', remote_side = [ id ] ) )
+    similars = relation( 'Object', backref = backref( 'similar_to', remote_side = [ id ] ), post_update = True )
 
     def __init__( self, type, name = None ):
 
