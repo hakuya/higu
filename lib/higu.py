@@ -57,6 +57,14 @@ class Obj:
         self.db = db
         self.obj = obj
 
+    def is_duplicate( self ):
+
+        return self.obj.type == TYPE_FILE_DUP
+
+    def is_variant( self ):
+
+        return self.obj.type == TYPE_FILE_VAR
+
     def get_id( self ):
 
         return self.obj.id
@@ -91,6 +99,9 @@ class Obj:
         rel.child_obj = self.obj
 
     def assign( self, group, order = None ):
+
+        if( self.is_duplicate() ):
+            raise ValueError, 'Cannot assign to a duplicate'
 
         with self.db._access( write = True ):
             self._assign( group, order )
@@ -155,7 +166,7 @@ class Obj:
 
         if( self.get_name() is None ):
             self._set_name( name, False )
-        else:
+        elif( self.get_name() != name ):
             try:
                 xnames = self.obj['altname']
 
@@ -296,14 +307,6 @@ class File( Obj ):
 
         Obj.__init__( self, db, obj )
 
-    def is_duplicate( self ):
-
-        return self.obj.type == TYPE_FILE_DUP
-
-    def is_variant( self ):
-
-        return self.obj.type == TYPE_FILE_VAR
-
     def get_albums( self ):
 
         objs = [ obj for obj in self.obj.parents if obj.type == TYPE_ALBUM ]
@@ -326,27 +329,77 @@ class File( Obj ):
         else:
             return File( self.db, self.obj.similar_to )
 
+    def _set_duplicate_of( self, parent ):
+
+        assert( isinstance( parent, File ) )
+        assert( parent.obj != self.obj )
+
+        # Remove any previous duplication
+        self._clear_duplication()
+
+        # If we are a duplicate, we need to move all our assignments and
+        # children to our parent. We begin by moving over all our
+        # association
+        assocs = [ ( assoc.parent, assoc.sort )
+                    for assoc in self.obj.parent_rel ]
+        for obj_id, sort in assocs:
+            group = self.db.get_object_by_id( obj_id )
+            parent._assign( group, sort )
+            self._unassign( group )
+
+        # Now we move across all our duplicates to our parent
+        dups = self.get_duplicates()
+        for d in dups:
+            if( d == parent ):
+                # Protect from circular duplication
+                d._clear_duplication()
+            else:
+                d._set_duplicate_of( parent )
+
+        # Now we move across all our variants to our parent
+        variants = self.get_variants()
+        for v in variants:
+            if( v.obj.id == parent.obj.id ):
+                v._clear_duplication()
+            else:
+                v._set_variant_of( parent )
+
+        self.obj.type = TYPE_FILE_DUP
+        self.obj.similar_to = parent.obj
+
     def set_duplicate_of( self, parent ):
 
         with self.db._access( write = True ):
-            assert( isinstance( parent, File ) )
+            self._set_duplicate_of( parent )
 
-            self.obj.type = TYPE_FILE_DUP
-            self.obj.similar_to = parent.obj
+    def _set_variant_of( self, parent ):
 
-    def set_varient_of( self, parent ):
+        assert( isinstance( parent, File ) )
+        assert( parent.obj != self.obj )
+
+        # Protect from circular duplication
+        if( parent in self.get_duplicates()
+         or parent in self.get_variants() ):
+
+            parent._clear_duplication()
+
+        self.obj.type = TYPE_FILE_VAR
+        self.obj.similar_to = parent.obj
+
+    def set_variant_of( self, parent ):
 
         with self.db._access( write = True ):
-            assert( isinstance( parent, File ) )
+            self._set_variant_of( parent )
 
-            self.obj.type = TYPE_FILE_VAR
-            self.obj.similar_to = parent.obj
+    def _clear_duplication( self ):
+
+        self.obj.type = TYPE_FILE
+        self.obj.similar_to = None
 
     def clear_duplication( self ):
 
         with self.db._access( write = True ):
-            self.obj.type = TYPE_FILE
-            self.obj.similar_to = None
+            self._clear_duplication()
 
     def get_repr( self ):
 

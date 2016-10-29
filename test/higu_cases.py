@@ -231,6 +231,28 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( len( obj.get_names() ), 1,
                 'Name count does not match' )
 
+    def test_duplicate_name( self ):
+
+        grey = self._load_data( self.grey )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        obj = h.register_file( grey, True )
+
+        grey2 = self._load_data( self.grey )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        obj = h.register_file( grey2, True )
+
+        names = obj.get_names()
+        self.assertTrue( self.grey in names,
+                'Name not loaded' )
+        self.assertEqual( len( names ), 1,
+                'Name count does not match' )
+
     def test_different_names( self ):
 
         grey = self._load_data( self.grey )
@@ -542,6 +564,254 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( files[0], bo, 'Blue not in first position after reorder' )
         self.assertEqual( files[1], go, 'Green not in second position after reorder' )
         self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
+
+    def test_set_duplicate( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        wo = h.register_file( white, False )
+        ko = h.register_file( black, False )
+
+        ko.set_duplicate_of( wo )
+
+        self.assertFalse( wo.is_duplicate(), 'White is a duplicate' )
+        self.assertTrue( ko.is_duplicate(), 'Black is not a duplicate' )
+        self.assertTrue( ko in wo.get_duplicates(), 'Black not in duplicate list of white' )
+
+    def test_duplicate_duplicate_circle( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        wo = h.register_file( white, False )
+        ko = h.register_file( black, False )
+
+        ko.set_duplicate_of( wo )
+        wo.set_duplicate_of( ko )
+
+        self.assertTrue( wo.is_duplicate(), 'White is not a duplicate' )
+        self.assertFalse( ko.is_duplicate(), 'Black is a duplicate' )
+        self.assertTrue( wo in ko.get_duplicates(), 'White not in duplicate list of black' )
+        self.assertFalse( ko in wo.get_duplicates(), 'Black in duplicate list of black' )
+
+    def test_duplicate_variant_circle( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        wo = h.register_file( white, False )
+        ko = h.register_file( black, False )
+
+        ko.set_duplicate_of( wo )
+        wo.set_variant_of( ko )
+
+        self.assertTrue( wo.is_variant(), 'White is not a variant' )
+        self.assertFalse( ko.is_duplicate(), 'Black is a duplicate' )
+        self.assertTrue( wo in ko.get_variants(), 'White not in variant list of black' )
+        self.assertFalse( ko in wo.get_duplicates(), 'Black in duplicate list of black' )
+
+    def test_variant_duplicate_circle( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        wo = h.register_file( white, False )
+        ko = h.register_file( black, False )
+
+        ko.set_variant_of( wo )
+        wo.set_duplicate_of( ko )
+
+        self.assertTrue( wo.is_duplicate(), 'White is not a duplicate' )
+        self.assertFalse( ko.is_variant(), 'Black is a variant' )
+        self.assertTrue( wo in ko.get_duplicates(), 'White not in duplicate list of black' )
+        self.assertFalse( ko in wo.get_variants(), 'Black in variant list of black' )
+
+    def test_variant_variant_circle( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        wo = h.register_file( white, False )
+        ko = h.register_file( black, False )
+
+        ko.set_variant_of( wo )
+        wo.set_variant_of( ko )
+
+        self.assertTrue( wo.is_variant(), 'White is not a variant' )
+        self.assertFalse( ko.is_variant(), 'Black is a variant' )
+        self.assertTrue( wo in ko.get_variants(), 'White not in variant list of black' )
+        self.assertFalse( ko in wo.get_variants(), 'Black in variant list of black' )
+
+    def test_duplicates_moved( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red, False )
+        yo = h.register_file( yellow, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        yo.set_duplicate_of( ro )
+        bo.set_duplicate_of( go )
+        go.set_duplicate_of( ro )
+
+        self.assertFalse( ro.is_duplicate(), 'Red is a duplicate' )
+        self.assertTrue( yo.is_duplicate(), 'Yellow is not a duplicate' )
+        self.assertTrue( go.is_duplicate(), 'Green is not a duplicate' )
+        self.assertTrue( bo.is_duplicate(), 'Blue is not a duplicate' )
+
+        self.assertEqual( len( ro.get_duplicates() ), 3, 'Red duplicate list mismatch' )
+        self.assertEqual( len( yo.get_duplicates() ), 0, 'Yellow duplicate list mismatch' )
+        self.assertEqual( len( go.get_duplicates() ), 0, 'Green duplicate list mismatch' )
+        self.assertEqual( len( bo.get_duplicates() ), 0, 'Blue duplicate list mismatch' )
+
+        dups = ro.get_duplicates()
+        self.assertTrue( yo in dups, 'Yellow not in dup list' )
+        self.assertTrue( go in dups, 'Green not in dup list' )
+        self.assertTrue( bo in dups, 'Blue not in dup list' )
+
+    def test_variants_moved( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red, False )
+        yo = h.register_file( yellow, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        yo.set_variant_of( ro )
+        bo.set_variant_of( go )
+        go.set_duplicate_of( ro )
+
+        self.assertFalse( ro.is_duplicate(), 'Red is a duplicate' )
+        self.assertFalse( ro.is_variant(), 'Red is a variant' )
+        self.assertTrue( yo.is_variant(), 'Yellow is not a variant' )
+        self.assertTrue( go.is_duplicate(), 'Green is not a duplicate' )
+        self.assertTrue( bo.is_variant(), 'Blue is not a variant' )
+
+        self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
+        self.assertEqual( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
+        self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
+
+        dups = ro.get_duplicates()
+        variants = ro.get_variants()
+        self.assertTrue( yo in variants, 'Yellow not in variant list' )
+        self.assertTrue( go in dups, 'Green not in dup list' )
+        self.assertTrue( bo in variants, 'Blue not in variant list' )
+
+    def test_albums_moved( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        album = h.create_album()
+
+        ro = h.register_file( red, False )
+        yo = h.register_file( yellow, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        yo.assign( album, 2 )
+        bo.assign( album, 3 )
+        ro.assign( album, 1 )
+
+        yo.set_duplicate_of( go )
+
+        files = album.get_files()
+        self.assertEqual( len( files ), 3, 'Album size mismatch' )
+        self.assertEqual( files[0], ro, 'Red not first in album' )
+        self.assertEqual( files[1], go, 'Green not second in album' )
+        self.assertEqual( files[2], bo, 'Blue not third in album' )
+
+    def test_tags_moved( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        tag1 = h.make_tag( 'a_tag' )
+        tag2 = h.make_tag( 'b_tag' )
+        tag3 = h.make_tag( 'c_tag' )
+
+        ro = h.register_file( red, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        ro.assign( tag1 )
+        
+        go.assign( tag1 )
+        go.assign( tag2 )
+
+        bo.assign( tag3 )
+
+        go.set_duplicate_of( ro )
+        bo.set_duplicate_of( ro )
+
+        self.assertEqual( len( ro.get_tags() ), 3, 'Red tag list mismatch' )
+        self.assertEqual( len( go.get_tags() ), 0, 'Green tag list mismatch' )
+        self.assertEqual( len( bo.get_tags() ), 0, 'Blue tag list mismatch' )
+
+        tags = ro.get_tags()
+        self.assertTrue( tag1 in tags, 'tag1 not in dup list' )
+        self.assertTrue( tag2 in tags, 'tag2 not in dup list' )
+        self.assertTrue( tag3 in tags, 'tag3 not in dup list' )
+
+    def test_assign_on_duplicate( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        tag = h.make_tag( 'a_tag' )
+
+        wo = h.register_file( white, False )
+        ko = h.register_file( black, False )
+
+        ko.set_duplicate_of( wo )
+
+        try:
+            ko.assign( tag )
+            self.fail( 'Did not except on assign to duplicate' )
+        except ValueError:
+            pass
 
 if( __name__ == '__main__' ):
     unittest.main()
