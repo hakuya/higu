@@ -20,6 +20,10 @@ echo 'Testing HIGU core library and database functions'
 echo '============================================================'
 python test/higu_cases.py || exit $?
 
+echo 'Testing HIGU core library query functions'
+echo '============================================================'
+python test/query_cases.py || exit $?
+
 echo 'Testing insertfile script'
 echo '============================================================'
 python test/insert_cases.py || exit $?

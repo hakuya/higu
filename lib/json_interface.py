@@ -360,7 +360,8 @@ class JsonInterface:
                 # Search by query
                 query = data['query']
                 strict = False
-                randomize = True
+                order = 'rand'
+                rsort = False
                 obj_type = None
 
                 clauses = query.split( ' ' )
@@ -374,8 +375,11 @@ class JsonInterface:
                 for cmd in commands:
                     if( cmd == 'strict' ):
                         strict = True
-                    elif( cmd == 'norand' ):
-                        randomize = False
+                    elif( cmd == 'sort:add' ):
+                        order = 'add'
+                    elif( cmd == 'sort:radd' ):
+                        order = 'add'
+                        rsort = True
                     elif( cmd == 'type:orig' ):
                         obj_type = model.TYPE_FILE;
                     elif( cmd == 'type:dup' ):
@@ -394,10 +398,13 @@ class JsonInterface:
                 else:
                     strict = False
 
-                if( data.has_key( 'randomize' ) and not data['randomize'] ):
-                    randomize = False
+                if( data.has_key( 'sort' ) and not data['randomize'] ):
+                    order = data['sort']
+
+                if( data.has_key( 'rsort' ) and data['rsort'] ):
+                    rsort = True
                 else:
-                    randomize = True
+                    rsort = False
 
                 req = data['req'] if data.has_key( 'req' ) else []
                 add = data['add'] if data.has_key( 'add' ) else []
@@ -450,7 +457,8 @@ class JsonInterface:
                 return json_err( e )
 
             rs = self.db.lookup_objects( req, add, sub,
-                    strict, type = obj_type, random_order = randomize )
+                    strict, type = obj_type,
+                    order = order, rsort = rsort )
 
         # Register the result set
         sel = Selection( rs )

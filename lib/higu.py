@@ -681,7 +681,7 @@ class Database:
         return ModelObjToHiguObjIterator( self, objs )
 
     def lookup_objects( self, require = [], add = [], sub = [],
-            strict = False, type = None, random_order = False ):
+            strict = False, type = None, order = None, rsort = False ):
 
         def gen_query( constraints ):
 
@@ -718,6 +718,9 @@ class Database:
 
         query = self.session.query( model.Object )
 
+        query = query.filter( model.Object.type.in_( [
+            TYPE_FILE, TYPE_FILE_VAR, TYPE_ALBUM ] ) )
+
         if( req_q is not None ):
             q = req_q
 
@@ -734,8 +737,13 @@ class Database:
         if( type is not None ):
             query = query.filter( model.Object.type == type )
 
-        if( random_order ):
+        if( order == 'rand' ):
             query = query.order_by( 'RANDOM()' )
+        elif( order == 'add' ):
+            if( not rsort ):
+                query = query.order_by( model.Object.id )
+            else:
+                query = query.order_by( model.Object.id.desc() )
 
         return ModelObjToHiguObjIterator( self, query ) 
 
