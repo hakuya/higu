@@ -718,9 +718,6 @@ class Database:
 
         query = self.session.query( model.Object )
 
-        query = query.filter( model.Object.type.in_( [
-            TYPE_FILE, TYPE_FILE_VAR, TYPE_ALBUM ] ) )
-
         if( req_q is not None ):
             q = req_q
 
@@ -736,6 +733,9 @@ class Database:
 
         if( type is not None ):
             query = query.filter( model.Object.type == type )
+        else:
+            query = query.filter( model.Object.type.in_( [
+                TYPE_FILE, TYPE_FILE_VAR, TYPE_ALBUM ] ) )
 
         if( order == 'rand' ):
             query = query.order_by( 'RANDOM()' )
