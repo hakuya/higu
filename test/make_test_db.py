@@ -29,8 +29,8 @@ if( __name__ == '__main__' ):
     else:
         wo = h.register_file( 'white_sq.png', add_name = False )
     lo = h.register_file( 'grey_sq.png' )
+    lo = h.register_file( 'grey_sq2.png' )
     ko = h.register_file( 'black_sq.png' )
-    ko = h.register_file( 'black_sq2.png' )
 
     if( ver[0] < 4 ):
         mo.tag( 'colour' )
@@ -143,7 +143,13 @@ if( __name__ == '__main__' ):
         al.assign( h.make_tag( 'white_blue_album' ) )
         al.set_text( 'White & Blue' )
 
-    lo.set_varient_of( wo )
+    if( ver[0] > 8 or ver[0] == 8 and ver[1] > 0 ):
+        lo.set_variant_of( wo )
+        bo.set_variant_of( ko )
+    else:
+        lo.set_varient_of( wo )
+        bo.set_varient_of( ko )
+
     ko.set_duplicate_of( lo )
 
     if( ver[0] < 8 ):

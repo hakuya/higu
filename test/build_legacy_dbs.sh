@@ -17,7 +17,7 @@ clean() {
 load() {
     git checkout $1 2> /dev/null || return $?
     cp $DATA_DIR/*.png . || return $?
-    cp black_sq.png black_sq2.png || return $?
+    cp grey_sq.png grey_sq2.png || return $?
 }
 
 run() {
@@ -58,7 +58,8 @@ run 4.0 5408d42b1ad501c4b69ffb548d9714214123d4f4
 run 5.0 6342ce3b0c2862d8353c65f92086987acf1f0593
 run 6.0 cd56151a1ff3fc9f54eabda571a8ccb11b7838e6
 run 7.0 dadd6da530a2ef4fbe9ffcb24b813c6368cb5f77
-run 8.0 master
+run 8.0 e134d661b70f7395341325c805be5c7b9aa31986
+run 8.1 master
 
 cd
 rm -rf $WORK_DIR

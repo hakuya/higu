@@ -582,6 +582,45 @@ class HiguLibCases( testutil.TestCase ):
         self.assertTrue( ko.is_duplicate(), 'Black is not a duplicate' )
         self.assertTrue( ko in wo.get_duplicates(), 'Black not in duplicate list of white' )
 
+    def test_set_duplicate_of_variant( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        h = higu.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red, False )
+        yo = h.register_file( yellow, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        go.set_variant_of( ro )
+        yo.set_duplicate_of( ro )
+        bo.set_duplicate_of( go )
+
+        self.assertTrue( yo.get_similar_to() == ro, 'Yellow not child of red' )
+        self.assertTrue( bo.get_similar_to() == go, 'Blue not child of green' )
+        self.assertTrue( go.get_similar_to() == ro, 'Green not child of red' )
+
+        self.assertFalse( ro.is_duplicate(), 'Red is a duplicate' )
+        self.assertTrue( yo.is_duplicate(), 'Yellow is not a duplicate' )
+        self.assertFalse( go.is_duplicate(), 'Green is a duplicate' )
+        self.assertTrue( bo.is_duplicate(), 'Blue is not a duplicate' )
+
+        self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
+        self.assertEqual( len( yo.get_duplicates() ), 0, 'Yellow duplicate list mismatch' )
+        self.assertEqual( len( go.get_duplicates() ), 1, 'Green duplicate list mismatch' )
+        self.assertEqual( len( bo.get_duplicates() ), 0, 'Blue duplicate list mismatch' )
+
+        self.assertFalse( ro.is_variant(), 'Red is a variant' )
+        self.assertTrue( go.is_variant(), 'Green is not a variant' )
+
+        self.assertEqual( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
+        self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
+
     def test_duplicate_duplicate_circle( self ):
 
         white = self._load_data( self.white )

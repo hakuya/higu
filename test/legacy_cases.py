@@ -104,7 +104,7 @@ class LegacyCases( testutil.TestCase ):
                 'Unexpected number of files in warm' )
         self.assertEqual( len( cool ), 3,
                 'Unexpected number of files in cool' )
-        self.assertEqual( len( greyscale ), 3,
+        self.assertEqual( len( greyscale ), 2,
                 'Unexpected number of files in greyscale' )
         self.assertEqual( len( white ), 1,
                 'Unexpected number of files in white' )
@@ -117,27 +117,43 @@ class LegacyCases( testutil.TestCase ):
 
         h = higu.Database()
 
-        white = self._lookup( h, [ 'white'] )[0]
-        grey = self._lookup( h, [ 'grey'] )[0]
-        black = self._lookup( h, [ 'black'] )[0]
+        white = self._lookup( h, [ 'white' ] )[0]
+        grey = self._lookup( h, [ 'grey' ] )[0]
 
         self.assertTrue( grey.is_variant()
                     and grey.get_similar_to() == white,
                 'Grey should be variant of white' )
-        self.assertTrue( black.is_duplicate()
-                    and black.get_similar_to() == grey,
-                'Black should be duplicate of grey' )
+        self.assertEqual( len( grey.get_duplicates() ), 1,
+                'Grey duplicate list len mismatch' )
+
+        black = grey.get_duplicates()[0]
+        self.assertEqual( black.get_name(), self.black,
+                'Black is not the duplicate of grey' )
+
+    def subtest_check_dup_moved( self, ver ):
+
+        h = higu.Database()
+        
+        grey = self._lookup( h, [ 'grey' ] )[0]
+        grey2 = self._lookup( h, [ 'black' ] )[0]
+
+        self.assertEqual( grey, grey2,
+                'Black tag not moved' )
+        self.assertEqual( len( grey.get_variants() ), 1,
+                'Unexpected variant count' )
+        self.assertEqual( grey.get_variants()[0].get_name(), self.blue,
+                'Blue not moved as black\'s variant' )
 
     def subtest_check_multi_names( self, ver ):
 
         h = higu.Database()
 
-        black = self._lookup( h, [ 'black'] )[0]
-        names = black.get_names()
+        grey = self._lookup( h, [ 'grey' ] )[0]
+        names = grey.get_names()
 
-        self.assertTrue( self.black in names,
+        self.assertTrue( self.grey in names,
                 'Primary name not found' )
-        self.assertTrue( 'black_sq2.png' in names,
+        self.assertTrue( 'grey_sq2.png' in names,
                 'Secondary name not found' )
 
     def subtest_check_album( self, ver ):
@@ -153,7 +169,7 @@ class LegacyCases( testutil.TestCase ):
 
             cl_files = cl_al.get_files()
 
-            self.assertEqual( len( cl_files ), 6,
+            self.assertEqual( len( cl_files ), 5,
                     'Unexpected number of files in colour album' )
 
         else:
@@ -229,7 +245,7 @@ def build_cases():
 
     VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
                  ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
-                 ( 8, 0, ), ]
+                 ( 8, 0, ), ( 8, 1, ) ]
 
     for ver in VERSIONS:
 
