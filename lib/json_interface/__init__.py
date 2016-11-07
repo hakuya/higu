@@ -1,10 +1,10 @@
+import inspect
+import sys
+
 import higu
 import model
-import sys
-import uuid
-import time
-import threading
-import inspect
+
+import cache
 
 VERSION = 0
 REVISION = 0
@@ -26,93 +26,6 @@ def get_type_str( obj ):
 def make_obj_tuple( obj ):
 
     return [ obj.get_id(), obj.get_repr(), get_type_str( obj ) ]
-
-class Selection:
-
-    def __init__( self, results ):
-
-        if( isinstance( results, list ) ):
-            self.loaded = results
-        else:
-            self.loaded = []
-            self.preload( results.__iter__() )
-
-    def preload( self, results ):
-
-        i = 0
-
-        try:
-            self.loaded = [ 0 ] * 10000
-            for i in range( 10000 ):
-                self.loaded[i] = results.next().get_id()
-        except StopIteration:
-            self.loaded = self.loaded[:i]
-
-    def __len__( self ):
-
-        return len( self.loaded )
-
-    def __getitem__( self, idx ):
-
-        assert( isinstance( idx, int ) )
-        if( idx < 0 or idx >= len( self.loaded ) ):
-            raise IndexError
-
-        return self.loaded[idx]
-
-class SelectionCache:
-
-    def __init__( self ):
-
-        self.selections = {}
-        self.lock = threading.Lock()
-
-    def flush( self ):
-
-        with self.lock:
-            clear_list = []
-
-            for sel in self.selections:
-                ot, rs = self.selections[sel]
-                if( time.time() > ot + 3600 ):
-                    clear_list.append( sel )
-
-            for sel in clear_list:
-                del self.selections[sel]
-
-    def close( self, sel_id ):
-
-        with self.lock:
-            del self.selections[sel_id]
-
-    def register( self, sel ):
-
-        self.flush()
-
-        with self.lock:
-            sel_id = uuid.uuid4().hex
-            self.selections[sel_id] = ( time.time(), sel, )
-            return sel_id
-
-    def fetch( self, sel_id ):
-
-        self.flush()
-
-        with self.lock:
-            ot, sel = self.selections[sel_id]
-            self.selections[sel_id] = ( time.time(), sel, )
-
-            return sel
-
-default_cache = None
-
-def get_default_cache():
-    global default_cache
-
-    if( default_cache is None ):
-        default_cache = SelectionCache()
-
-    return default_cache
 
 def json_ok( **args ):
 
@@ -151,14 +64,11 @@ class JsonInterface:
 
     def __init__( self ):
 
-        self.db = higu.Database()
-        self.db.enable_write_access()
-
-        self.cache = get_default_cache()
+        self.cache = cache.get_default_cache()
 
     def close( self ):
 
-        self.db.close()
+        pass
 
     def execute( self, data ):
 
@@ -210,9 +120,28 @@ class JsonInterface:
             higu_ver = [ higu.VERSION, higu.REVISION ],
             db_ver   = [ model.VERSION, model.REVISION ] )
 
-    def cmd_info( self, targets, items ):
+    def cmd_new_session( self ):
 
-        targets = map( self.db.get_object_by_id, targets )
+        return json_ok( session_id = self.cache.new() )
+
+    def cmd_login( self, session_id, user, token ):
+
+        if( user == 'admin' ):
+            self.cache.enable_write_access( session_id )
+            return json_ok( write = True )
+        else:
+            return json_err( 'Login failed' )
+
+    def cmd_close_session( self, session_id ):
+
+        self.cache.close( session_id )
+        return json_ok()
+
+    def cmd_info( self, session_id, targets, items ):
+
+        db = self.cache.get_db( session_id )
+
+        targets = map( db.get_object_by_id, targets )
 
         def fetch_info( target ):
 
@@ -279,9 +208,11 @@ class JsonInterface:
 
         return json_ok( info = results )
 
-    def cmd_tag( self, targets, **args ):
+    def cmd_tag( self, session_id, targets, **args ):
 
-        targets = map( self.db.get_object_by_id, targets )
+        db = self.cache.get_db( session_id )
+
+        targets = map( db.get_object_by_id, targets )
 
         if( args.has_key( 'query' ) ):
             tags = filter( lambda x: x != '', args['query'].split( ' ' ) )
@@ -296,9 +227,9 @@ class JsonInterface:
             new = args['new_tags'] if( args.has_key( 'new_tags' ) ) else []
 
         try:
-            add = map( self.db.get_tag, add )
-            sub = map( self.db.get_tag, sub )
-            add += map( self.db.make_tag, new )
+            add = map( db.get_tag, add )
+            sub = map( db.get_tag, sub )
+            add += map( db.make_tag, new )
         except ( KeyError, ValueError, ), e:
             return json_err( e )
 
@@ -310,49 +241,59 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rename( self, target, name, saveold = False ):
+    def cmd_rename( self, session_id, target, name, saveold = False ):
 
-        target = self.db.get_object_by_id( target )
+        db = self.cache.get_db( session_id )
+
+        target = db.get_object_by_id( target )
         target.set_name( name, saveold )
 
         return json_ok()
 
-    def cmd_group_deorder( self, group ):
+    def cmd_group_deorder( self, session_id, group ):
 
-        group = self.db.get_object_by_id( group )
+        db = self.cache.get_db( session_id )
+
+        group = db.get_object_by_id( group )
         assert( isinstance( group, higu.OrderedGroup ) )
 
         group.clear_order()
 
         return json_ok()
 
-    def cmd_group_reorder( self, group, items ):
+    def cmd_group_reorder( self, session_id, group, items ):
 
-        group = self.db.get_object_by_id( group )
+        db = self.cache.get_db( session_id )
+
+        group = db.get_object_by_id( group )
         assert( isinstance( group, higu.OrderedGroup ) )
 
-        items = map( self.db.get_object_by_id, items )
+        items = map( db.get_object_by_id, items )
         group.set_order( items )
 
         return json_ok()
 
-    def cmd_taglist( self ):
+    def cmd_taglist( self, session_id ):
 
-        tags = self.db.all_tags()
+        db = self.cache.get_db( session_id )
+
+        tags = db.all_tags()
         tags = map( lambda x: x.get_name(), tags )
 
         return json_ok( tags = tags )
 
     def cmd_search( self, data ):
 
+        db = self.cache.get_db( data['session_id'] )
+
         if( data.has_key( 'mode' ) ):
             # Search by directive
             if( data['mode'] == 'all' ):
-                rs = self.db.all_albums_or_free_files()
+                rs = db.all_albums_or_free_files()
             elif( data['mode'] == 'untagged' ):
-                rs = self.db.unowned_files()
+                rs = db.unowned_files()
             elif( data['mode'] == 'album' ):
-                album = self.db.get_object_by_id( data['album'] )
+                album = db.get_object_by_id( data['album'] )
                 rs = map( lambda x: x.get_id(), album.get_files() )
 
         else:
@@ -435,7 +376,7 @@ class JsonInterface:
                         pass
 
                 if( key is None ):
-                    return self.db.get_tag( pstr )
+                    return db.get_tag( pstr )
 
                 if( len( key ) == 0 ):
                     raise ValueError, 'Bad Parameter Constraint'
@@ -456,13 +397,14 @@ class JsonInterface:
             except ( KeyError, ValueError, ), e:
                 return json_err( e )
 
-            rs = self.db.lookup_objects( req, add, sub,
+            rs = db.lookup_objects( req, add, sub,
                     strict, type = obj_type,
                     order = order, rsort = rsort )
 
         # Register the result set
-        sel = Selection( rs )
-        selid = self.cache.register( sel )
+        sel = self.cache.register_selection(
+                        data['session_id'], rs )
+        selid = sel.get_uuid()
 
         if( data.has_key( 'index' ) ):
             idx = data['index']
@@ -487,12 +429,12 @@ class JsonInterface:
             self.cache.close( selid )
             return json_ok( results = 0 )
 
-    def cmd_selection_fetch( self, selection, index ):
+    def cmd_selection_fetch( self, session_id, selection, index ):
 
         sel_id = selection
         idx = index
 
-        sel = self.cache.fetch( sel_id )
+        sel = self.cache.fetch_selection( session_id, sel_id )
         try:
             obj_id = sel[idx]
         except IndexError:
@@ -500,25 +442,27 @@ class JsonInterface:
 
         return json_ok( object_id = obj_id )
 
-    def cmd_selection_close( self, selection ):
+    def cmd_selection_close( self, session_id, selection ):
 
         if( not isinstance( selection, str ) ):
             return json_err( 'argument', 'selection is not a valid selection id' )
 
         try:
-            self.cache.close( selection )
+            self.cache.close_selection( session_id, selection )
         except KeyError:
             pass
         
         return json_ok()
 
-    def cmd_group_create( self, targets ):
+    def cmd_group_create( self, session_id, targets ):
 
-        targets = map( self.db.get_object_by_id, targets )
+        db = self.cache.get_db( session_id )
+
+        targets = map( db.get_object_by_id, targets )
         for target in targets:
             assert( isinstance( target, higu.File ) )
 
-        group = self.db.create_album()
+        group = db.create_album()
         assert( isinstance( group, higu.Album ) )
 
         for target in targets:
@@ -526,42 +470,50 @@ class JsonInterface:
 
         return json_ok( group = group.get_id() )
 
-    def cmd_group_delete( self, group ):
+    def cmd_group_delete( self, session_id, group ):
 
-        group = self.db.get_object_by_id( group )
+        db = self.cache.get_db( session_id )
+
+        group = db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
-        self.db.delete_object( group )
+        db.delete_object( group )
 
         return json_ok()
 
-    def cmd_group_append( self, group, targets ):
+    def cmd_group_append( self, session_id, group, targets ):
 
-        group = self.db.get_object_by_id( group )
+        db = self.cache.get_db( session_id )
+
+        group = db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
-        targets = map( self.db.get_object_by_id, targets )
+        targets = map( db.get_object_by_id, targets )
         for target in targets:
             assert( isinstance( target, higu.File ) )
             target.assign( group )
 
         return json_ok()
 
-    def cmd_group_remove( self, group, targets ):
+    def cmd_group_remove( self, session_id, group, targets ):
 
-        group = self.db.get_object_by_id( group )
+        db = self.cache.get_db( session_id )
+
+        group = db.get_object_by_id( group )
         assert( isinstance( group, higu.Album ) )
 
-        targets = map( self.db.get_object_by_id, targets )
+        targets = map( db.get_object_by_id, targets )
         for target in targets:
             assert( isinstance( target, higu.File ) )
             target.unassign( group )
 
         return json_ok()
 
-    def cmd_gather_tags( self, target ):
+    def cmd_gather_tags( self, session_id, target ):
 
-        obj = self.db.get_object_by_id( target )
+        db = self.cache.get_db( session_id )
+
+        obj = db.get_object_by_id( target )
 
         if( isinstance( obj, higu.Album ) ):
             files = obj.get_files()
@@ -586,47 +538,60 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_tag_delete( self, tag ):
+    def cmd_tag_delete( self, session_id, tag ):
 
-        self.db.delete_tag( tag )
+        db = self.cache.get_db( session_id )
+
+        db.delete_tag( tag )
         return json_ok()
 
-    def cmd_tag_move( self, tag, target ):
+    def cmd_tag_move( self, session_id, tag, target ):
 
-        self.db.move_tag( tag, target )
+        db = self.cache.get_db( session_id )
+
+        db.move_tag( tag, target )
         return json_ok()
 
-    def cmd_tag_copy( self, tag, target ):
+    def cmd_tag_copy( self, session_id, tag, target ):
 
-        self.db.copy_tag( tag, target )
+        db = self.cache.get_db( session_id )
+
+        db.copy_tag( tag, target )
         return json_ok()
 
-    def cmd_set_duplication( self, original, duplicates = [], variants = [] ):
+    def cmd_set_duplication( self, session_id, original,
+                             duplicates = [], variants = [] ):
 
-        original = self.db.get_object_by_id( original )
+        db = self.cache.get_db( session_id )
+
+        original = db.get_object_by_id( original )
         
-        dups = map( self.db.get_object_by_id, duplicates )
+        dups = map( db.get_object_by_id, duplicates )
         for dup in dups:
             dup.set_duplicate_of( original )
 
-        vars = map( self.db.get_object_by_id, variants )
+        vars = map( db.get_object_by_id, variants )
         for var in vars:
             var.set_variant_of( original )
 
         return json_ok()
 
-    def cmd_clear_duplication( self, targets ):
+    def cmd_clear_duplication( self, session_id, targets ):
 
-        targets = map( self.db.get_object_by_id, targets )
+        db = self.cache.get_db( session_id )
+
+        targets = map( db.get_object_by_id, targets )
 
         for target in targets:
             target.clear_duplication()
 
         return json_ok()
 
-    def cmd_rotate( self, target, rot ):
+    def cmd_rotate( self, session_id, target, rot ):
 
-        target = self.db.get_object_by_id( target )
+        db = self.cache.get_db( session_id )
+
+        target = db.get_object_by_id( target )
         target.rotate( rot )
 
         return json_ok()
