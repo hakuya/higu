@@ -426,7 +426,8 @@ class JsonInterface:
                     index = idx,
                     first = sel[idx], )
         else:
-            self.cache.close( selid )
+            self.cache.close_selection(
+                    data['session_id'], selid )
             return json_ok( results = 0 )
 
     def cmd_selection_fetch( self, session_id, selection, index ):
