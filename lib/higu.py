@@ -874,10 +874,10 @@ class Database:
         album = model_obj_to_higu_obj( self, album )
 
         if( name is not None ):
-            album.obj.name = name
+            album.obj.name = make_unicode( name )
 
         if( text is not None ):
-            album.obj['text'] = text
+            album.obj['text'] = make_unicode( text )
 
         for t in tags:
             album._assign( t, None )
