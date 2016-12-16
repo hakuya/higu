@@ -6,6 +6,8 @@ import time
 import config
 import json
 
+from genshi.template import TemplateLoader
+
 import json_interface
 
 from html import TextFormatter, HtmlGenerator
@@ -17,15 +19,15 @@ CONFIG={
         'tools.encode.on'       : True,
         'tools.encode.encoding' : 'utf-8',
     },
-    '/index' : {
-        'tools.staticfile.on' : True,
-        'tools.staticfile.filename' : os.path.join( os.getcwd(), 'static/index.html' ),
-        },
     '/static' : {
         'tools.staticdir.on' : True,
         'tools.staticdir.dir' : os.path.join( os.getcwd(), 'static' ),
     },
 }
+
+loader = TemplateLoader(
+    os.path.join( os.getcwd(), 'templates' ),
+    auto_reload = True )
 
 class Server:
 
@@ -40,6 +42,18 @@ class Server:
     def get_port( self ):
 
         return int( self.cfg['port'] )
+
+    @cherrypy.expose
+    def index( self ):
+
+        db = higu.Database()
+        all_tags = db.all_tags()
+
+        tmpl = loader.load( 'index.html' )
+        stream = tmpl.generate( taglist = all_tags,
+                                logged_in = True,
+                                is_admin = False )
+        return stream.render( 'html', doctype = 'html' )    
 
     @cherrypy.expose
     def callback_new( self ):

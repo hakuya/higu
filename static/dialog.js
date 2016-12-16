@@ -1,51 +1,6 @@
 // module
 var dialogs = (function() {
 
-TAG_DIALOG_TEMPLATE =
-    "<div id='tag-dialog' title='Tag Image'>"
-  + "    <p>Enter a series of tags separated by spaces."
-  + "    Prefix a tag with a dash to remove it<br/>"
-  + "    <span id='tag-err-text' class='err-text'></span></p>"
-  + "    <form id='tag-dialog-form' onsubmit='return false'><fieldset>"
-  + "    <label for='tags'>Tags</label>"
-  + "    <input type='text' name='tags' id='tags'/>"
-  + "    </fieldset></form>"
-  + "</div>";
-
-DUP_DIALOG_TEMPLATE =
-    "<div id='dup-dialog' title='Duplicate Image'>"
-  + "    <p>Select the relationship of the dropped image:</p>"
-  + ""
-  + "    <form id='dup-dialog-form' onsubmit='return false'><fieldset>"
-  + "    <input type='radio' name='dup' value='orig_dup'>Original of the duplicate in the tab</input><br/>"
-  + "    <input type='radio' name='dup' value='orig_var'>Original of the variant in the tab</input><br/>"
-  + "    <input type='radio' name='dup' value='duplicate'>Duplicate of the original in the tab</input><br/>"
-  + "    <input type='radio' name='dup' value='variant'>Variant of the original in the tab</input><br/>"
-  + "    </fieldset></form>"
-  + "</div>";
-
-NAME_DIALOG_TEMPLATE =
-    "<div id='name-dialog' title='Tag Image'>"
-  + "    <p>Enter a new filename</p>"
-  + ""
-  + "    <form id='name-dialog-form' onsubmit='return false'><fieldset>"
-  + "    <label for='fname'>Name</label>"
-  + "    <input type='text' name='fname' id='fname'/>"
-  + "    <label for='saveold'>Save old name</label>"
-  + "    <input type='checkbox' name='saveold' id='saveold'/>"
-  + "    </fieldset></form>"
-  + "</div>";
-
-TEXT_DIALOG_TEMPLATE =
-    "<div id='text-dialog' title='Info'>"
-  + "    <textarea id='info-text' style='width:100%;height:100%;resize:none' readonly='true'></textarea>"
-  + "</div>";
-
-ERROR_DIALOG_TEMPLATE =
-    "<div id='error-dialog' title='Oops, something went wrong'>"
-  + "    <span id='error-msg'></span>"
-  + "</div>";
-
 /**
  * class TagDialog
  */
@@ -53,9 +8,8 @@ var TagDialog = function()
 
     // Constructor
     {
-        this.elem = $( TAG_DIALOG_TEMPLATE );
+        this.elem = $( '#tag-dialog' );
         this.elem.data( 'obj', this );
-        $( 'body' ).append( this.elem );
 
         this.elem.dialog({
             autoOpen: false,
@@ -120,9 +74,8 @@ var DupDialog = function()
 
     // Constructor
     {
-        this.elem = $( DUP_DIALOG_TEMPLATE );
+        this.elem = $( '#dup-dialog' );
         this.elem.data( 'obj', this );
-        $( 'body' ).append( this.elem );
 
         this.dropped = null;
         this.received = null;
@@ -190,9 +143,8 @@ var NameDialog = function()
 
     // Constructor
     {
-        this.elem = $( NAME_DIALOG_TEMPLATE );
+        this.elem = $( '#name-dialog' );
         this.elem.data( 'obj', this );
-        $( 'body' ).append( this.elem );
 
         this.elem.dialog({
             autoOpen: false,
@@ -244,9 +196,8 @@ var TextDialog = function()
 
     // Constructor
     {
-        this.elem = $( TEXT_DIALOG_TEMPLATE );
+        this.elem = $( '#text-dialog' );
         this.elem.data( 'obj', this );
-        $( 'body' ).append( this.elem );
 
         this.elem.dialog({
             autoOpen: false,
@@ -280,9 +231,8 @@ var ErrorDialog = function()
 
     // Constructor
     {
-        this.elem = $( ERROR_DIALOG_TEMPLATE );
+        this.elem = $( '#error-dialog' );
         this.elem.data( 'obj', this );
-        $( 'body' ).append( this.elem );
 
         this.elem.dialog({
             autoOpen: false,
