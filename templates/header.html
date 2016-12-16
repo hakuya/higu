@@ -1,0 +1,19 @@
+<div xmlns="http://www.w3.org/1999/xhtml"
+     xmlns:py="http://genshi.edgewall.org/"
+     id='header'>
+
+    <py:if test='logged_in'>
+        <form id='tagsearch' onsubmit='return false'>
+        <a href='#allimg'>all</a> /
+        <a href='#untagged'>untagged</a> /
+        <a href='#newsel'>selection</a> /
+        <py:if test='is_admin'>
+            <a href='#admin'>admin</a> /
+        </py:if>
+        <input type="text" class='nokb'/>
+        </form>
+    </py:if>
+    <py:if test='not logged_in'>
+        <a href='#login'>login</a>
+    </py:if>
+</div>

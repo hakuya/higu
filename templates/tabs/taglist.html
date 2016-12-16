@@ -1,0 +1,5 @@
+<ul xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://genshi.edgewall.org/"
+    py:if='taglist' class='taglist'>
+  <li py:for='tag in taglist'><a class='taglink' href='#${tag.get_name()}'>${tag.get_name()}</a></li>
+</ul>

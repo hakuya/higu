@@ -1,4 +1,7 @@
-<html><head>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+<head>
   <title>UI Gen3</title>
 </head>
 
@@ -17,14 +20,7 @@
 <link rel="stylesheet" href="static/style.css" type="text/css"/>
 
 <div id='page'>
-<div id='header'>
-    <form id='tagsearch' onsubmit='return false'>
-    <a href='#allimg'>all</a> /
-    <a href='#untagged'>untagged</a> /
-    <a href='#newsel'>selection</a> /
-    <input type="text" class='nokb'/>
-    </form>
-</div>
+<xi:include href="header.html"/>
 <div id='trash'>Trash</div>
 
 <div id='main'>
@@ -35,12 +31,14 @@
         <li><a href='#taglist-tab'>Taglist</a></li>
         <li><a href='#admin-tab'>Admin</a></li>
     </ul>
-    <div class='tab' id='welcome-tab'>Loading...</div>
-    <div class='tab' id='taglist-tab'>Loading...</div>
+    <div class='tab' id='welcome-tab'><xi:include href="tabs/begin.html"/></div>
+    <div class='tab' id='taglist-tab'><xi:include href="tabs/taglist.html"/></div>
     <div class='tab' id='admin-tab'>Loading...</div>
 </div>
 
 </div>
 </div>
+
+<xi:include href="dialogs.html"/>
 
 </body></html>

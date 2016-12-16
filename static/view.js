@@ -38,33 +38,41 @@ TagslistTab = function()
         this.elem = $( '#taglist-tab' );
         this.elem.data( 'obj', this );
 
-        this.on_tags_changed();
+        this.on_content_ready( null );
     };
 
-    TagslistTab.prototype.on_tags_loaded = function( data, response )
+    TagslistTab.prototype.on_content_ready = function( response )
     {
-        this.elem.html( '' );
-        this.elem.append( "<ul class='taglist'></ul>" );
-        var ls = this.elem.children().first();
-
-        for( i = 0; i < response.tags.length; i++ ) {
-            var li = TAGLINK_TEMPLATE.replace( /#\{tag\}/g, response.tags[i]);
-            ls.append( li );
+        if( response != null ) {
+            this.elem.html( response );
         }
 
-        activate_links( ls );
+        activate_links( this.elem.children().first() );
+    };
+
+    TagslistTab.prototype.on_content_invalidated = function()
+    {
+        $.ajax( {
+            url:            '/taglist',
+            type:           'GET',
+            contentType:    'text/html',
+            success:        this.on_content_ready,
+            error:          function( xhr ) {
+                dialogs.show_error_dialog( xhr.responseText );
+            }
+        } );
     };
 
     TagslistTab.prototype.on_event = function( e )
     {
         if( e.type == 'info_changed' ) {
-            this.on_tags_changed();
+            this.on_content_invalidated();
         }
     }
 
     TagslistTab.prototype.on_tags_changed = function()
     {
-        load_async( { 'action' : 'taglist' }, this, 'on_tags_loaded', null );
+        this.on_content_invalidated();
     };
 
 /**

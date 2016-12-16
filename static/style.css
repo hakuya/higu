@@ -185,5 +185,25 @@ a:hover{
     text-decoration:underline;
 }
 
+#tag-dialog{
+    display:none;
+}
+
+#dup-dialog{
+    display:none;
+}
+
+#name-dialog{
+    display:none;
+}
+
+#text-dialog{
+    display:none;
+}
+
+#error-dialog{
+    display:none;
+}
+
 /* vim:sts=4:sw=4:et
  */
