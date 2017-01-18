@@ -9,6 +9,7 @@ import json
 from genshi.template import TemplateLoader
 
 import json_interface
+import thumb_generator
 
 from html import TextFormatter, HtmlGenerator
 
@@ -52,7 +53,24 @@ class Server:
         tmpl = loader.load( 'index.html' )
         stream = tmpl.generate( taglist = all_tags,
                                 logged_in = True,
-                                is_admin = False )
+                                is_admin = True )
+        return stream.render( 'html', doctype = 'html' )    
+
+    @cherrypy.expose
+    def admin( self ):
+
+        tmpl = loader.load( 'tabs/admin.html' )
+        stream = tmpl.generate()
+        return stream.render( 'html', doctype = 'html' )    
+
+    @cherrypy.expose
+    def taglist( self ):
+
+        db = higu.Database()
+        all_tags = db.all_tags()
+
+        tmpl = loader.load( 'tabs/taglist.html' )
+        stream = tmpl.generate( taglist = all_tags )
         return stream.render( 'html', doctype = 'html' )    
 
     @cherrypy.expose
@@ -128,13 +146,11 @@ class Server:
 def background_thumb_generator():
 
     print 'Running thumb generator'
-    db = higu.Database()
+    gen = thumb_generator.ThumbGenerator()
 
-    # The thumb cache requires the ability to write to the database
-    db.enable_write_access()
-
-    db.generate_thumbs( 9, False, 2 )
-    db.close()
+    while( True ):
+        gen.run( 9, False, 2 )
+        time.sleep( 2 )
 
 if( __name__ == '__main__' ):
 
@@ -145,9 +161,8 @@ if( __name__ == '__main__' ):
     else:
         higu.init()
 
-    print 'Starting thumb generator'
-    thumb_generator = cherrypy.process.plugins.BackgroundTask( 2, background_thumb_generator )
-    thumb_generator.start()
+    tbgen = cherrypy.process.plugins.BackgroundTask( 2, background_thumb_generator )
+    tbgen.start()
 
     server = Server()
     CONFIG['global']['server.socket_host'] = server.get_host()

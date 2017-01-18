@@ -637,22 +637,6 @@ class Database:
                     .filter( model.Object.id.in_( select_ids ) )
                     .order_by( 'RANDOM()' ) )
 
-    def generate_thumbs( self, max_exp, force = False, sleep = None ):
-
-        files = self.session.query( model.Object ) \
-                    .filter( model.Object.type == TYPE_FILE ) \
-                    .order_by( 'RANDOM()' )
-
-        for f in ModelObjToHiguObjIterator( self, files ):
-            print 'Generating thumbs for', f.get_id()
-
-            exp = ark.MIN_THUMB_EXP
-            while( self.tbcache.make_thumb( f, exp ) is not None and exp <= max_exp ):
-                exp += 1
-
-            if( sleep is not None ):
-                time.sleep( sleep )
-
     def unowned_files( self ):
 
         from sqlalchemy import or_

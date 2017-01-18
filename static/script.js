@@ -196,6 +196,10 @@ $( 'a[href="#untagged"]' ).click( function() {
     tabs.create_display_tab( 'Untagged', provider );
 });
 
+$( 'a[href="#admin"]' ).click( function() {
+    tabs.show_admin_tab();
+});
+
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
 
