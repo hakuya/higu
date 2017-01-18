@@ -9,6 +9,8 @@ var TABS_TEMPLATE = "<li><a href='#{href}'>#{label}</a> <span class='ui-icon ui-
 var tabs_elem = null;
 var tabs_counter = 1;
 
+var admin_tab = null;
+
 /**
  * create_tab( title ) - creates a tab with the given title
  */
@@ -50,7 +52,7 @@ TagslistTab = function()
         activate_links( this.elem.children().first() );
     };
 
-    TagslistTab.prototype.on_content_invalidated = function()
+    TagslistTab.prototype.load_content = function()
     {
         $.ajax( {
             url:            '/taglist',
@@ -66,7 +68,7 @@ TagslistTab = function()
     TagslistTab.prototype.on_event = function( e )
     {
         if( e.type == 'info_changed' ) {
-            this.on_content_invalidated();
+            this.load_content();
         }
     }
 
@@ -82,15 +84,20 @@ AdminTab = function()
 
     // Constructor
     {
-        this.elem = $( '#admin-tab' );
+        this.elem = create_tab( "Admin" );
         this.elem.data( 'obj', this );
 
-        this.elem.html( '' );
-        this.elem.append( 'Tag: <input type="text" id="adm-tag-src"/>' );
-        this.elem.append( 'New: <input type="text" id="adm-tag-tgt"/>' );
+        this.load_content();
+    };
+
+    AdminTab.prototype.on_content_ready = function( response )
+    {
+        if( response != null ) {
+            this.elem.html( response );
+        }
 
         // Delete
-        button = $( '<input type="button" value="Delete"/>' );
+        button = $( '#adm-tag-rm-button' );
         button.click( function( e ) {
             src = $( '#adm-tag-src' );
             tgt = $( '#adm-tag-tgt' );
@@ -104,10 +111,9 @@ AdminTab = function()
             src.val( '' );
             tgt.val( '' );
         });
-        this.elem.append( button );
 
         // Copy
-        button = $( '<input type="button" value="Copy"/>' );
+        button = $( '#adm-tag-cp-button' );
         button.click( function( e ) {
             src = $( '#adm-tag-src' );
             tgt = $( '#adm-tag-tgt' );
@@ -122,10 +128,9 @@ AdminTab = function()
             src.val( '' );
             tgt.val( '' );
         });
-        this.elem.append( button );
 
         // Move
-        button = $( '<input type="button" value="Move"/>' );
+        button = $( '#adm-tag-mv-button' );
         button.click( function( e ) {
             src = $( '#adm-tag-src' );
             tgt = $( '#adm-tag-tgt' );
@@ -140,7 +145,29 @@ AdminTab = function()
             src.val( '' );
             tgt.val( '' );
         });
-        this.elem.append( button );
+    };
+
+    AdminTab.prototype.on_close = function()
+    {
+        admin_tab = null;
+        tabs.remove( this.elem );
+    };
+
+    AdminTab.prototype.load_content = function()
+    {
+        thiz = this;
+
+        $.ajax( {
+            url:            '/admin',
+            type:           'GET',
+            contentType:    'text/html',
+            success:        function( response ) {
+                thiz.on_content_ready( response );
+            },
+            error:          function( xhr ) {
+                dialogs.show_error_dialog( xhr.responseText );
+            }
+        } );
     };
 
     AdminTab.prototype.on_event = function( e ) {}
@@ -295,7 +322,6 @@ var public_init = function()
 
     // Init basic tabs
     new TagslistTab();
-    new AdminTab();
 };
 
 /**
@@ -356,6 +382,19 @@ public_select = function( tab )
 public_create_display_tab = function( title, provider )
 {
     new DisplayTab( title, provider );
+}
+
+/**
+ * show_admin_tab() - shows the admin tab
+ */
+public_show_admin_tab = function()
+{
+    if( admin_tab != null ) {
+        public_select( admin_tab );
+        return;
+    }
+
+    admin_tab = new AdminTab();
 }
 
 /**
@@ -589,6 +628,7 @@ return {
     on_select: public_on_select,
     select: public_select,
     create_display_tab: public_create_display_tab,
+    show_admin_tab: public_show_admin_tab,
     remove: public_remove,
     Provider: public_Provider,
     SelectionProvider: public_SelectionProvider,
