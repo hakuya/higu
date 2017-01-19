@@ -479,8 +479,11 @@ class ThumbCache:
             if( f is None ):
                 return None
 
-            img = Image.open( f )
-            w, h = img.size
+            try:
+                img = Image.open( f )
+                w, h = img.size
+            except IOError:
+                return None
 
             obj['original-width'] = w
             obj['original-height'] = h
@@ -514,43 +517,47 @@ class ThumbCache:
             return t
 
         # At this point, we need to create a thumb, open the file
-        if( img is None ):
-            f = self.imgdb.read( id )
-            if( f is None ):
-                return None
+        try:
+            if( img is None ):
+                f = self.imgdb.read( id )
+                if( f is None ):
+                    return None
 
-            img = Image.open( f )
+                img = Image.open( f )
 
-        if( rot == 1 or rot == 3 ):
-            w, h = h, w
+            if( rot == 1 or rot == 3 ):
+                w, h = h, w
 
-        obj['width'] = w
-        obj['height'] = h
+            obj['width'] = w
+            obj['height'] = h
 
-        # Always operate in RGB
-        img = img.convert( 'RGB' )
+            # Always operate in RGB
+            img = img.convert( 'RGB' )
 
-        # Do the rotate
-        if( rot == 1 ):
-            img = img.transpose( Image.ROTATE_270 )
-        elif( rot == 2 ):
-            img = img.transpose( Image.ROTATE_180 )
-        elif( rot == 3 ):
-            img = img.transpose( Image.ROTATE_90 )
+            # Do the rotate
+            if( rot == 1 ):
+                img = img.transpose( Image.ROTATE_270 )
+            elif( rot == 2 ):
+                img = img.transpose( Image.ROTATE_180 )
+            elif( rot == 3 ):
+                img = img.transpose( Image.ROTATE_90 )
 
-        # Do the resize
-        if( w > s or h > s ):
-            if( w > h ):
-                tw = s
-                th = h * s / w
-            else:
-                tw = w * s / h
-                th = s
+            # Do the resize
+            if( w > s or h > s ):
+                if( w > h ):
+                    tw = s
+                    th = h * s / w
+                else:
+                    tw = w * s / h
+                    th = s
 
-            img = img.resize( ( tw, th, ), Image.ANTIALIAS )
+                img = img.resize( ( tw, th, ), Image.ANTIALIAS )
 
-        # Save the image
-        img.save( t )
+            # Save the image
+            img.save( t )
+
+        except IOError:
+            return None
 
         return t
 
