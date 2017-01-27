@@ -149,7 +149,11 @@ def background_thumb_generator():
     gen = thumb_generator.ThumbGenerator()
 
     while( True ):
-        gen.run( 9, False, 2 )
+        try:
+            gen.run( 9, False, 2 )
+        except:
+            cherrypy.log( 'Exception while generating thumbs', traceback=True )
+            
         time.sleep( 2 )
 
 if( __name__ == '__main__' ):

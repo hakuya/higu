@@ -25,17 +25,21 @@ class ThumbGenerator:
     def run( self, max_exp, force = False, sleep = None ):
 
         db = higu.Database()
-        db.enable_write_access() 
 
-        obj = self.__pop_object( db )
+        try:
+            db.enable_write_access() 
 
-        print 'Generating thumbs for', obj.get_id()
-        exp = ark.MIN_THUMB_EXP
+            obj = self.__pop_object( db )
 
-        while( db.tbcache.make_thumb( obj, exp ) is not None
-           and exp <= max_exp ):
+            print 'Generating thumbs for', obj.get_id()
+            exp = ark.MIN_THUMB_EXP
 
-            exp += 1
+            while( db.tbcache.make_thumb( obj, exp ) is not None
+               and exp <= max_exp ):
 
-            if( sleep is not None ):
-                time.sleep( sleep )
+                exp += 1
+
+                if( sleep is not None ):
+                    time.sleep( sleep )
+        finally:
+            db.close()
