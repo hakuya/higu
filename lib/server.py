@@ -79,18 +79,10 @@ class Server:
 
         cl = cherrypy.request.headers['Content-Length']
         data = cherrypy.request.body.read( int( cl ) )
-        print '111'
-        print data
         data = json.loads( data )
-
-        print '***'
-        print data
 
         jsif = json_interface.JsonInterface()
         result = jsif.execute( data )
-
-        print '==='
-        print result
 
         jsif.close()
 
