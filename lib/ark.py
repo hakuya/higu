@@ -488,16 +488,6 @@ class ThumbCache:
             obj['original-width'] = w
             obj['original-height'] = h
 
-        try:
-            obj['width']
-        except:
-            obj['width'] = w
-
-        try:
-            obj['height']
-        except:
-            obj['height'] = h
-
         t = None
 
         # Do we need to resize?
@@ -510,6 +500,17 @@ class ThumbCache:
 
         # If no operations are necessary, we won't create a thumb
         if( t is None ):
+            # Ensure the size is written to the object
+            try:
+                obj['width']
+            except:
+                obj['width'] = w
+
+            try:
+                obj['height']
+            except:
+                obj['height'] = h
+
             return None
 
         # Is the thumb already created?
@@ -528,8 +529,14 @@ class ThumbCache:
             if( rot == 1 or rot == 3 ):
                 w, h = h, w
 
-            obj['width'] = w
-            obj['height'] = h
+            try:
+                update_size = obj['width'] != w or obj['height'] != h
+            except:
+                update_size = True
+
+            if( update_size ):
+                obj['width'] = w
+                obj['height'] = h
 
             # Always operate in RGB
             img = img.convert( 'RGB' )
