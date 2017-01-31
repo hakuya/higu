@@ -3,7 +3,6 @@ import os
 import re
 import sys
 import time
-import threading
 
 from hash import calculate_details
 
@@ -220,7 +219,8 @@ class Obj:
 
     def __getitem__( self, key ):
 
-        return self.obj[key]
+        with self.db._access:
+            return self.obj[key]
 
     def __setitem__( self, key, value ):
 
@@ -485,6 +485,7 @@ class _AccessContext:
 
     def __enter__( self ):
 
+        self.__db._begin( self.__write )
         self.__manager._begin_access( self.__write )
         self.__active = True
         return self
@@ -492,9 +493,21 @@ class _AccessContext:
     def __exit__( self, type, value, trace ):
 
         self.__active = False
+        committed = False
 
-        if( type is None and self.__write and self.__auto_commit ):
-            self.__db._commit()
+        if( type is None
+        and self.__write
+        and self.__auto_commit ):
+
+            try:
+                self.__db._commit()
+                committed = True
+
+            except:
+                type, value, trace = sys.exc_info()
+
+        if( not committed ):
+            self.__db._rollback()
 
         self.__manager._end_access()
         if( type is not None ):
@@ -514,17 +527,16 @@ class AccessManager:
     def __init__( self, db ):
 
         self.__db = db
-        self.__write_lock = threading.Lock()
         self.__write_permitted = False
 
     def _begin_access( self, write ):
 
         assert not write or self.__write_permitted, 'Read-Only Access'
-        self.__write_lock.__enter__()
+        model.acquire_lock( write )
 
     def _end_access( self ):
 
-        self.__write_lock.__exit__()
+        model.release_lock()
 
     def enable_writes( self ):
 
@@ -583,26 +595,43 @@ class Database:
         self.tbcache = ark.ThumbCache( self.imgdb, imgpat )
 
         self._access = AccessManager( self )
+        self._write_open = False
 
         self.obj_del_list = []
 
+    def _begin( self, write ):
+
+        if( write ):
+            assert not self._write_open
+            self._write_open = True
+            # Release DB read lock
+            self.session.rollback()
+
     def _commit( self ):
+
+        assert self._write_open
 
         try:
             self.imgdb.commit()
             self.session.commit()
+            self.imgdb.reset_state()
         except:
             if( self.imgdb.get_state() == 'committed' ):
                 self.imgdb.rollback()
+            raise
 
         for id in self.obj_del_list:
             self.tbcache.purge_thumbs( id )
         self.obj_del_list = []
+        self._write_open = False
 
     def _rollback( self ):
 
+        assert self._write_open
+
         self.imgdb.rollback()
         self.session.rollback()
+        self._write_open = False
 
     def enable_write_access( self ):
 
