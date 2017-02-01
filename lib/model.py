@@ -195,63 +195,21 @@ class Metadata( Base ):
 
 Session = None
 engine = None
-_db_lock = None
-
-class _DBLock:
-
-    def __init__( self ):
-
-        self.__condition = threading.Condition()
-        self.__readers = 0
-        self.__write_locked = False
-
-    def lock( self, write ):
-
-        with self.__condition:
-            if( write ):
-                while( self.__readers > 0 or self.__write_locked ):
-                    self.__condition.wait()
-                self.__write_locked = True
-            else:
-                while( self.__write_locked ):
-                    self.__condition.wait()
-                self.__readers += 1
-
-    def unlock( self ):
-
-        with self.__condition:
-            if( self.__write_locked ):
-                self.__write_locked = False
-                self.__condition.notify()
-            else:
-                assert self.__readers > 0
-                self.__readers -= 1
-                if( self.__readers == 0 ):
-                    self.__condition.notify()
 
 def _do_sqlite_connect( dbapi_conn, conn_record ):
     # Disable python's auto BEGIN/COMMIT
     dbapi_conn.isolation_level = None
     dbapi_conn.execute( 'PRAGMA busy_timeout = 10000' )
 
-def _do_sqlite_begin( conn ):
-    # Since we've disabled auto BEGIN, issue a begin
-    # TODO: exclusive is excessive
-    conn.execute( "BEGIN" )
-
 def init( database_file ):
     global Session
     global engine
-    global _db_lock
 
     import legacy
     legacy.update_legacy_database( database_file )
 
-    _db_lock = _DBLock()
-
     engine = create_engine( 'sqlite:///' + database_file )
     event.listen( engine, 'connect', _do_sqlite_connect )
-    event.listen( engine, 'begin', _do_sqlite_begin )
 
     Base.metadata.create_all( engine )
 
@@ -273,13 +231,3 @@ def load():
     info = session.query( DatabaseInfo ).one()
     assert( info.ver == VERSION )
     session.close()
-
-def acquire_lock( write ):
-    global _db_lock
-
-    _db_lock.lock( write )
-
-def release_lock():
-    global _db_lock
-
-    _db_lock.unlock()

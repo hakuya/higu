@@ -58,34 +58,42 @@ class Obj:
 
     def is_duplicate( self ):
 
-        return self.obj.type == TYPE_FILE_DUP
+        return self.get_type() == TYPE_FILE_DUP
 
     def is_variant( self ):
 
-        return self.obj.type == TYPE_FILE_VAR
+        return self.get_type() == TYPE_FILE_VAR
 
     def get_id( self ):
 
-        return self.obj.id
+        with self.db._access():
+            return self.obj.id
 
     def get_type( self ):
 
-        return self.obj.type
+        with self.db._access():
+            return self.obj.type
 
     def get_creation_time( self ):
 
-        return datetime.datetime.fromtimestamp( self.obj.create_ts )
+        with self.db._access():
+            return datetime.datetime.fromtimestamp( self.obj.create_ts )
 
     def get_creation_time_utc( self ):
 
-        return datetime.datetime.utcfromtimestamp( self.obj.create_ts )
+        with self.db._access():
+            return datetime.datetime.utcfromtimestamp( self.obj.create_ts )
 
     def get_tags( self ):
 
-        tag_objs = [ obj for obj in self.obj.parents if obj.type == TYPE_CLASSIFIER ]
-        return map( lambda x: Tag( self.db, x ), tag_objs )
+        with self.db._access():
+            tag_objs = [ obj for obj in self.obj.parents if obj.type == TYPE_CLASSIFIER ]
+            return map( lambda x: Tag( self.db, x ), tag_objs )
 
     def _assign( self, group, order ):
+    
+        if( self.obj.type == TYPE_FILE_DUP ):
+            raise ValueError, 'Cannot assign to a duplicate'
 
         rel = self.db.session.query( model.Relation ) \
                 .filter( model.Relation.parent == group.obj.id ) \
@@ -98,9 +106,6 @@ class Obj:
         rel.child_obj = self.obj
 
     def assign( self, group, order = None ):
-
-        if( self.is_duplicate() ):
-            raise ValueError, 'Cannot assign to a duplicate'
 
         with self.db._access( write = True ):
             self._assign( group, order )
@@ -135,16 +140,18 @@ class Obj:
 
     def get_order( self, group ):
 
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent == group.obj.id ) \
-                .filter( model.Relation.child == self.obj.id ).first()
-        if( rel is None ):
-            raise ValueError, str( self ) + ' is not in ' + str( group )
-        return rel.sort
+        with self.db._access():
+            rel = self.db.session.query( model.Relation ) \
+                    .filter( model.Relation.parent == group.obj.id ) \
+                    .filter( model.Relation.child == self.obj.id ).first()
+            if( rel is None ):
+                raise ValueError, str( self ) + ' is not in ' + str( group )
+            return rel.sort
         
     def get_name( self ):
 
-        return self.obj.name
+        with self.db._access():
+            return self.obj.name
 
     def _set_name( self, name, saveold ):
 
@@ -163,9 +170,9 @@ class Obj:
 
         name = make_unicode( name )
 
-        if( self.get_name() is None ):
+        if( self.obj.name is None ):
             self._set_name( name, False )
-        elif( self.get_name() != name ):
+        elif( self.obj.name != name ):
             try:
                 xnames = self.obj['altname']
 
@@ -191,7 +198,7 @@ class Obj:
         names = [ self.get_repr() ]
 
         try:
-            xnames = self.obj['altname']
+            xnames = self['altname']
             names.extend( xnames.split( ':' ) )
         except KeyError:
             pass
@@ -200,12 +207,12 @@ class Obj:
 
     def set_text( self, text ):
 
-        self.obj['text'] = text
+        self['text'] = text
 
     def get_text( self ):
 
         try:
-            return self.obj['text']
+            return self['text']
         except KeyError:
             return None
 
@@ -215,11 +222,11 @@ class Obj:
         if( name is not None ):
             return name
         else:
-            return '%016x' % ( self.obj.id )
+            return '%016x' % ( self.get_id() )
 
     def __getitem__( self, key ):
 
-        with self.db._access:
+        with self.db._access():
             return self.obj[key]
 
     def __setitem__( self, key, value ):
@@ -229,7 +236,7 @@ class Obj:
 
     def __hash__( self ):
 
-        return self.id
+        return self.get_id()
 
     def __eq__( self, o ):
 
@@ -249,10 +256,15 @@ class Group( Obj ):
 
         return False
 
-    def get_files( self ):
+    def _get_files( self ):
 
         objs = [ obj for obj in self.obj.children if( obj.type == TYPE_FILE or obj.type == TYPE_FILE_DUP or obj.type == TYPE_FILE_VAR ) ]
         return map( lambda x: File( self.db, x ), objs )
+
+    def get_files( self ):
+
+        with self.db._access():
+            return self._get_files()
 
 class OrderedGroup( Group ):
 
@@ -276,7 +288,7 @@ class OrderedGroup( Group ):
 
         with self.db._access( write = True ):
 
-            all_objs = self.get_files()
+            all_objs = self._get_files()
             
             for child in enumerate( children ):
                 assert( child[1] in all_objs )
@@ -307,27 +319,47 @@ class File( Obj ):
 
         Obj.__init__( self, db, obj )
 
-    def get_albums( self ):
+    def _get_albums( self ):
 
         objs = [ obj for obj in self.obj.parents if obj.type == TYPE_ALBUM ]
         return map( lambda x: Album( self.db, x ), objs )
 
-    def get_duplicates( self ):
+    def get_albums( self ):
+
+        with self.db._access():
+            return self._get_albums()
+
+    def _get_duplicates( self ):
 
         objs = [ obj for obj in self.obj.similars if obj.type == TYPE_FILE_DUP ]
         return map( lambda x: File( self.db, x ), objs )
 
-    def get_variants( self ):
+    def get_duplicates( self ):
+
+        with self.db._access():
+            return self._get_duplicates()
+
+    def _get_variants( self ):
 
         objs = [ obj for obj in self.obj.similars if obj.type == TYPE_FILE_VAR ]
         return map( lambda x: File( self.db, x ), objs )
 
-    def get_similar_to( self ):
+    def get_variants( self ):
+
+        with self.db._access():
+            return self._get_variants()
+
+    def _get_similar_to( self ):
 
         if( self.obj.similar_to is None ):
             return None
         else:
             return File( self.db, self.obj.similar_to )
+
+    def get_similar_to( self ):
+
+        with self.db._access():
+            return self._get_similar_to()
 
     def _set_duplicate_of( self, parent ):
 
@@ -343,12 +375,12 @@ class File( Obj ):
         assocs = [ ( assoc.parent, assoc.sort )
                     for assoc in self.obj.parent_rel ]
         for obj_id, sort in assocs:
-            group = self.db.get_object_by_id( obj_id )
+            group = self.db._get_object_by_id( obj_id )
             parent._assign( group, sort )
             self._unassign( group )
 
         # Now we move across all our duplicates to our parent
-        dups = self.get_duplicates()
+        dups = self._get_duplicates()
         for d in dups:
             if( d == parent ):
                 # Protect from circular duplication
@@ -357,7 +389,7 @@ class File( Obj ):
                 d._set_duplicate_of( parent )
 
         # Now we move across all our variants to our parent
-        variants = self.get_variants()
+        variants = self._get_variants()
         for v in variants:
             if( v.obj.id == parent.obj.id ):
                 v._clear_duplication()
@@ -378,8 +410,8 @@ class File( Obj ):
         assert( parent.obj != self.obj )
 
         # Protect from circular duplication
-        if( parent in self.get_duplicates()
-         or parent in self.get_variants() ):
+        if( parent in self._get_duplicates()
+         or parent in self._get_variants() ):
 
             parent._clear_duplication()
 
@@ -407,19 +439,23 @@ class File( Obj ):
         if( name is not None ):
             return name
         else:
-            e = self.db.imgdb.get_ext( self.obj.id )
+            obj_id = self.get_id()
+
+            e = self.db.imgdb.get_ext( obj_id )
             if( e == None ):
-                return '%016x' % ( self.get_id(), )
+                return '%016x' % ( obj_id, )
             else:
-                return '%016x.%s' % ( self.get_id(), e, )
+                return '%016x.%s' % ( obj_id, e, )
 
     def get_length( self ):
 
-        return self.obj.fchk.len
+        with self.db._access():
+            return self.obj.fchk.len
 
     def get_hash( self ):
 
-        return self.obj.fchk.sha1
+        with self.db._access():
+            return self.obj.fchk.sha1
 
     def rotate( self, rot ):
 
@@ -448,11 +484,16 @@ class File( Obj ):
 
     def get_mime( self ):
 
-        return self.db.imgdb.get_mime( self.obj.id )
+        return self.db.imgdb.get_mime( self.get_id() )
+
+    def _read( self ):
+
+        return self.db.imgdb.read( self.obj.id )
 
     def read( self ):
 
-        return self.db.imgdb.read( self.obj.id )
+        with self.db._access():
+            return self._read()
 
     def read_thumb( self, exp ):
 
@@ -475,7 +516,7 @@ class ModelObjToHiguObjIterator:
 
 class _AccessContext:
 
-    def __init__( self, db, manager, write, auto_commit = True ):
+    def __init__( self, db, manager, write = False, auto_commit = True ):
 
         self.__db = db
         self.__manager = manager
@@ -493,21 +534,22 @@ class _AccessContext:
     def __exit__( self, type, value, trace ):
 
         self.__active = False
-        committed = False
 
-        if( type is None
-        and self.__write
-        and self.__auto_commit ):
+        if( self.__write ):
+            committed = False
 
-            try:
-                self.__db._commit()
-                committed = True
+            if( type is None
+            and self.__auto_commit ):
 
-            except:
-                type, value, trace = sys.exc_info()
+                try:
+                    self.__db._commit()
+                    committed = True
 
-        if( not committed ):
-            self.__db._rollback()
+                except:
+                    type, value, trace = sys.exc_info()
+
+            if( not committed ):
+                self.__db._rollback()
 
         self.__manager._end_access()
         if( type is not None ):
@@ -517,10 +559,12 @@ class _AccessContext:
 
         assert self.__write, 'Can only commit with write access'
         self.__db._commit()
+        self.__db._begin( self.__write )
 
     def rollback( self ):
 
         self.__db._rollback()
+        self.__db._begin( self.__write )
 
 class AccessManager:
 
@@ -532,11 +576,10 @@ class AccessManager:
     def _begin_access( self, write ):
 
         assert not write or self.__write_permitted, 'Read-Only Access'
-        model.acquire_lock( write )
 
     def _end_access( self ):
 
-        model.release_lock()
+        pass
 
     def enable_writes( self ):
 
@@ -595,59 +638,69 @@ class Database:
         self.tbcache = ark.ThumbCache( self.imgdb, imgpat )
 
         self._access = AccessManager( self )
-        self._write_open = False
+        self._trans_write = False
 
         self.obj_del_list = []
+
+    def __del__( self ):
+
+        if( self.session is not None ):
+            self.session.close()
 
     def _begin( self, write ):
 
         if( write ):
-            assert not self._write_open
-            self._write_open = True
-            # Release DB read lock
-            self.session.rollback()
+            self.session.execute( 'BEGIN EXCLUSIVE' )
+            self._trans_write = True
 
     def _commit( self ):
 
-        assert self._write_open
+        if( not self._trans_write ):
+            return
 
+        self.imgdb.prepare_commit()
         try:
-            self.imgdb.commit()
             self.session.commit()
-            self.imgdb.reset_state()
+            self.imgdb.complete_commit()
         except:
-            if( self.imgdb.get_state() == 'committed' ):
-                self.imgdb.rollback()
+            self.imgdb.unprepare_commit()
             raise
 
         for id in self.obj_del_list:
             self.tbcache.purge_thumbs( id )
         self.obj_del_list = []
-        self._write_open = False
+        self._trans_write = False
 
     def _rollback( self ):
 
-        assert self._write_open
+        if( not self._trans_write ):
+            return
 
         self.imgdb.rollback()
         self.session.rollback()
-        self._write_open = False
+        self._trans_write = False
+
+    def close( self ):
+
+        self.session.close()
+        self.session = None
 
     def enable_write_access( self ):
 
         self._access.enable_writes()
 
-    def close( self ):
-
-        self.session.close()
-
-    def get_object_by_id( self, id ):
+    def _get_object_by_id( self, id ):
 
         obj = self.session.query( model.Object ).filter( model.Object.id == id ).first()
         if( obj is None ):
             return None
 
         return model_obj_to_higu_obj( self, obj )
+
+    def get_object_by_id( self, id ):
+
+        with self._access():
+            return self._get_object_by_id( id )
 
     def all_albums_or_free_files( self ):
 
@@ -835,10 +888,10 @@ class Database:
                 rel_copy.parent_obj = d
                 rel_copy.child_obj = rel.child_obj
 
-    def verify_file( self, obj ):
+    def __verify_file( self, obj ):
 
         assert isinstance( obj, File )
-        fd = obj.read()
+        fd = obj._read()
 
         if( fd is None ):
             return False
@@ -856,6 +909,11 @@ class Database:
 
         return True
 
+    def verify_file( self, obj ):
+
+        with self._access():
+            return self.__verify_file( obj )
+
     def __recover_file( self, path ):
 
         name = os.path.split( path )[1]
@@ -868,8 +926,8 @@ class Database:
         except StopIteration:
             return False
 
-        if( not self.verify_file( f ) ):
-            self.imgdb.load_data( path, f.get_id() )
+        if( not self.__verify_file( f ) ):
+            self.imgdb.load_data( path, f.obj.id )
         return True
 
     def recover_files( self, files ):
@@ -918,12 +976,12 @@ class Database:
             f = File( self, obj )
             self.session.flush()
 
-        id = f.get_id()
+        id = f.obj.id
 
         if( add_name ):
             f._add_name( name )
 
-        if( not self.verify_file( f ) ):
+        if( not self.__verify_file( f ) ):
             self.imgdb.load_data( path, id )
 
         return f
@@ -961,7 +1019,7 @@ class Database:
 
         with self._access( write = True ):
 
-            id = obj.get_id()
+            id = obj.obj.id
 
             if( isinstance( obj, File ) ):
                 self.imgdb.delete( id )

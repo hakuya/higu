@@ -93,36 +93,37 @@ class Server:
 
         db = higu.Database()
 
-        # The thumb cache requires the ability to write to the database
-        db.enable_write_access()
-
-        if( id == None ):
-            raise cherrypy.HTTPError( 404 )
-
         try:
-            id = int( id )
-            if( exp is not None ):
-                exp = int( exp )
-        except:
-            raise cherrypy.HTTPError( 400 )
+            # The thumb cache requires the ability to write to the database
+            db.enable_write_access()
 
-        f = db.get_object_by_id( id )
-        if( exp is None ):
-            p = f.read()
-            mime = f.get_mime()
-        else:
-            p = f.read_thumb( exp )
-            mime = 'image/jpeg'
+            if( id == None ):
+                raise cherrypy.HTTPError( 404 )
 
-        if( p == None ):
-            raise cherrypy.HTTPError( 404 )
+            try:
+                id = int( id )
+                if( exp is not None ):
+                    exp = int( exp )
+            except:
+                raise cherrypy.HTTPError( 400 )
 
-        name = f.get_repr()
+            f = db.get_object_by_id( id )
+            if( exp is None ):
+                p = f.read()
+                mime = f.get_mime()
+            else:
+                p = f.read_thumb( exp )
+                mime = 'image/jpeg'
+
+            if( p == None ):
+                raise cherrypy.HTTPError( 404 )
+
+            name = f.get_repr()
+        finally:
+            db.close()
 
         cherrypy.response.headers["Content-Type"] = mime
         cherrypy.response.headers["Content-Disposition"] = 'filename="%s"' % name
-
-        db.close()
 
         def stream():
 
