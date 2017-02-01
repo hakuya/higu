@@ -118,29 +118,29 @@ class ImgDbCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( red ),
                 'Image moved before commit' )
         
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertFalse( os.path.exists( red ),
-                'Image not moved after commit' )
+                'Image not moved after prepare' )
         
-        self.assertEquals( idb.get_state(), 'committed',
-                'Database not committed after commit' )
+        self.assertEquals( idb.get_state(), 'prepared',
+                'Database not prepared after prepare' )
 
-        idb.rollback()
+        idb.unprepare_commit()
 
         self.assertTrue( os.path.exists( red ),
-                'Image not returned after rollback' )
+                'Image not returned after unprepare' )
 
         self.assertEquals( idb.get_state(), 'dirty',
-                'Database not clean after rollback from commit' )
+                'Database not clean after unprepare' )
 
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertFalse( os.path.exists( red ),
-                'Image not moved after commit/rollback/commit' )
+                'Image not moved after prepare/unprepare/prepare' )
         
-        self.assertEquals( idb.get_state(), 'committed',
-                'Database not committed after commit/rollback/commit' )
+        self.assertEquals( idb.get_state(), 'prepared',
+                'Database not prepared after prepare/unprepare/prepare' )
 
     def test_hard_single_vol( self ):
 
@@ -156,8 +156,9 @@ class ImgDbCases( testutil.TestCase ):
 
         idb.load_data( red, 0x1 )
         idb.commit()
+
         idb.load_data( yellow, 0x2 )
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
@@ -168,7 +169,7 @@ class ImgDbCases( testutil.TestCase ):
                     '000/000/0000000000000002.png' ) ),
                 'File 0x2 missing' )
 
-        idb.rollback()
+        idb.unprepare_commit()
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
@@ -180,7 +181,7 @@ class ImgDbCases( testutil.TestCase ):
                 'File 0x2 present when should have been removed' )
 
         idb.load_data( green, 0x3 )
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
@@ -209,8 +210,6 @@ class ImgDbCases( testutil.TestCase ):
                     os.path.join( self.db_path,
                     '000/000/0000000000000003.png' ) ),
                 'File 0x3 not removed by 2nd rollback' )
-
-        idb.reset_state()
 
         self.assertEqual( idb.get_state(), 'clean',
                 'Reset state did not reset state to clean' )
@@ -246,7 +245,7 @@ class ImgDbCases( testutil.TestCase ):
         idb.load_data( red, 0x1001 )
         idb.commit()
         idb.load_data( yellow, 0x2001 )
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
@@ -257,7 +256,7 @@ class ImgDbCases( testutil.TestCase ):
                     '000/002/0000000000002001.png' ) ),
                 'File 0x2001 missing' )
 
-        idb.rollback()
+        idb.unprepare_commit()
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
@@ -269,7 +268,7 @@ class ImgDbCases( testutil.TestCase ):
                 'File 0x2001 present when should have been removed' )
 
         idb.load_data( green, 0x3001 )
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
@@ -298,8 +297,6 @@ class ImgDbCases( testutil.TestCase ):
                     os.path.join( self.db_path,
                     '000/003/0000000000003001.png' ) ),
                 'File 0x3001 not removed by 2nd rollback' )
-
-        idb.reset_state()
 
         self.assertEqual( idb.get_state(), 'clean',
                 'Reset state did not reset state to clean' )
@@ -449,7 +446,7 @@ class ImgDbCases( testutil.TestCase ):
                     '000/000/0000000000000123.png' ) ),
                 'Image file removed before commit' )
 
-        idb.commit()
+        idb.prepare_commit()
 
         self.assertFalse( os.path.isfile(
                     os.path.join( self.db_path,

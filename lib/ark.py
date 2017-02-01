@@ -286,18 +286,19 @@ class ImageDatabase:
 
         self.state = 'clean'
 
-    def commit( self ):
+    def prepare_commit( self ):
+
+        if( self.state == 'clean' ):
+            return
+
+        assert self.state != 'prepared'
 
         vols = self.volumes.values()
         # Clean things up before we begin. We need to do this so that
         # We can determine the volumes that changes as part of this
         # commit
         for vol in vols:
-            if( vol.get_state() == 'committed' ):
-                vol.reset_state()
-
-        if( self.state == 'clean' or self.state == 'committed' ):
-            return
+            assert vol.get_state() != 'committed'
 
         try:
             # Try to commit all the dirty volumes
@@ -313,7 +314,44 @@ class ImageDatabase:
             raise
 
         # Comitted
-        self.state = 'committed'
+        self.state = 'prepared'
+
+    def unprepare_commit( self ):
+
+        if( self.state == 'clean' ):
+            return
+
+        assert self.state == 'prepared'
+
+        vols = self.volumes.values()
+        for vol in vols:
+            assert vol.get_state() != 'dirty'
+            if( vol.get_state() == 'committed' ):
+                vol.rollback()
+
+        for vol in vols:
+            assert vol.get_state() != 'committed'
+
+        self.state = 'dirty'
+
+    def complete_commit( self ):
+
+        if( self.state == 'clean' ):
+            return
+
+        assert self.state == 'prepared'
+
+        vols = self.volumes.values()
+        for vol in vols:
+            if( vol.get_state() == 'committed' ):
+                vol.reset_state()
+
+        self.state = 'clean'
+
+    def commit( self ):
+
+        self.prepare_commit()
+        self.complete_commit()
 
     def rollback( self ):
 
@@ -321,34 +359,22 @@ class ImageDatabase:
 
         if( self.state == 'clean' ):
             for vol in vols:
-                if( vol.get_state() != 'clean' ):
-                    assert False
+                assert vol.get_state() == 'clean'
+            return
 
-        elif( self.state == 'dirty' ):
+        if( self.state == 'prepared' ):
+            self.unprepare_commit()
+
+        if( self.state == 'dirty' ):
             for vol in vols:
+                assert vol.get_state() != 'committed'
                 if( vol.get_state() == 'dirty' ):
                     vol.rollback()
-                elif( vol.get_state() == 'committed' ):
-                    assert False
 
             for vol in vols:
-                if( vol.get_state() != 'clean' ):
-                    assert False
+                assert vol.get_state() == 'clean'
 
             self.state = 'clean'
-
-        elif( self.state == 'committed' ):
-            for vol in vols:
-                if( vol.get_state() == 'committed' ):
-                    vol.rollback()
-                elif( vol.get_state() == 'dirty' ):
-                    assert False
-
-            for vol in vols:
-                if( vol.get_state() == 'committed' ):
-                    assert False
-
-            self.state = 'dirty'
 
     def load_data( self, path, id ):
 
@@ -500,6 +526,7 @@ class ThumbCache:
 
         # If no operations are necessary, we won't create a thumb
         if( t is None ):
+
             # Ensure the size is written to the object
             try:
                 obj['width']
