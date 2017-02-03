@@ -2,7 +2,6 @@ import inspect
 import sys
 
 import hdbfs
-import hdbfs.model
 
 import cache
 
@@ -118,7 +117,7 @@ class JsonInterface:
         return json_ok(
             json_ver = [ VERSION, REVISION ],
             higu_ver = [ hdbfs.VERSION, hdbfs.REVISION ],
-            db_ver   = [ hdbfs.model.VERSION, hdbfs.model.REVISION ] )
+            db_ver   = [ hdbfs.DB_VERSION, hdbfs.DB_REVISION ] )
 
     def cmd_new_session( self ):
 
@@ -322,13 +321,13 @@ class JsonInterface:
                         order = 'add'
                         rsort = True
                     elif( cmd == 'type:orig' ):
-                        obj_type = model.TYPE_FILE;
+                        obj_type = hdbfs.TYPE_FILE;
                     elif( cmd == 'type:dup' ):
-                        obj_type = model.TYPE_FILE_DUP;
+                        obj_type = hdbfs.TYPE_FILE_DUP;
                     elif( cmd == 'type:var' ):
-                        obj_type = model.TYPE_FILE_VAR;
+                        obj_type = hdbfs.TYPE_FILE_VAR;
                     elif( cmd == 'type:album' ):
-                        obj_type = model.TYPE_ALBUM;
+                        obj_type = hdbfs.TYPE_ALBUM;
                     else:
                         raise ValueError, 'Bad Command'
 
