@@ -1,12 +1,14 @@
 #!/usr/bin/python
 
-import higu
 import sys
 import os
 
 import logging
 log = logging.getLogger( __name__ )
 logging.basicConfig()
+
+import hdbfs
+import higu.config
 
 MAX_TEXT_LEN = 2**18
 
@@ -66,11 +68,12 @@ if( __name__ == '__main__' ):
         sys.exit( 0 )
 
     if( opts.config is not None ):
-        higu.init( opts.config )
+        cfg = higu.config.init( opts.config )
+        hdbfs.init( cfg.get_path( 'library' ) )
     else:
-        higu.init()
+        hdbfs.init()
 
-    h = higu.Database()
+    h = hdbfs.Database()
     h.enable_write_access()
 
     if( opts.recovery ):

@@ -1,10 +1,11 @@
-import higu
 import cherrypy
 import os
 import uuid
 import time
 import config
 import json
+
+import hdbfs
 
 from genshi.template import TemplateLoader
 
@@ -47,7 +48,7 @@ class Server:
     @cherrypy.expose
     def index( self ):
 
-        db = higu.Database()
+        db = hdbfs.Database()
         all_tags = db.all_tags()
 
         tmpl = loader.load( 'index.html' )
@@ -66,7 +67,7 @@ class Server:
     @cherrypy.expose
     def taglist( self ):
 
-        db = higu.Database()
+        db = hdbfs.Database()
         all_tags = db.all_tags()
 
         tmpl = loader.load( 'tabs/taglist.html' )
@@ -91,7 +92,7 @@ class Server:
     @cherrypy.expose
     def img( self, id = None, exp = None, gen = None ):
 
-        db = higu.Database()
+        db = hdbfs.Database()
 
         try:
             # The thumb cache requires the ability to write to the database
@@ -136,7 +137,7 @@ class Server:
 
         return stream()
 
-def background_thumb_generator():
+def _background_thumb_generator():
 
     print 'Running thumb generator'
     gen = thumb_generator.ThumbGenerator()
@@ -149,16 +150,9 @@ def background_thumb_generator():
             
         time.sleep( 2 )
 
-if( __name__ == '__main__' ):
+def start():
 
-    import sys
-
-    if( len( sys.argv ) > 1 ):
-        higu.init( sys.argv[1] )
-    else:
-        higu.init()
-
-    tbgen = cherrypy.process.plugins.BackgroundTask( 2, background_thumb_generator )
+    tbgen = cherrypy.process.plugins.BackgroundTask( 2, _background_thumb_generator )
     tbgen.start()
 
     server = Server()

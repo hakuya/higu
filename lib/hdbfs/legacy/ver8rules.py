@@ -1,4 +1,4 @@
-import db
+import hdbfs.db
 
 TYPE_NILL       = 0
 TYPE_FILE       = 1000

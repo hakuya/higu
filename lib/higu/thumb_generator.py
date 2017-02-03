@@ -1,8 +1,8 @@
 import time
 
-import ark
-import higu
-import model
+import hdbfs
+import hdbfs.ark
+import hdbfs.model
 
 class ThumbGenerator:
 
@@ -14,9 +14,10 @@ class ThumbGenerator:
 
         if( len( self.__object_ids ) == 0 ):
             
+            # TODO, this is hacky!
             self.__objects = [ obj_id[0] for obj_id in
-                    db.session.query( model.Object.id ) \
-                    .filter( model.Object.type == higu.TYPE_FILE ) \
+                    db.session.query( hdbfs.model.Object.id ) \
+                    .filter( hdbfs.model.Object.type == hdbfs.TYPE_FILE ) \
                     .order_by( 'RANDOM()' ).limit( 500 ) ]
 
         obj_id = self.__objects.pop()
@@ -24,7 +25,7 @@ class ThumbGenerator:
 
     def run( self, max_exp, force = False, sleep = None ):
 
-        db = higu.Database()
+        db = hdbfs.Database()
 
         try:
             db.enable_write_access() 
@@ -32,7 +33,7 @@ class ThumbGenerator:
             obj = self.__pop_object( db )
 
             print 'Generating thumbs for', obj.get_id()
-            exp = ark.MIN_THUMB_EXP
+            exp = hdbfs.ark.MIN_THUMB_EXP
 
             while( db.tbcache.make_thumb( obj, exp ) is not None
                and exp <= max_exp ):

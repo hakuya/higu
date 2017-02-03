@@ -2,9 +2,10 @@ import unittest
 import testutil
 import shutil
 import os
-import higu
 import types
 import datetime
+
+import hdbfs
 
 class LegacyCases( testutil.TestCase ):
 
@@ -33,17 +34,17 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_ensure_files_present( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
-        files = self._lookup( h, type = higu.TYPE_FILE )
-        files.extend( self._lookup( h, type = higu.TYPE_FILE_DUP ) )
-        files.extend( self._lookup( h, type = higu.TYPE_FILE_VAR ) )
+        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_DUP ) )
+        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_VAR ) )
 
         self.assertEqual( len( files ), 9,
                 'Unexpected number of files in DB' )
 
         for f in files:
-            self.assertTrue( isinstance( f, higu.File ),
+            self.assertTrue( isinstance( f, hdbfs.File ),
                     'Unexpected file type found %s' % (
                         str( type( f ) ) ) )
 
@@ -73,11 +74,11 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_ensure_files_have_timestamp( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
-        files = self._lookup( h, type = higu.TYPE_FILE )
-        files.extend( self._lookup( h, type = higu.TYPE_FILE_DUP ) )
-        files.extend( self._lookup( h, type = higu.TYPE_FILE_VAR ) )
+        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_DUP ) )
+        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_VAR ) )
 
         now = datetime.datetime.utcnow()
         for f in files:
@@ -88,7 +89,7 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_check_tagging( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         colour = self._lookup( h, [ 'colour'] )
         warm = self._lookup( h, [ 'warm'] )
@@ -115,7 +116,7 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_check_dup_and_var( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         white = self._lookup( h, [ 'white' ] )[0]
         grey = self._lookup( h, [ 'grey' ] )[0]
@@ -132,7 +133,7 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_check_dup_moved( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         
         grey = self._lookup( h, [ 'grey' ] )[0]
         grey2 = self._lookup( h, [ 'black' ] )[0]
@@ -146,7 +147,7 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_check_multi_names( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         grey = self._lookup( h, [ 'grey' ] )[0]
         names = grey.get_names()
@@ -158,12 +159,12 @@ class LegacyCases( testutil.TestCase ):
 
     def subtest_check_album( self, ver ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         if( ver[0] < 2 ):
-            cl_al = self._lookup( h, type = higu.TYPE_ALBUM )[0]
+            cl_al = self._lookup( h, type = hdbfs.TYPE_ALBUM )[0]
 
-            self.assertTrue( isinstance( cl_al, higu.Album ),
+            self.assertTrue( isinstance( cl_al, hdbfs.Album ),
                     'Unexpected type found %s' % (
                         str( type( cl_al ) ) ) )
 
@@ -176,10 +177,10 @@ class LegacyCases( testutil.TestCase ):
             cl_al = self._lookup( h, [ 'colour_album'] )[0]
             bw_al = self._lookup( h, [ 'white_blue_album'] )[0]
 
-            self.assertTrue( isinstance( cl_al, higu.Album ),
+            self.assertTrue( isinstance( cl_al, hdbfs.Album ),
                     'Unexpected type found %s' % (
                         str( type( cl_al ) ) ) )
-            self.assertTrue( isinstance( cl_al, higu.Album ),
+            self.assertTrue( isinstance( cl_al, hdbfs.Album ),
                     'Unexpected type found %s' % (
                         str( type( bw_al ) ) ) )
 
@@ -196,7 +197,7 @@ class LegacyCases( testutil.TestCase ):
         if( ver[0] < 2 or ver[0] == 4 ):
             return
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         album = self._lookup( h, [ 'colour_album'] )[0]
         colours = album.get_files()
@@ -219,7 +220,7 @@ class LegacyCases( testutil.TestCase ):
         if( ver[0] < 5 ):
             return
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         album = self._lookup( h, [ 'white_blue_album'] )[0]
 
@@ -236,7 +237,7 @@ class BoundSubtest:
     def __call__( self, lself ):
 
         lself._create_library_structure( self.ver )
-        lself._init_higu()
+        lself._init_hdbfs()
         self.fn( lself, self.ver )
 
 def build_cases():

@@ -2,7 +2,7 @@ import threading
 import time
 import uuid
 
-import higu
+import hdbfs
 
 class Cacheable:
 
@@ -127,7 +127,7 @@ class Session( Cacheable ):
 
     def get_db( self ):
 
-        db = higu.Database()
+        db = hdbfs.Database()
         if( self.write_access ):
             db.enable_write_access()
 

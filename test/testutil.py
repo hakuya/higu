@@ -2,7 +2,8 @@ import unittest
 import tempfile
 import shutil
 import os
-import higu
+
+import hdbfs
 
 class TestCase( unittest.TestCase ):
 
@@ -36,16 +37,16 @@ class TestCase( unittest.TestCase ):
 
 
         if( do_init ):
-            self._init_higu()
+            self._init_hdbfs()
 
     def uninit_env( self ):
 
-        higu.dispose()
+        hdbfs.dispose()
         shutil.rmtree( self.work_dir )
 
-    def _init_higu( self ):
+    def _init_hdbfs( self ):
 
-        higu.init( self.cfg_file_path )
+        hdbfs.init( self.db_path )
 
     def _data_path( self, fname ):
 

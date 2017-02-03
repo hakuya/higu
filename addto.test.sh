@@ -9,7 +9,10 @@ NAME=`basename $0`
 NAME=${NAME%.*}
 NAME=${NAME#*.}
 
+# Set the python path
+PYTHONPATH=$PYTHONPATH:$HIGUHOME/lib
+
 # Set the path to the main config file here
 HIGUCFG="$HIGUHOME/$NAME.cfg"
 
-python $HIGUHOME/lib/insertfile.py -c $HIGUCFG "$@"
+python $HIGUHOME/scripts/insertfile.py -c $HIGUCFG "$@"

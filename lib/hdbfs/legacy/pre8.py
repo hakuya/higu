@@ -1,7 +1,7 @@
 import calendar
 import time
 
-import db
+import hdbfs.db
 
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
@@ -91,7 +91,7 @@ def upgrade_from_1_to_2( log, session ):
     # Note: naming of collections was never fully implemented in ver. 1 so it is not preserved
     try:
         coll.drop()
-    except db.QueryError:
+    except hdbfs.db.QueryError:
         pass
     dbi.update( [ ( 'ver', 2, ), ( 'rev', 0, ) ] )
 

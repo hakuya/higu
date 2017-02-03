@@ -1,6 +1,7 @@
 import unittest
 import testutil
-import higu
+
+import hdbfs
 
 class HiguQueryCases( testutil.TestCase ):
 
@@ -8,7 +9,7 @@ class HiguQueryCases( testutil.TestCase ):
 
         self.init_env()
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         red_obj = h.register_file( self._load_data( self.red ), False )
@@ -48,7 +49,7 @@ class HiguQueryCases( testutil.TestCase ):
         yellow_obj.assign( paint_tag )
         blue_obj.assign( paint_tag )
 
-        self.h = higu.Database()
+        self.h = hdbfs.Database()
 
         self.red_obj = self.h.get_object_by_id( red_obj.get_id() )
         self.yellow_obj = self.h.get_object_by_id( yellow_obj.get_id() )

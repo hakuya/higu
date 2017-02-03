@@ -1,8 +1,8 @@
 import inspect
 import sys
 
-import higu
-import model
+import hdbfs
+import hdbfs.model
 
 import cache
 
@@ -12,13 +12,13 @@ REVISION = 0
 def get_type_str( obj ):
 
     type = obj.get_type()
-    if( type == higu.TYPE_FILE
-     or type == higu.TYPE_FILE_DUP
-     or type == higu.TYPE_FILE_VAR ):
+    if( type == hdbfs.TYPE_FILE
+     or type == hdbfs.TYPE_FILE_DUP
+     or type == hdbfs.TYPE_FILE_VAR ):
         return 'file'
-    elif( type == higu.TYPE_ALBUM ):
+    elif( type == hdbfs.TYPE_ALBUM ):
         return 'album'
-    elif( type == higu.TYPE_CLASSIFIER ):
+    elif( type == hdbfs.TYPE_CLASSIFIER ):
         return 'tag'
     else:
         return 'unknown'
@@ -117,8 +117,8 @@ class JsonInterface:
 
         return json_ok(
             json_ver = [ VERSION, REVISION ],
-            higu_ver = [ higu.VERSION, higu.REVISION ],
-            db_ver   = [ model.VERSION, model.REVISION ] )
+            higu_ver = [ hdbfs.VERSION, hdbfs.REVISION ],
+            db_ver   = [ hdbfs.model.VERSION, hdbfs.model.REVISION ] )
 
     def cmd_new_session( self ):
 
@@ -156,47 +156,47 @@ class JsonInterface:
                 info['text'] = target.get_text()
             if( 'repr' in items ):
                 info['repr'] = target.get_repr()
-            if( isinstance( target, higu.File ) and 'mime' in items ):
+            if( isinstance( target, hdbfs.File ) and 'mime' in items ):
                 info['mime'] = target.get_mime()
             if( 'tags' in items ):
                 tags = target.get_tags()
                 info['tags'] = map( lambda x: x.get_name(), tags )
             if( 'names' in items ):
                 info['names'] = target.get_names()
-            if( isinstance( target, higu.File ) and 'duplication' in items ):
+            if( isinstance( target, hdbfs.File ) and 'duplication' in items ):
                 if( target.is_duplicate() ):
                     info['duplication'] = 'duplicate'
                 elif( target.is_variant() ):
                     info['duplication'] = 'variant'
                 else:
                     info['duplication'] = 'original'
-            if( isinstance( target, higu.File ) and 'similar_to' in items ):
+            if( isinstance( target, hdbfs.File ) and 'similar_to' in items ):
                 similar = target.get_similar_to()
                 if( similar is not None ):
                     info['similar_to'] = [ similar.get_id(), similar.get_repr() ]
-            if( isinstance( target, higu.File ) and 'duplicates' in items ):
+            if( isinstance( target, hdbfs.File ) and 'duplicates' in items ):
                 duplicates = target.get_duplicates()
                 info['duplicates'] = map( make_obj_tuple, duplicates )
-            if( isinstance( target, higu.File ) and 'variants' in items ):
+            if( isinstance( target, hdbfs.File ) and 'variants' in items ):
                 variants = target.get_variants()
                 info['variants'] = map( make_obj_tuple, variants )
-            if( isinstance( target, higu.File ) and 'albums' in items ):
+            if( isinstance( target, hdbfs.File ) and 'albums' in items ):
                 albums = target.get_albums()
                 info['albums'] = map( make_obj_tuple, albums )
-            if( isinstance( target, higu.Album ) and 'files' in items ):
+            if( isinstance( target, hdbfs.Album ) and 'files' in items ):
                 files = target.get_files()
                 info['files'] = map( make_obj_tuple, files )
-            if( isinstance( target, higu.File ) and 'thumb_gen' in items ):
+            if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
                 try:
                     info['thumb_gen'] = target['thumb-gen']
                 except:
                     info['thumb_gen'] = 0
-            if( isinstance( target, higu.File ) and 'width' in items ):
+            if( isinstance( target, hdbfs.File ) and 'width' in items ):
                 try:
                     info['width'] = target['width']
                 except:
                     info['width'] = 0
-            if( isinstance( target, higu.File ) and 'height' in items ):
+            if( isinstance( target, hdbfs.File ) and 'height' in items ):
                 try:
                     info['height'] = target['height']
                 except:
@@ -255,7 +255,7 @@ class JsonInterface:
         db = self.cache.get_db( session_id )
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, higu.OrderedGroup ) )
+        assert( isinstance( group, hdbfs.OrderedGroup ) )
 
         group.clear_order()
 
@@ -266,7 +266,7 @@ class JsonInterface:
         db = self.cache.get_db( session_id )
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, higu.OrderedGroup ) )
+        assert( isinstance( group, hdbfs.OrderedGroup ) )
 
         items = map( db.get_object_by_id, items )
         group.set_order( items )
@@ -353,12 +353,12 @@ class JsonInterface:
 
             def create_constraint( pstr ):
 
-                ops = [ ( '>=', higu.ParameterConstraint.Set_ge, ),
-                        ( '<=', higu.ParameterConstraint.Set_le, ),
-                        ( '>', higu.ParameterConstraint.Set_gt, ),
-                        ( '<', higu.ParameterConstraint.Set_lt, ),
-                        ( '!=', higu.ParameterConstraint.Set_ne, ),
-                        ( '=', higu.ParameterConstraint.Set_eq, ), ]
+                ops = [ ( '>=', hdbfs.ParameterConstraint.Set_ge, ),
+                        ( '<=', hdbfs.ParameterConstraint.Set_le, ),
+                        ( '>', hdbfs.ParameterConstraint.Set_gt, ),
+                        ( '<', hdbfs.ParameterConstraint.Set_lt, ),
+                        ( '!=', hdbfs.ParameterConstraint.Set_ne, ),
+                        ( '=', hdbfs.ParameterConstraint.Set_eq, ), ]
                 int_ops = [ '>=', '<=', '>', '<' ]
 
                 key = None
@@ -384,7 +384,7 @@ class JsonInterface:
                 if( op[0] in int_ops ):
                     value = int( value )
 
-                c = higu.ParameterConstraint( key )
+                c = hdbfs.ParameterConstraint( key )
                 i[1]( c, value )
 
                 return c
@@ -461,10 +461,10 @@ class JsonInterface:
 
         targets = map( db.get_object_by_id, targets )
         for target in targets:
-            assert( isinstance( target, higu.File ) )
+            assert( isinstance( target, hdbfs.File ) )
 
         group = db.create_album()
-        assert( isinstance( group, higu.Album ) )
+        assert( isinstance( group, hdbfs.Album ) )
 
         for target in targets:
             target.assign( group )
@@ -476,7 +476,7 @@ class JsonInterface:
         db = self.cache.get_db( session_id )
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, higu.Album ) )
+        assert( isinstance( group, hdbfs.Album ) )
 
         db.delete_object( group )
 
@@ -487,11 +487,11 @@ class JsonInterface:
         db = self.cache.get_db( session_id )
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, higu.Album ) )
+        assert( isinstance( group, hdbfs.Album ) )
 
         targets = map( db.get_object_by_id, targets )
         for target in targets:
-            assert( isinstance( target, higu.File ) )
+            assert( isinstance( target, hdbfs.File ) )
             target.assign( group )
 
         return json_ok()
@@ -501,11 +501,11 @@ class JsonInterface:
         db = self.cache.get_db( session_id )
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, higu.Album ) )
+        assert( isinstance( group, hdbfs.Album ) )
 
         targets = map( db.get_object_by_id, targets )
         for target in targets:
-            assert( isinstance( target, higu.File ) )
+            assert( isinstance( target, hdbfs.File ) )
             target.unassign( group )
 
         return json_ok()
@@ -516,10 +516,10 @@ class JsonInterface:
 
         obj = db.get_object_by_id( target )
 
-        if( isinstance( obj, higu.Album ) ):
+        if( isinstance( obj, hdbfs.Album ) ):
             files = obj.get_files()
 
-        elif( isinstance( obj, higu.File ) ):
+        elif( isinstance( obj, hdbfs.File ) ):
             files = obj.get_duplicates()
 
         else:
@@ -597,4 +597,4 @@ class JsonInterface:
 
         return json_ok()
 
-init = higu.init
+init = hdbfs.init
