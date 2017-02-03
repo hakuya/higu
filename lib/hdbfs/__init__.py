@@ -12,6 +12,9 @@ import model
 VERSION = 1
 REVISION = 0
 
+DB_VERSION  = model.VERSION
+DB_REVISION = model.REVISION
+
 DEFAULT_LIBRARY = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 HIGURASHI_DATA_PATH = 'imgdat'
