@@ -1,4 +1,3 @@
-import db
 import os
 
 import logging
@@ -8,7 +7,8 @@ import pre8
 import ver8rules
 import ver8tables
 
-from hash import calculate_details
+from hdbfs.db import SqlLiteDatabase
+from hdbfs.hash import calculate_details
 
 VERSION = 8
 REVISION = 1
@@ -32,7 +32,7 @@ def back_up_db_file( dbfile ):
 
 def update_legacy_database( dbfile ):
 
-    session = db.SqlLiteDatabase( dbfile )
+    session = SqlLiteDatabase( dbfile )
     dbi = ver8tables.DatabaseInfo( session.get_table( 'dbi' ) )
 
     while( True ):

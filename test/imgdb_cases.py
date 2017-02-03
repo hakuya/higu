@@ -2,7 +2,8 @@ import unittest
 import testutil
 import shutil
 import os
-import ark
+
+from hdbfs.ark import ImageDatabase
 
 class ImgDbCases( testutil.TestCase ):
 
@@ -17,7 +18,7 @@ class ImgDbCases( testutil.TestCase ):
     def test_imgdat_structure( self ):
 
         red = self._load_data( self.red )
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         idb.load_data( red, 0x123 )
 
@@ -47,7 +48,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_multiple_folders( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         red = self._load_data( self.red )
         yellow = self._load_data( self.yellow )
@@ -102,7 +103,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_commit_and_rollback( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         # State should be clean on start-up
         self.assertEquals( idb.get_state(), 'clean',
@@ -144,7 +145,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_hard_single_vol( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         # State should be clean on start-up
         self.assertEquals( idb.get_state(), 'clean',
@@ -232,7 +233,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_hard_multi_vol( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         # State should be clean on start-up
         self.assertEquals( idb.get_state(), 'clean',
@@ -319,7 +320,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_rollback_then_commit( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         self.assertEquals( idb.get_state(), 'clean',
                 'Database not clean on start-up' )
@@ -351,7 +352,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_commit_failure( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         self.assertEquals( idb.get_state(), 'clean',
                 'Database not clean on start-up' )
@@ -372,7 +373,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_commit_failure_rollback_single_volume( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         self.assertEquals( idb.get_state(), 'clean',
                 'Database not clean on start-up' )
@@ -400,7 +401,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_commit_failure_rollback_multi_volume( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         self.assertEquals( idb.get_state(), 'clean',
                 'Database not clean on start-up' )
@@ -428,7 +429,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_delete( self ):
 
-        idb = ark.ImageDatabase( self.db_path )
+        idb = ImageDatabase( self.db_path )
 
         # State should be clean on start-up
         self.assertEquals( idb.get_state(), 'clean',

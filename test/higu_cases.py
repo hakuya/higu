@@ -2,9 +2,10 @@ import unittest
 import testutil
 import shutil
 import os
-import higu
 import time
 import datetime
+
+import hdbfs
 
 class HiguLibCases( testutil.TestCase ):
 
@@ -28,7 +29,7 @@ class HiguLibCases( testutil.TestCase ):
 
         red = self._load_data( self.red )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( red, False )
@@ -50,7 +51,7 @@ class HiguLibCases( testutil.TestCase ):
 #        
 #        blue = self._load_data( self.blue )
 #
-#        h = higu.Database()
+#        h = hdbfs.Database()
 #        h.enable_write_access()
 #
 #        obj = h.register_file( blue, False )
@@ -74,7 +75,7 @@ class HiguLibCases( testutil.TestCase ):
 
         yellow = self._load_data( self.yellow )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( yellow, False )
@@ -102,7 +103,7 @@ class HiguLibCases( testutil.TestCase ):
 
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj_id = h.register_file( blue, False ).get_id()
@@ -123,7 +124,7 @@ class HiguLibCases( testutil.TestCase ):
 
         green = self._load_data( self.green )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( green, False )
@@ -138,7 +139,7 @@ class HiguLibCases( testutil.TestCase ):
 
         green = self._load_data( self.green )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( green, False )
@@ -155,7 +156,7 @@ class HiguLibCases( testutil.TestCase ):
 
         cyan = self._load_data( self.cyan )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( cyan, False )
@@ -174,7 +175,7 @@ class HiguLibCases( testutil.TestCase ):
 
         cyan = self._load_data( self.cyan )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( cyan, False )
@@ -187,7 +188,7 @@ class HiguLibCases( testutil.TestCase ):
 
         magenta = self._load_data( self.magenta )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( magenta, False )
@@ -209,7 +210,7 @@ class HiguLibCases( testutil.TestCase ):
 
         magenta = self._load_data( self.magenta )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( magenta, False )
@@ -221,7 +222,7 @@ class HiguLibCases( testutil.TestCase ):
 
         white = self._load_data( self.white )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( white, True )
@@ -235,14 +236,14 @@ class HiguLibCases( testutil.TestCase ):
 
         grey = self._load_data( self.grey )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( grey, True )
 
         grey2 = self._load_data( self.grey )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( grey2, True )
@@ -257,14 +258,14 @@ class HiguLibCases( testutil.TestCase ):
 
         grey = self._load_data( self.grey )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( grey, True )
 
         grey2 = self._load_data( self.grey, 'altname.png' )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( grey2, True )
@@ -281,7 +282,7 @@ class HiguLibCases( testutil.TestCase ):
 
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( black, False )
@@ -291,7 +292,7 @@ class HiguLibCases( testutil.TestCase ):
 
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( black, True )
@@ -303,7 +304,7 @@ class HiguLibCases( testutil.TestCase ):
 
     def test_fetch_missing_tag( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         try:
             h.get_tag( 'tag_that_doesnt_exist' )
@@ -313,7 +314,7 @@ class HiguLibCases( testutil.TestCase ):
 
     def test_create_tag( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         tag = h.make_tag( 'a_tag' )
@@ -326,7 +327,7 @@ class HiguLibCases( testutil.TestCase ):
 
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( black, False )
@@ -343,7 +344,7 @@ class HiguLibCases( testutil.TestCase ):
 
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj = h.register_file( black, False )
@@ -362,7 +363,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         ro = h.register_file( red, False )
@@ -436,7 +437,7 @@ class HiguLibCases( testutil.TestCase ):
 
     def test_create_album( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj_id = h.create_album().get_id()
@@ -444,12 +445,12 @@ class HiguLibCases( testutil.TestCase ):
         album = h.get_object_by_id( obj_id )
         self.assertTrue( album is not None,
                 'Unable to get album after creation' )
-        self.assertTrue( isinstance( album, higu.Group ),
+        self.assertTrue( isinstance( album, hdbfs.Group ),
                 'Created album is not a group' )
 
     def test_create_album_with_text( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         obj_id = h.create_album( text = 'This is some test text' ).get_id()
@@ -460,14 +461,14 @@ class HiguLibCases( testutil.TestCase ):
 
     def test_album_set_text( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         album = h.create_album()
         album.set_text( 'This is some test text' )
         obj_id = album.get_id()
 
-        h = higu.Database()
+        h = hdbfs.Database()
         album = h.get_object_by_id( obj_id )
 
         self.assertEqual( album.get_text(), 'This is some test text',
@@ -479,7 +480,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         album = h.create_album()
@@ -504,7 +505,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         album = h.create_album()
@@ -539,7 +540,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         album = h.create_album()
@@ -570,7 +571,7 @@ class HiguLibCases( testutil.TestCase ):
         white = self._load_data( self.white )
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         wo = h.register_file( white, False )
@@ -589,7 +590,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         ro = h.register_file( red, False )
@@ -626,7 +627,7 @@ class HiguLibCases( testutil.TestCase ):
         white = self._load_data( self.white )
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         wo = h.register_file( white, False )
@@ -645,7 +646,7 @@ class HiguLibCases( testutil.TestCase ):
         white = self._load_data( self.white )
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         wo = h.register_file( white, False )
@@ -664,7 +665,7 @@ class HiguLibCases( testutil.TestCase ):
         white = self._load_data( self.white )
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         wo = h.register_file( white, False )
@@ -683,7 +684,7 @@ class HiguLibCases( testutil.TestCase ):
         white = self._load_data( self.white )
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         wo = h.register_file( white, False )
@@ -704,7 +705,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         ro = h.register_file( red, False )
@@ -738,7 +739,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         ro = h.register_file( red, False )
@@ -773,7 +774,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         album = h.create_album()
@@ -801,7 +802,7 @@ class HiguLibCases( testutil.TestCase ):
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         tag1 = h.make_tag( 'a_tag' )
@@ -836,7 +837,7 @@ class HiguLibCases( testutil.TestCase ):
         white = self._load_data( self.white )
         black = self._load_data( self.black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         tag = h.make_tag( 'a_tag' )

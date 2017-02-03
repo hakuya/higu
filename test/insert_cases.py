@@ -3,7 +3,8 @@ import testutil
 import subprocess
 import shutil
 import os
-import higu
+
+import hdbfs
 
 class InsertCases( testutil.TestCase ):
 
@@ -18,7 +19,7 @@ class InsertCases( testutil.TestCase ):
     def _run( self, files, album = None, text = None, taglist = [],
             newtags = [], recover = None, name = None ):
 
-        cmd = [ 'python', 'lib/insertfile.py', '-c', self.cfg_file_path ]
+        cmd = [ 'python', 'scripts/insertfile.py', '-c', self.cfg_file_path ]
 
         if( album is not None ):
             cmd.append( '-a' )
@@ -68,7 +69,7 @@ class InsertCases( testutil.TestCase ):
         self.assertFalse( os.path.exists( black ),
                 'Old image was not removed' )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -88,7 +89,7 @@ class InsertCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( black ),
                 'Double image was removed' )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -102,7 +103,7 @@ class InsertCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( black ),
                 'Image was removed' )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertTrue( obj is None,
@@ -127,7 +128,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -154,7 +155,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black, name = False )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -167,7 +168,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -180,7 +181,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black, name = True )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -196,7 +197,7 @@ class InsertCases( testutil.TestCase ):
         black2 = self._load_data( self.black, 'altname.png' )
         self._run( black2 )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -215,7 +216,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black, name = False )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
@@ -229,7 +230,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black, name = True )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertEqual( obj.get_name(), self.black,
@@ -237,7 +238,7 @@ class InsertCases( testutil.TestCase ):
 
     def test_tag_file( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         tag = h.make_tag( 'black' )
@@ -251,7 +252,7 @@ class InsertCases( testutil.TestCase ):
         black = self._load_data( self.black )
         self._run( black, taglist = [ 'black' ] )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         tag = h.get_tag( 'black' )
 
         files = tag.get_files()
@@ -260,12 +261,12 @@ class InsertCases( testutil.TestCase ):
 
     def test_create_tag( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
 
         black = self._load_data( self.black )
         self._run( black, newtags = [ 'black' ] )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         try:
             tag = h.get_tag( 'black' )
         except KeyError:
@@ -279,7 +280,7 @@ class InsertCases( testutil.TestCase ):
 
     def test_tag_multi_file( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
 
         h.make_tag( 'magenta' )
@@ -295,7 +296,7 @@ class InsertCases( testutil.TestCase ):
         self._run( green, taglist = [ 'yellow', 'cyan' ] )
         self._run( blue, taglist = [ 'magenta', 'cyan' ] )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         mt = h.get_tag( 'magenta' )
         yt = h.get_tag( 'yellow' )
         ct = h.get_tag( 'cyan' )
@@ -364,13 +365,13 @@ class InsertCases( testutil.TestCase ):
 
         self._run( [ white, grey, black ], album = 'bw' )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         al = h.get_object_by_id( 1 )
         wo = h.get_object_by_id( 2 )
         lo = h.get_object_by_id( 3 )
         ko = h.get_object_by_id( 4 )
 
-        self.assertTrue( isinstance( al, higu.Album ),
+        self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
 
         files = al.get_files()
@@ -383,7 +384,7 @@ class InsertCases( testutil.TestCase ):
 
     def test_tag_album( self ):
 
-        h = higu.Database()
+        h = hdbfs.Database()
         h.enable_write_access()
         tag = h.make_tag( 'bw' )
         h.close()
@@ -394,13 +395,13 @@ class InsertCases( testutil.TestCase ):
 
         self._run( [ white, grey, black ], album = 'bw', taglist = [ 'bw' ] )
 
-        h = higu.Database()
+        h = hdbfs.Database()
         al = h.get_object_by_id( 2 )
         wo = h.get_object_by_id( 3 )
         lo = h.get_object_by_id( 4 )
         ko = h.get_object_by_id( 5 )
 
-        self.assertTrue( isinstance( al, higu.Album ),
+        self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
 
         it = h.lookup_objects( [ h.get_tag( 'bw' ) ] ).__iter__()
@@ -423,10 +424,10 @@ class InsertCases( testutil.TestCase ):
 
         self._run( [ white, grey, black ], album = 'bw', text = bw_desc )
 
-        h = higu.Database()
-        al = h.lookup_objects( type = higu.TYPE_ALBUM ).__iter__().next()
+        h = hdbfs.Database()
+        al = h.lookup_objects( type = hdbfs.TYPE_ALBUM ).__iter__().next()
 
-        self.assertTrue( isinstance( al, higu.Album ),
+        self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
 
         textf = open( bw_desc, 'r' )

@@ -7,13 +7,12 @@ import time
 from hash import calculate_details
 
 import ark
-import config
 import model
 
 VERSION = 1
 REVISION = 0
 
-DEFAULT_ENVIRON = os.path.join( os.environ['HOME'], '.higu' )
+DEFAULT_LIBRARY = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 HIGURASHI_DATA_PATH = 'imgdat'
 
@@ -23,6 +22,8 @@ TYPE_FILE_VAR   = model.TYPE_FILE_VAR
 TYPE_GROUP      = model.TYPE_GROUP
 TYPE_ALBUM      = model.TYPE_ALBUM
 TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
+
+_LIBRARY = None
 
 def check_tag_name( s ):
 
@@ -629,9 +630,9 @@ class ParameterConstraint:
 class Database:
 
     def __init__( self ):
+        global _LIBRARY
 
-        imgpat = os.path.join( config.config().get_path( 'library' ),
-                HIGURASHI_DATA_PATH )
+        imgpat = os.path.join( _LIBRARY, HIGURASHI_DATA_PATH )
 
         self.session = model.Session()
         self.imgdb = ark.ImageDatabase( imgpat )
@@ -1043,19 +1044,24 @@ class Database:
             self.session.query( model.Object ) \
                     .filter( model.Object.id == id ).delete()
 
-def init( config_file = None ):
+def init( library_path = None ):
+    global _LIBRARY
 
-    cfg = config.init( config_file )
-    lib = cfg.get_path( 'library' )
+    if( library_path is not None ):
+        _LIBRARY = library_path
+    else:
+        _LIBRARY = DEFAULT_LIBRARY
 
-    if( not os.path.isdir( lib ) ):
-        os.makedirs( lib )
+    if( not os.path.isdir( _LIBRARY ) ):
+        os.makedirs( _LIBRARY )
 
-    model.init( os.path.join( lib, HIGURASHI_DB_NAME ) )
+    model.init( os.path.join( _LIBRARY, HIGURASHI_DB_NAME ) )
 
 def dispose():
+    global _LIBRARY
 
     model.dispose()
+    _LIBRARY = None
 
 def compare_details( a, b ):
 
