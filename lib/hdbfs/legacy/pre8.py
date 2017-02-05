@@ -21,230 +21,233 @@ LEGACY_REL_CLASS       = 2000
 
 def upgrade_from_0_to_1( log, session ):
 
-    log.info( 'Database upgrade from VER 0 -> VER 1' )
+    print 'Database upgrade from VER 0 -> VER 1'
 
-    mfl = session.get_table( 'mfl' )
-    dbi = session.get_table( 'dbi' )
+    session.execute( 'ALTER TABLE mfl ADD COLUMN parent INTEGER' )
+    session.execute( 'ALTER TABLE mfl ADD COLUMN gorder INTEGER' )
 
-    mfl.add_col( 'parent', 'INTEGER' )
-    mfl.add_col( 'gorder', 'INTEGER' )
-    dbi.update( [ ( 'ver', 1, ), ( 'rev', 0, ) ] )
-
-    session.commit()
+    return 1, 0
 
 def upgrade_from_1_to_2( log, session ):
 
     log.info( 'Database upgrade from VER 1 -> VER 2' )
 
-    mfl = session.get_table( 'mfl' )
-    coll = session.get_table( 'coll' )
-    objl = session.get_table( 'objl' )
-    rell = session.get_table( 'rell' )
-    fchk = session.get_table( 'fchk' )
-    dbi = session.get_table( 'dbi' )
+    session.execute( 'CREATE TABLE objl ( '
+                     '  id      INTEGER PRIMARY KEY, '
+                     '  type    INTEGER NOT NULL )' )
 
-    objl.create( [ ( 'id',     'INTEGER PRIMARY KEY', ),
-                   ( 'type',   'INTEGER NOT NULL', ), ] )
+    session.execute( 'CREATE TABLE rell ( '
+                     '  id      INTEGER NOT NULL, '
+                     '  parent  INTEGER NOT NULL, '
+                     '  rel     INTEGER NOT NULL, '
+                     '  sort    INTEGER )' )
 
-    rell.create( [ ( 'id',     'INTEGER NOT NULL', ),
-                   ( 'parent', 'INTEGER NOT NULL', ),
-                   ( 'rel',    'INTEGER NOT NULL', ),
-                   ( 'sort',  'INTEGER', ), ] )
+    session.execute( 'CREATE TABLE fchk ( '
+                     '  id      INTEGER PRIMARY KEY, '
+                     '  len     INTEGER, '
+                     '  crc32   TEXT, '
+                     '  md5     TEXT, '
+                     '  sha1    TEXT )' )
 
-    fchk.create( [ ( 'id',     'INTEGER PRIMARY KEY', ),
-                   ( 'len',    'INTEGER', ),
-                   ( 'crc32',  'TEXT', ),
-                   ( 'md5',    'TEXT', ),
-                   ( 'sha1',   'TEXT', ), ] )
-
-    cursor = mfl.select( order = 'id' )
     coltbl = {}
     collst = {}
 
-    # Note: this code uses the former naming scheme where albums were called collections
+    session.execute( 'INSERT INTO objl ( id, type ) '
+                     'SELECT id, :file_type AS type FROM mfl ORDER BY id ASC',
+                     { 'file_type' : TYPE_FILE } )
+    session.execute( 'INSERT INTO fchk ( id, len, crc32, md5, sha1 ) '
+                     'SELECT id, len, crc32, md5, sha1 FROM mfl ORDER BY id ASC' )
+    session.execute( 'INSERT INTO rell ( id, parent, rel ) '
+                     'SELECT id, parent, CASE gorder '
+                     '      WHEN :order_dup THEN :rel_dup '
+                     '      ELSE                 :rel_var '
+                     '      END rel '
+                     ' FROM mfl '
+                     '  WHERE gorder IN ( :order_dup, :order_var ) ORDER BY id ASC',
+                     { 'order_dup' : ORDER_DUPLICATE,
+                       'order_var' : ORDER_VARIENT,
+                       'rel_dup' : LEGACY_REL_DUPLICATE,
+                       'rel_var' : LEGACY_REL_VARIANT } )
 
-    for item in cursor:
-        id, len, crc32, md5, sha1, parent, order = item
-        objl.insert( [ ( 'id', id, ), ( 'type', TYPE_FILE, ), ] )
-        fchk.insert( [ ( 'id', id, ), ( 'len', len, ), ( 'crc32', crc32, ), ( 'md5', md5, ), ( 'sha1', sha1, ) ] )
+    # In schema ver 1.0, the album object is the first image in the album.
+    # Create a mapping table that will add album objects into the objl table
+    # and map them back to the first image in the album
+    session.execute( 'CREATE TEMPORARY TABLE album_map ('
+                     '  old_parent  INTEGER PRIMARY KEY, '
+                     '  album_id    INTEGER )' )
+    session.execute( 'CREATE TEMPORARY TRIGGER update_album_map AFTER INSERT ON album_map '
+                     ' BEGIN '
+                     '  INSERT INTO objl ( type ) VALUES ( %d ); '
+                     '  UPDATE album_map SET album_id = (SELECT id FROM objl WHERE rowid = last_insert_rowid()) '
+                     '   WHERE old_parent = NEW.old_parent; '
+                     ' END' % ( TYPE_ALBUM, ) )
 
-        if( parent != None and order == ORDER_VARIENT ):
-            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', LEGACY_REL_VARIANT, ) ] )
-        elif( parent != None and order == ORDER_DUPLICATE ):
-            rell.insert( [ ( 'id', id, ), ( 'parent', parent, ), ( 'rel', LEGACY_REL_DUPLICATE, ) ] )
-        elif( parent != None ):
-            coltbl[id] = [ parent, order ]
-            if( not collst.has_key( parent ) ):
-                collst[parent] = -1
-        # Create collections at the end so we don't mess up the ids
+    # Add all the albums into the album map
+    session.execute( 'INSERT INTO album_map ( old_parent ) '
+                     'SELECT DISTINCT parent FROM mfl WHERE parent NOT NULL and gorder >= 0' )
 
-    for collection in collst.keys():
-        colid = objl.insert( [ ( 'type', TYPE_ALBUM, ), ], [ 'id' ] ).eval( True, True )
-        collst[collection] = colid
-        rell.insert( [ ( 'id', collection, ), ( 'parent', colid, ), ( 'rel', LEGACY_REL_CHILD, ), ( 'sort', 0, ) ] )
+    # Add all the first images to the albums
+    session.execute( 'INSERT INTO rell ( id, parent, rel, sort ) '
+                     'SELECT old_parent, album_id, :child_rel, 0 FROM album_map',
+                     { 'child_rel' : LEGACY_REL_CHILD } )
+    # Add all the subsequent images to the albums
+    session.execute( 'INSERT INTO rell ( id, parent, rel, sort ) '
+                     'SELECT o.id, m.album_id, :child_rel AS rel, o.gorder + 1'
+                     ' FROM mfl o '
+                     ' INNER JOIN album_map m ON o.parent == m.old_parent',
+                     { 'child_rel' : LEGACY_REL_CHILD } )
 
-    for member in coltbl.keys():
-        collection, order = coltbl[member]
-        rell.insert( [ ( 'id', member, ), ( 'parent', collst[collection], ), ( 'rel', LEGACY_REL_CHILD, ), ( 'sort', order, ) ] )
+    session.execute( 'DROP TRIGGER update_album_map' )
+    session.execute( 'DROP TABLE album_map' )
 
-    mfl.drop()
-    # Note: naming of collections was never fully implemented in ver. 1 so it is not preserved
-    try:
-        coll.drop()
-    except hdbfs.db.QueryError:
-        pass
-    dbi.update( [ ( 'ver', 2, ), ( 'rev', 0, ) ] )
-
-    session.commit()
+    return 2, 0
 
 def upgrade_from_2_to_3( log, session ):
 
     log.info( 'Database upgrade from VER 2 -> VER 3' )
 
-    objl = session.get_table( 'objl' )
-    meta = session.get_table( 'meta' )
-    naml = session.get_table( 'naml' )
-    dbi = session.get_table( 'dbi' )
+    session.execute( 'ALTER TABLE objl ADD COLUMN name TEXT' )
+    session.execute( 'CREATE TABLE meta ( '
+                     '  id      INTEGER NOT NULL, '
+                     '  tag     TEXT NOT NULL, '
+                     '  value   TEXT )' )
 
-    meta.create( [ ( 'id',     'INTEGER NOT NULL', ),
-                   ( 'tag',    'TEXT NOT NULL', ),
-                   ( 'value',  'TEXT' ), ] )
+    session.execute( 'INSERT INTO meta ( id, tag, value ) '
+                     'SELECT id, "altname" AS tag, name FROM naml' )
 
-    objl.add_col( 'name', 'TEXT' )
+    session.execute( 'CREATE TEMPORARY TABLE single_names ('
+                     '  rid     INTEGER PRIMARY KEY, '
+                     '  id      INTEGER NOT NULL, '
+                     '  name    TEXT NOT NULL )' )
+    session.execute( 'INSERT INTO single_names '
+                     'SELECT min( rowid ), id, name FROM naml GROUP BY id' )
+    session.execute( 'UPDATE objl SET name = ('
+                     '  SELECT s.name from single_names s WHERE s.id = objl.id)'
+                     ' WHERE EXISTS (SELECT * FROM single_names s WHERE s.id = objl.id)' )
+    session.execute( 'DROP TABLE single_names' )
 
-    cursor = naml.select( order = 'id' )
+    session.execute( 'DELETE FROM meta '
+                     ' WHERE meta.tag = "altname" '
+                     '   AND EXISTS ('
+                     '    SELECT * FROM objl o WHERE o.id = meta.id '
+                     '                           AND o.name = meta.value)' )
 
-    # Note: this code uses the former naming scheme where albums were called collections
-    nameset_last = None
-    for id, name in cursor:
-        if( id == nameset_last ):
-            meta.insert( [ ( 'id', id, ), ( 'tag' , 'altname' ), ( 'value', name, ), ] )
-        else:
-            objl.update( [ ( 'name', name, ), ], [ ( 'id', id, ) ] )
+    session.execute( 'DROP TABLE naml' )
 
-        nameset_last = id
-
-    naml.drop()
-    dbi.update( [ ( 'ver', 3, ), ( 'rev', 0, ) ] )
-
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 3, rev = 0' )
+    return 3, 0
 
 def upgrade_from_3_to_4( log, session ):
 
     log.info( 'Database upgrade from VER 3 -> VER 4' )
 
-    objl = session.get_table( 'objl' )
-    tagl = session.get_table( 'tagl' )
-    rell = session.get_table( 'rell' )
-    dbi = session.get_table( 'dbi' )
+    session.execute( 'INSERT INTO objl ( type, name ) '
+                     'SELECT DISTINCT :tag_type AS type, tag from tagl',
+                     { 'tag_type' : TYPE_CLASSIFIER } )
 
-    tagmap = {}
+    session.execute( 'INSERT INTO rell ( id, parent, rel ) '
+                     'SELECT t.id, o.id, :tag_rel AS rel '
+                     ' FROM tagl t INNER JOIN objl o ON o.type = :tag_type '
+                     '                              AND o.name = t.tag',
+                     { 'tag_rel' : LEGACY_REL_CLASS,
+                       'tag_type' : TYPE_CLASSIFIER } )
 
-    for item in tagl.select( [ 'tag' ], distinct = True ):
+    session.execute( 'DROP TABLE tagl' )
 
-        tagmap[item[0]] = objl.insert( [ ( 'type', TYPE_CLASSIFIER, ),
-                ( 'name', item[0], ) ], [ 'id' ] ).eval( True, True )        
-
-    for item in tagl.select():
-
-        rell.insert( [ ( 'id', item[0], ), ( 'parent', tagmap[item[1]], ),
-                ( 'rel', LEGACY_REL_CLASS, ), ] )
-
-    tagl.drop()
-    dbi.update( [ ( 'ver', 4, ), ( 'rev', 0, ) ] )
-
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 4, rev = 0' )
+    return 4, 0
 
 def upgrade_from_4_to_5( log, session ):
 
     log.info( 'Database upgrade from VER 4 -> VER 5' )
 
-    dbi = session.get_table( 'dbi' )
-    objl = session.get_table( 'objl' )
-    rell = session.get_table( 'rell' )
-    meta = session.get_table( 'meta' )
-    rel2 = session.get_table( 'rel2' )
-    mtda = session.get_table( 'mtda' )
-
     # Step 1, create new tables
-    objl.add_col( 'dup', 'INTEGER' )
-
-    rel2.create( [ ( 'child',  'INTEGER NOT NULL', ),
-                   ( 'parent', 'INTEGER NOT NULL', ),
-                   ( 'sort',   'INTEGER', ), ] )
-
-    mtda.create( [ ( 'id',     'INTEGER NOT NULL', ),
-                   ( 'key',    'TEXT NOT NULL', ),
-                   ( 'value',  'TEXT' ), ] )
+    session.execute( 'ALTER TABLE objl ADD COLUMN dup INTEGER' )
+    session.execute( 'CREATE TABLE rel2 ( '
+                     '  child   INTEGER NOT NULL, '
+                     '  parent  INTEGER NOT NULL, '
+                     '  sort    INTEGER )' )
+    session.execute( 'CREATE TABLE mtda ( '
+                     '  id      INTEGER NOT NULL, '
+                     '  key     TEXT NOT NULL, '
+                     '  value   TEXT )' )
 
     # Step 2, convert relations
-    for child, parent, type, sort in rell.select():
-        if( type == LEGACY_REL_CHILD or type == LEGACY_REL_CLASS ):
-            rel2.insert( [ ( 'child', child, ), ( 'parent', parent, ),
-                    ( 'sort', sort, ), ] )
-        elif( type == LEGACY_REL_DUPLICATE ):
-            objl.update( [ ( 'type', TYPE_FILE_DUP, ), ( 'dup', parent, ) ], [ ( 'id', child, ) ] )
-        elif( type == LEGACY_REL_VARIANT ):
-            objl.update( [ ( 'type', TYPE_FILE_VAR, ), ( 'dup', parent, ) ], [ ( 'id', child, ) ] )
+    session.execute( 'INSERT INTO rel2 ( child, parent, sort ) '
+                     'SELECT id, parent, sort FROM rell '
+                     ' WHERE rel = :child_type OR rel = :class_type',
+                     { 'child_type' : LEGACY_REL_CHILD,
+                       'class_type' : LEGACY_REL_CLASS } )
+    for result in session.execute( 'SELECT id, parent, rel, sort FROM rell'
+                                   ' WHERE rel = :dup_type OR rel = :var_type',
+                                   { 'dup_type' : LEGACY_REL_DUPLICATE,
+                                     'var_type' : LEGACY_REL_VARIANT } ):
+
+        if( result['rel'] == LEGACY_REL_DUPLICATE ):
+            target_type = TYPE_FILE_DUP
+        elif( result['rel'] == LEGACY_REL_VARIANT ):
+            target_type = TYPE_FILE_VAR
         else:
-            assert( False )
+            assert False
+
+        session.execute( 'UPDATE objl SET type = :type, dup = :parent WHERE id = :child',
+                         { 'child' : result['id'],
+                           'parent' : result['parent'],
+                           'type' : target_type } )
 
     # Step 3, collapse meta into mtda
-    for id, key in meta.select( [ 'id', 'tag', ], distinct = True ):
-        values = [ value[0] for value in meta.select( [ 'value' ], [ ( 'id', id, ), ( 'tag', key, ) ] ) ]
+    for result in session.execute( 'SELECT DISTINCT id, tag FROM meta' ):
+        values = [ r['value'] for r in session.execute( 'SELECT value FROM meta where id = :id AND tag = :tag', result ) ]
 
         if( len( values ) == 1 ):
-            mtda.insert( [ ( 'id', id, ), ( 'key', key, ), ( 'value', values[0], ), ] )
+            value = values[0]
         else:
-            assert( key == 'altname' )
-            values = ':'.join( values )
-            mtda.insert( [ ( 'id', id, ), ( 'key', key, ), ( 'value', values, ), ] )
+            assert( result['tag'] == 'altname' )
+            value = ':'.join( values )
+
+        session.execute( 'INSERT INTO mtda ( id, key, value ) VALUES ( :id, :key, :value )',
+                         { 'id' : result['id'],
+                           'key' : result['tag'],
+                           'value' : value } )
 
     # Step 4, drop old tables
-    rell.drop()
-    meta.drop()
+    session.execute( 'DROP TABLE rell' )
+    session.execute( 'DROP TABLE meta' )
 
     # Step 5, update the database file
-    dbi.update( [ ( 'ver', 5, ), ( 'rev', 0, ) ] )
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 5, rev = 0' )
+    return 5, 0
 
 def upgrade_from_5_to_6( log, session ):
 
     log.info( 'Database upgrade from VER 5 -> VER 6' )
 
-    dbi = session.get_table( 'dbi' )
-    dbi.add_col( 'imgdb_ver', 'INTEGER' )
+    session.execute( 'ALTER TABLE dbi ADD COLUMN imgdb_ver INTEGER' )
 
-    dbi.update( [ ( 'ver', 6, ), ( 'rev', 0, ), ( 'imgdb_ver', 0, ), ] )
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 6, rev = 0, imgdb_ver = 0' )
+    return 6, 0
 
 def upgrade_from_6_to_7( log, session ):
 
     log.info( 'Database upgrade from VER 6 -> VER 7' )
-
-    dbi = session.get_table( 'dbi' )
-    objl = session.get_table( 'objl' )
 
     # Note, I normally wouldn't want to add a default, because having
     # an exception thrown if we ever try to insert an empty time is
     # a good way to catch errors. However, SqlLite doesn't provide
     # any good mechinisms to add a not-null column, then revoke the
     # default.
-    objl.add_col( 'create_ts', 'INTEGER NOT NULL', 0 )
+    session.execute( 'ALTER TABLE objl ADD COLUMN create_ts INTEGER NOT NULL DEFAULT 0' )
+    session.execute( 'UPDATE objl SET create_ts = :now',
+                     { 'now' : calendar.timegm( time.gmtime() ) } )
 
-    ts_now = calendar.timegm( time.gmtime() )
-    objl.update( [ ( 'create_ts', ts_now, ) ] )
-    dbi.update( [ ( 'ver', 7, ), ( 'rev', 0, ), ] )
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 7, rev = 0' )
+    return 7, 0
 
 def upgrade_from_7_to_8( log, session ):
 
     log.info( 'Database upgrade from VER 7 -> VER 8' )
 
-    dbi = session.get_table( 'dbi' )
-    mtda = session.get_table( 'mtda' )
+    session.execute( 'ALTER TABLE mtda ADD COLUMN num INTEGER' )
 
-    mtda.add_col( 'num', 'INTEGER' )
-
-    dbi.update( [ ( 'ver', 8, ), ( 'rev', 0, ), ] )
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 8, rev = 0' )
+    return 8, 0

@@ -18,7 +18,7 @@ TYPE_GROUP      = 2000
 TYPE_ALBUM      = 2001
 TYPE_CLASSIFIER = 2002
 
-VERSION = 8
+VERSION = 9
 REVISION = 0
 
 def check_len( length ):
@@ -193,41 +193,38 @@ class Metadata( Base ):
 
         return 'Metadata( %r, %r, %r )' % ( self.id, self.tag, self.value )
 
+dbfile = None
 Session = None
-engine = None
 
-def _do_sqlite_connect( dbapi_conn, conn_record ):
-    # Disable python's auto BEGIN/COMMIT
-    dbapi_conn.isolation_level = None
-    dbapi_conn.execute( 'PRAGMA busy_timeout = 10000' )
-
-def init( database_file ):
-    global Session
-    global engine
-
-    import legacy
-    legacy.update_legacy_database( database_file )
-
-    engine = create_engine( 'sqlite:///' + database_file )
-    event.listen( engine, 'connect', _do_sqlite_connect )
+def _init_schema( engine, ver, rev ):
+    global dbfile
 
     Base.metadata.create_all( engine )
 
-    session_factory = sessionmaker( bind = engine )
-    Session = scoped_session( session_factory )
+def init( database_file ):
+    global dbfile
+    global Session
 
-    load()
+    import db_utils
+    import legacy
+
+    migrators = {
+        'hdbfs' : legacy.HDBFSMigrator( _init_schema ),
+        'imgdb' : legacy.ImgDBMigrator(),
+    }
+
+    dbfile = db_utils.DatabaseFile( database_file, migrators )
+    dbfile.init()
+
+    dbfile.init_schema( 'hdbfs', VERSION, REVISION )
+    dbfile.init_schema( 'imgdb', 0, 0 )
+
+    Session = dbfile.get_session
 
 def dispose():
+    global dbfile
     global Session
-    global engine
 
     Session = None
-    engine.dispose()
-
-def load():
-
-    session = Session()
-    info = session.query( DatabaseInfo ).one()
-    assert( info.ver == VERSION )
-    session.close()
+    dbfile.dispose()
+    dbfile = None
