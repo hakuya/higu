@@ -1013,6 +1013,9 @@ class Database:
             for f in files:
                 x = self.__register_file( f, save_name )
 
+                if( x.obj.type == TYPE_FILE_DUP ):
+                    x = x._get_similar_to()
+
                 if( album is not None ):
                     x._assign( album, None )
                 else:
