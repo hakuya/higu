@@ -12,11 +12,11 @@ class LinkedDuplicateIterator:
 
     def __init__( self, session ):
 
-        self.__objl = session.get_table( 'objl' )
-        self.__rel2 = session.get_table( 'rel2' )
+        self.__session = session
 
-        self.__iter = self.__objl.select( [ 'id' ],
-                [ ( 'type', TYPE_FILE_DUP, ) ] ).__iter__()
+        self.__iter = self.__session.execute(
+                'SELECT id FROM objl WHERE type = :type',
+                { 'type' : TYPE_FILE_DUP, } ).__iter__()
 
     def __iter__( self ):
 
@@ -28,74 +28,87 @@ class LinkedDuplicateIterator:
             ( obj_id, ) = self.__iter.next()
 
             try:
-                self.__objl.select( [ 'id' ], [ ( 'dup', obj_id, ), ] ).__iter__().next()
+                self.__session.execute( 'SELECT id FROM objl WHERE dup = :obj',
+                                        { 'obj' : obj_id } ).__iter__().next()
                 return obj_id
             except StopIteration:
                 pass
 
             try:
-                self.__rel2.select( [ 'parent' ], [ ( 'child', obj_id, ), ] ).__iter__().next()
+                self.__session.execute( 'SELECT parent FROM rel2 WHERE child = :obj',
+                                        { 'obj' : obj_id } ).__iter__().next()
                 return obj_id
             except StopIteration:
                 pass
 
             try:
-                self.__rel2.select( [ 'child' ], [ ( 'parent', obj_id, ), ] ).__iter__().next()
+                self.__session.execute( 'SELECT child FROM rel2 WHERE parent = :obj',
+                                        { 'obj' : obj_id } ).__iter__().next()
                 return obj_id
             except StopIteration:
                 pass
 
 def determine_duplicate_parent( session, obj_id ):
 
-    objl = session.get_table( 'objl' )
-
-    try:
-        ( obj_type, obj_parent ) = objl.select( [ 'type', 'dup', ],
-                [ ( 'id', obj_id, ), ] ).__iter__().next()
-    except StopIteration:
+    result = session.execute( 'SELECT type, dup FROM objl WHERE id = :obj',
+                              { 'obj' : obj_id } ).first()
+    if( result is None ):
         return None
 
-    if( obj_type != TYPE_FILE_DUP ):
+    if( result['type'] != TYPE_FILE_DUP ):
         return obj_id
     else:
-        return determine_duplicate_parent( session, obj_parent )
+        return determine_duplicate_parent( session, result['dup'] )
 
 def correct_linked_duplicates( session ):
-
-    objl = session.get_table( 'objl' )
-    rel2 = session.get_table( 'rel2' )
 
     for obj_id in LinkedDuplicateIterator( session ):
         parent_id = determine_duplicate_parent( session, obj_id )
 
+        mapping = { 'obj' : obj_id, 'par' : parent_id }
+
         # Move all dup/vars
-        objl.update( [ ( 'dup', parent_id, ), ], [ ( 'dup', obj_id, ), ] )
+        session.execute( 'UPDATE objl SET dup = :par WHERE dup = :obj',
+                         mapping )
 
         # Move parents
-        for ( other_id, ) in rel2.select( [ 'parent', ],
-                [ ( 'child', parent_id, ), ] ):
+        for result in session.execute( 'SELECT parent FROM rel2 WHERE child = :par',
+                                       mapping ):
 
-            rel2.delete( [ ( 'child', obj_id, ), ( 'parent', other_id, ), ] )
+            session.execute( 'DELETE FROM rel2 WHERE child = :obj and parent = :oth',
+                             { 'obj' : obj_id,
+                               'oth' : result['parent'] } )
 
-        rel2.delete( [ ( 'child', obj_id, ), ( 'parent', parent_id, ), ] )
-        rel2.update( [ ( 'child', parent_id, ), ], [ ( 'child', obj_id, ), ] )
+        session.execute( 'DELETE FROM rel2 WHERE child = :obj and parent = :par',
+                         mapping )
+        session.execute( 'UPDATE rel2 SET child = :par WHERE child = :obj',
+                         mapping )
 
         # Move children
-        for ( other_id, ) in rel2.select( [ 'child', ],
-                [ ( 'parent', parent_id, ), ] ):
+        for result in session.execute( 'SELECT child FROM rel2 WHERE parent = :par',
+                                       mapping ):
 
-            rel2.delete( [ ( 'parent', obj_id, ), ( 'child', other_id, ), ] )
+            session.execute( 'DELETE FROM rel2 WHERE parent = :obj and child = :oth',
+                             { 'obj' : obj_id,
+                               'oth' : result['child'] } )
 
-        rel2.delete( [ ( 'parent', obj_id, ), ( 'child', parent_id, ), ] )
-        rel2.update( [ ( 'parent', parent_id, ), ], [ ( 'parent', obj_id, ), ] )
+        session.execute( 'DELETE FROM rel2 WHERE parent = :obj and child = :par',
+                         mapping )
+        session.execute( 'UPDATE rel2 SET parent = :par WHERE parent = :obj',
+                         mapping )
 
 def upgrade_from_8_to_8_1( log, session ):
 
     log.info( 'Database upgrade from VER 8 -> VER 8.1' )
 
-    dbi = session.get_table( 'dbi' )
-
     correct_linked_duplicates( session )
 
-    dbi.update( [ ( 'ver', 8, ), ( 'rev', 1, ) ] )
-    session.commit()
+    session.execute( 'UPDATE dbi SET ver = 8, rev = 1' )
+    return 8, 1
+
+def upgrade_from_8_1_to_9( log, session ):
+
+    log.info( 'Database upgrade from VER 8.1 -> VER 9' )
+
+    session.execute( 'DROP TABLE dbi' )
+    return 9, 0
