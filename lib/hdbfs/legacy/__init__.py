@@ -25,7 +25,7 @@ class HDBFSMigrator:
 
     def init_schema( self, engine, ver, rev ):
 
-        self.__init_schema_callback( session, ver, rev )
+        self.__init_schema_callback( engine, ver, rev )
 
     def upgrade_schema( self, session, ver, rev ):
 
