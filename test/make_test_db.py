@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import higu
 import sys
 import os
 
@@ -8,12 +7,22 @@ if( __name__ == '__main__' ):
 
     ver = tuple( map( int, sys.argv[1].split( '.' ) ) )
 
-    if( ver[0] < 5 ):
-        higu.DEFAULT_ENVIRON = os.environ['MKDB_LIB_PATH']
-        h = higu.init_default()
+    hdbfs = None
+    if( ver[0] > 8 or ver[0] == 8 and ver[1] > 0 ):
+        import hdbfs
     else:
-        higu.init( 'build_dbs.cfg' )
-        h = higu.Database()
+        import higu
+        hdbfs = higu
+
+    if( ver[0] < 5 ):
+        hdbfs.DEFAULT_ENVIRON = os.environ['MKDB_LIB_PATH']
+        h = hdbfs.init_default()
+    elif( ver[0] < 8 or ver[0] == 8 and ver[1] == 0 ):
+        hdbfs.init( 'build_dbs.cfg' )
+        h = hdbfs.Database()
+    else:
+        hdbfs.init( os.environ['MKDB_LIB_PATH'] )
+        h = hdbfs.Database()
 
     if( ver[0] >= 8 ):
         h.enable_write_access()
