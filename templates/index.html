@@ -28,10 +28,14 @@
 <div id='tabs'>
     <ul>
         <li><a href='#welcome-tab'>Begin</a></li>
-        <li><a href='#taglist-tab'>Taglist</a></li>
+        <py:if test='taglist is not None'>
+            <li><a href='#taglist-tab'>Taglist</a></li>
+        </py:if>
     </ul>
     <div class='tab' id='welcome-tab'><xi:include href="tabs/begin.html"/></div>
-    <div class='tab' id='taglist-tab'><xi:include href="tabs/taglist.html"/></div>
+    <py:if test='taglist is not None'>
+        <div class='tab' id='taglist-tab'><xi:include href="tabs/taglist.html"/></div>
+    </py:if>
 </div>
 
 </div>

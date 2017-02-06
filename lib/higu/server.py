@@ -5,12 +5,14 @@ import time
 import config
 import json
 
-import hdbfs
 
 from genshi.template import TemplateLoader
 
+import hdbfs
 import json_interface
+import model
 import thumb_generator
+import web_session
 
 from html import TextFormatter, HtmlGenerator
 
@@ -37,6 +39,35 @@ class Server:
 
         self.cfg = config.config().subsection( 'www' )
 
+    def __get_session_id( self, access ):
+
+        if( 'session_id' in cherrypy.request.cookie ):
+            session_id = cherrypy.request.cookie['session_id'].value
+        else:
+            session_id = None
+
+        new_session_id = access.renew_session( session_id )
+
+        if( session_id != new_session_id ):
+            cherrypy.response.cookie['session_id'] = new_session_id
+
+        return new_session_id
+
+    def __get_session( self ):
+
+        access = web_session.WebSessionAccess()
+        session_id = self.__get_session_id( access )
+
+        access_level, user_name = access.get_session_info( session_id )
+        if( access_level == model.ACCESS_LEVEL_NONE ):
+            return None, user_name, False, session_id
+
+        db = hdbfs.Database()
+        if( access_level >= model.ACCESS_LEVEL_EDIT ):
+            db.enable_write_access()
+
+        return db, user_name, (access_level >= model.ACCESS_LEVEL_ADMIN), session_id
+
     def get_host( self ):
 
         return self.cfg['host']
@@ -48,13 +79,49 @@ class Server:
     @cherrypy.expose
     def index( self ):
 
-        db = hdbfs.Database()
-        all_tags = db.all_tags()
+        db, username, is_admin, session_id = self.__get_session()
+
+        if( db is not None ):
+            all_tags = db.all_tags()
+        else:
+            all_tags = None
 
         tmpl = loader.load( 'index.html' )
         stream = tmpl.generate( taglist = all_tags,
-                                logged_in = True,
-                                is_admin = True )
+                                username = username,
+                                is_admin = is_admin )
+        return stream.render( 'html', doctype = 'html' )    
+
+    @cherrypy.expose
+    def login( self ):
+
+        tmpl = loader.load( 'tabs/login.html' )
+        stream = tmpl.generate()
+        return stream.render( 'html', doctype = 'html' )    
+
+    @cherrypy.expose
+    def do_login( self, username, password ):
+
+        access = web_session.WebSessionAccess()
+        session_id = self.__get_session_id( access )
+
+        success = access.login( session_id, username, password )
+
+        tmpl = loader.load( 'login.html' )
+        stream = tmpl.generate( username = username,
+                                success = success )
+        return stream.render( 'html', doctype = 'html' )    
+
+    @cherrypy.expose
+    def do_logout( self ):
+
+        access = web_session.WebSessionAccess()
+        session_id = self.__get_session_id( access )
+
+        access.logout( session_id )
+
+        tmpl = loader.load( 'logout.html' )
+        stream = tmpl.generate()
         return stream.render( 'html', doctype = 'html' )    
 
     @cherrypy.expose
@@ -67,7 +134,7 @@ class Server:
     @cherrypy.expose
     def taglist( self ):
 
-        db = hdbfs.Database()
+        db = self.__get_session()[0]
         all_tags = db.all_tags()
 
         tmpl = loader.load( 'tabs/taglist.html' )
@@ -78,11 +145,13 @@ class Server:
     def callback_new( self ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
+        db, username, is_admin, session_id = self.__get_session()
+
         cl = cherrypy.request.headers['Content-Length']
         data = cherrypy.request.body.read( int( cl ) )
         data = json.loads( data )
 
-        jsif = json_interface.JsonInterface()
+        jsif = json_interface.JsonInterface( db, session_id )
         result = jsif.execute( data )
 
         jsif.close()
@@ -92,7 +161,7 @@ class Server:
     @cherrypy.expose
     def img( self, id = None, exp = None, gen = None ):
 
-        db = hdbfs.Database()
+        db = self.__get_session()[0]
 
         try:
             # The thumb cache requires the ability to write to the database

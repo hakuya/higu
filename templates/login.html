@@ -1,0 +1,15 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+<head>
+ <title>Login</title>
+ <meta http-equiv="refresh" content="2; url=/" />
+</head>
+<body>
+ <py:if test='success'>
+  <h2>Logged on as ${username}</h2>
+ </py:if>
+ <py:if test='not success'>
+  <h2>Incorrect username or password</h2>
+ </py:if>
+</body></html>

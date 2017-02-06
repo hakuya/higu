@@ -61,9 +61,11 @@ def json_err( err, emsg = None ):
 
 class JsonInterface:
 
-    def __init__( self ):
+    def __init__( self, db, session_id ):
 
-        self.cache = cache.get_default_cache()
+        self.__cache = cache.get_default_cache()
+        self.__db = db
+        self.__session_id = session_id
 
     def close( self ):
 
@@ -119,26 +121,9 @@ class JsonInterface:
             higu_ver = [ hdbfs.VERSION, hdbfs.REVISION ],
             db_ver   = [ hdbfs.DB_VERSION, hdbfs.DB_REVISION ] )
 
-    def cmd_new_session( self ):
+    def cmd_info( self, targets, items ):
 
-        return json_ok( session_id = self.cache.new() )
-
-    def cmd_login( self, session_id, user, token ):
-
-        if( user == 'admin' ):
-            self.cache.enable_write_access( session_id )
-            return json_ok( write = True )
-        else:
-            return json_err( 'Login failed' )
-
-    def cmd_close_session( self, session_id ):
-
-        self.cache.close( session_id )
-        return json_ok()
-
-    def cmd_info( self, session_id, targets, items ):
-
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         targets = map( db.get_object_by_id, targets )
 
@@ -207,9 +192,9 @@ class JsonInterface:
 
         return json_ok( info = results )
 
-    def cmd_tag( self, session_id, targets, **args ):
+    def cmd_tag( self, targets, **args ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         targets = map( db.get_object_by_id, targets )
 
@@ -240,18 +225,18 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rename( self, session_id, target, name, saveold = False ):
+    def cmd_rename( self, target, name, saveold = False ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         target = db.get_object_by_id( target )
         target.set_name( name, saveold )
 
         return json_ok()
 
-    def cmd_group_deorder( self, session_id, group ):
+    def cmd_group_deorder( self, group ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.OrderedGroup ) )
@@ -260,9 +245,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_reorder( self, session_id, group, items ):
+    def cmd_group_reorder( self, group, items ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.OrderedGroup ) )
@@ -272,9 +257,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_taglist( self, session_id ):
+    def cmd_taglist( self ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         tags = db.all_tags()
         tags = map( lambda x: x.get_name(), tags )
@@ -283,7 +268,7 @@ class JsonInterface:
 
     def cmd_search( self, data ):
 
-        db = self.cache.get_db( data['session_id'] )
+        db = self.__db
 
         if( data.has_key( 'mode' ) ):
             # Search by directive
@@ -401,8 +386,8 @@ class JsonInterface:
                     order = order, rsort = rsort )
 
         # Register the result set
-        sel = self.cache.register_selection(
-                        data['session_id'], rs )
+        sel = self.__cache.register_selection(
+                        self.__session_id, rs )
         selid = sel.get_uuid()
 
         if( data.has_key( 'index' ) ):
@@ -425,16 +410,16 @@ class JsonInterface:
                     index = idx,
                     first = sel[idx], )
         else:
-            self.cache.close_selection(
-                    data['session_id'], selid )
+            self.__cache.close_selection(
+                    self.__session_id, selid )
             return json_ok( results = 0 )
 
-    def cmd_selection_fetch( self, session_id, selection, index ):
+    def cmd_selection_fetch( self, selection, index ):
 
         sel_id = selection
         idx = index
 
-        sel = self.cache.fetch_selection( session_id, sel_id )
+        sel = self.__cache.fetch_selection( self.__session_id, sel_id )
         try:
             obj_id = sel[idx]
         except IndexError:
@@ -442,21 +427,21 @@ class JsonInterface:
 
         return json_ok( object_id = obj_id )
 
-    def cmd_selection_close( self, session_id, selection ):
+    def cmd_selection_close( self, selection ):
 
         if( not isinstance( selection, str ) ):
             return json_err( 'argument', 'selection is not a valid selection id' )
 
         try:
-            self.cache.close_selection( session_id, selection )
+            self.__cache.close_selection( self.__session_id, selection )
         except KeyError:
             pass
         
         return json_ok()
 
-    def cmd_group_create( self, session_id, targets ):
+    def cmd_group_create( self, targets ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         targets = map( db.get_object_by_id, targets )
         for target in targets:
@@ -470,9 +455,9 @@ class JsonInterface:
 
         return json_ok( group = group.get_id() )
 
-    def cmd_group_delete( self, session_id, group ):
+    def cmd_group_delete( self, group ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.Album ) )
@@ -481,9 +466,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_append( self, session_id, group, targets ):
+    def cmd_group_append( self, group, targets ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.Album ) )
@@ -495,9 +480,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_remove( self, session_id, group, targets ):
+    def cmd_group_remove( self, group, targets ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.Album ) )
@@ -509,9 +494,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_gather_tags( self, session_id, target ):
+    def cmd_gather_tags( self, target ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         obj = db.get_object_by_id( target )
 
@@ -538,31 +523,31 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_tag_delete( self, session_id, tag ):
+    def cmd_tag_delete( self, tag ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         db.delete_tag( tag )
         return json_ok()
 
-    def cmd_tag_move( self, session_id, tag, target ):
+    def cmd_tag_move( self, tag, target ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         db.move_tag( tag, target )
         return json_ok()
 
-    def cmd_tag_copy( self, session_id, tag, target ):
+    def cmd_tag_copy( self, tag, target ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         db.copy_tag( tag, target )
         return json_ok()
 
-    def cmd_set_duplication( self, session_id, original,
+    def cmd_set_duplication( self, original,
                              duplicates = [], variants = [] ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         original = db.get_object_by_id( original )
         
@@ -576,9 +561,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_clear_duplication( self, session_id, targets ):
+    def cmd_clear_duplication( self, targets ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         targets = map( db.get_object_by_id, targets )
 
@@ -587,9 +572,9 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rotate( self, session_id, target, rot ):
+    def cmd_rotate( self, target, rot ):
 
-        db = self.cache.get_db( session_id )
+        db = self.__db
 
         target = db.get_object_by_id( target )
         target.rotate( rot )

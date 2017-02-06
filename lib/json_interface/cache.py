@@ -6,14 +6,14 @@ import hdbfs
 
 class Cacheable:
 
-    def __init__( self ):
+    def __init__( self, item_id ):
 
-        self.uuid = uuid.uuid4().hex
+        self.item_id = item_id
         self.access_time = time.time()
 
-    def get_uuid( self ):
+    def get_id( self ):
 
-        return self.uuid
+        return self.item_id
 
     def touch( self ):
 
@@ -35,18 +35,18 @@ class CacheSet:
 
     def register( self, item ):
 
-        self.items[item.get_uuid()] = item
+        self.items[item.get_id()] = item
 
-    def get( self, item_uuid ):
+    def get( self, item_id ):
 
-        item = self.items[item_uuid]
+        item = self.items[item_id]
         item.touch()
         
         return item
 
-    def remove( self, item_uuid ):
+    def remove( self, item_id ):
 
-        del self.items[item_uuid]
+        del self.items[item_id]
 
     def flush( self ):
 
@@ -56,13 +56,13 @@ class CacheSet:
         for item in [item for item in self.items.values()
                         if( item.is_expired() ) ]:
 
-            del self.items[item.get_uuid()]
+            del self.items[item.get_id()]
 
 class Selection( Cacheable ):
 
     def __init__( self, results ):
 
-        Cacheable.__init__( self )
+        Cacheable.__init__( self, uuid.uuid4().hex )
 
         if( isinstance( results, list ) ):
             self.loaded = results
@@ -95,20 +95,15 @@ class Selection( Cacheable ):
 
 class Session( Cacheable ):
 
-    def __init__( self ):
+    def __init__( self, session_id ):
 
-        Cacheable.__init__( self )
+        Cacheable.__init__( self, session_id )
         
         self.selections = CacheSet()
-        self.write_access = False
 
     def flush( self ):
 
         self.selections.flush()
-
-    def enable_write_access( self ):
-
-        self.write_access = True
 
     def register_selection( self, selection ):
 
@@ -125,14 +120,6 @@ class Session( Cacheable ):
 
         self.selections.remove( sel_id )
 
-    def get_db( self ):
-
-        db = hdbfs.Database()
-        if( self.write_access ):
-            db.enable_write_access()
-
-        return db
-
 class SessionCache:
 
     def __init__( self ):
@@ -145,48 +132,50 @@ class SessionCache:
         with self.lock:
             self.sessions.flush()
 
-    def new( self ):
+    def drop( self, session_id ):
 
         with self.lock:
-            session = Session()
-            self.sessions.register( session )
-
-            return session.get_uuid()
-
-    def enable_write_access( self, session_id ):
-
-        with self.lock:
-            session = self.sessions.get( session_id )
-            session.enable_write_access()
-
-    def close( self, session_id ):
-
-        with self.lock:
-            self.sessions.remove( session_id )
-
-    def get_db( self, session_id ):
-
-        with self.lock:
-            session = self.sessions.get( session_id )
-            return session.get_db()
+            try:
+                self.sessions.remove( session_id )
+            except KeyError:
+                pass
 
     def register_selection( self, session_id, selection ):
 
         with self.lock:
-            session = self.sessions.get( session_id )
+            try:
+                session = self.sessions.get( session_id )
+            except KeyError:
+                session = Session( session_id )
+                self.sessions.register( session )
+
             return session.register_selection( selection )
 
     def fetch_selection( self, session_id, selection_id ):
 
         with self.lock:
-            session = self.sessions.get( session_id )
-            return session.fetch_selection( selection_id )
+            try:
+                session = self.sessions.get( session_id )
+            except KeyError:
+                return None
+
+            try:
+                return session.fetch_selection( selection_id )
+            except KeyError:
+                return None
 
     def close_selection( self, session_id, selection_id ):
 
         with self.lock:
-            session = self.sessions.get( session_id )
-            session.close_selection( selection_id )
+            try:
+                session = self.sessions.get( session_id )
+            except KeyError:
+                return
+
+            try:
+                session.close_selection( selection_id )
+            except KeyError:
+                return
 
 default_cache = None
 

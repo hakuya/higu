@@ -58,5 +58,12 @@ class RequirementCases( unittest.TestCase ):
         self.assertTrue( ver[0] >= 1,
                 'PIL must be at least version 1.0' )
 
+    def test_bcrypt( self ):
+
+        try:
+            import bcrypt
+        except ImportError:
+            self.fail( 'bcrypt is not installed' )
+
 if( __name__ == '__main__' ):
     unittest.main()

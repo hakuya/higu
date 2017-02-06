@@ -225,6 +225,7 @@ def dispose():
     global dbfile
     global Session
 
-    Session = None
-    dbfile.dispose()
-    dbfile = None
+    if( dbfile is not None ):
+        Session = None
+        dbfile.dispose()
+        dbfile = None
