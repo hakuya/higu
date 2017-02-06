@@ -388,7 +388,7 @@ class JsonInterface:
         # Register the result set
         sel = self.__cache.register_selection(
                         self.__session_id, rs )
-        selid = sel.get_uuid()
+        selid = sel.get_id()
 
         if( data.has_key( 'index' ) ):
             idx = data['index']
