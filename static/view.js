@@ -9,6 +9,7 @@ var TABS_TEMPLATE = "<li><a href='#{href}'>#{label}</a> <span class='ui-icon ui-
 var tabs_elem = null;
 var tabs_counter = 1;
 
+var login_tab = null;
 var admin_tab = null;
 
 /**
@@ -76,6 +77,51 @@ TagslistTab = function()
     {
         this.on_content_invalidated();
     };
+
+/**
+ * class AdminTab
+ */
+LoginTab = function()
+
+    // Constructor
+    {
+        this.elem = create_tab( "Login" );
+        this.elem.data( 'obj', this );
+
+        this.load_content();
+    };
+
+    LoginTab.prototype.on_content_ready = function( response )
+    {
+        if( response != null ) {
+            this.elem.html( response );
+        }
+    };
+
+    LoginTab.prototype.on_close = function()
+    {
+        login_tab = null;
+        tabs.remove( this.elem );
+    };
+
+    LoginTab.prototype.load_content = function()
+    {
+        thiz = this;
+
+        $.ajax( {
+            url:            '/login',
+            type:           'GET',
+            contentType:    'text/html',
+            success:        function( response ) {
+                thiz.on_content_ready( response );
+            },
+            error:          function( xhr ) {
+                dialogs.show_error_dialog( xhr.responseText );
+            }
+        } );
+    };
+
+    LoginTab.prototype.on_event = function( e ) {}
 
 /**
  * class AdminTab
@@ -385,6 +431,19 @@ public_create_display_tab = function( title, provider )
 }
 
 /**
+ * show_login_tab() - shows the login tab
+ */
+public_show_login_tab = function()
+{
+    if( login_tab != null ) {
+        public_select( login_tab );
+        return;
+    }
+
+    login_tab = new LoginTab();
+}
+
+/**
  * show_admin_tab() - shows the admin tab
  */
 public_show_admin_tab = function()
@@ -628,6 +687,7 @@ return {
     on_select: public_on_select,
     select: public_select,
     create_display_tab: public_create_display_tab,
+    show_login_tab: public_show_login_tab,
     show_admin_tab: public_show_admin_tab,
     remove: public_remove,
     Provider: public_Provider,

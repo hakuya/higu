@@ -1,27 +1,5 @@
-session_id = null;
-
 window_width = 0;
 window_height = 0;
-
-function init_session() {
-    var request = { action: 'new_session' };
-
-    response = load_sync( request );
-    if( response.result == 'ok' ) {
-        session_id = response.session_id;
-    }
-
-    var request = {
-        action: 'login',
-        user: 'admin',
-        token: 'xxx',
-    };
-    load_sync( request );
-}
-
-function get_session() {
-    return session_id;
-}
 
 function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
@@ -51,10 +29,6 @@ function do_show_html( target, response )
 
 function load_async( request, obj, callback, data )
 {
-    if( session_id != null ) {
-        request.session_id = session_id;
-    }
-
     $.ajax( {
         url:            '/callback_new',
         type:           'POST',
@@ -75,10 +49,6 @@ function load_sync( request )
 {
     result = null;
 
-    if( session_id != null ) {
-        request.session_id = session_id;
-    }
-    
     $.ajax( {
         url:            '/callback_new',
         type:           'POST',
@@ -137,8 +107,6 @@ function activate_links( par )
 }
 
 $( function() {
-init_session();
-
 $(document).keypress( function( e ) {
     if( $( '.ui-dialog' ).is( ':visible' ) || $( '.nokb' ).is( ':focus' ) ) {
         return;
@@ -194,6 +162,10 @@ $( 'a[href="#allimg"]' ).click( function() {
 $( 'a[href="#untagged"]' ).click( function() {
     provider = new tabs.SearchProvider( { mode: 'untagged' } );
     tabs.create_display_tab( 'Untagged', provider );
+});
+
+$( 'a[href="#login"]' ).click( function() {
+    tabs.show_login_tab();
 });
 
 $( 'a[href="#admin"]' ).click( function() {

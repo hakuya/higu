@@ -4,15 +4,17 @@ import shutil
 import os
 
 import hdbfs
+import higu
 
 class TestCase( unittest.TestCase ):
 
-    def init_env( self, do_init = True ):
+    def init_env( self, do_init = True, web_init = False ):
 
         self.data_dir = 'test/data'
         self.work_dir = tempfile.mkdtemp()
         self.cfg_file_path = os.path.join( self.work_dir, 'test.cfg' )
         self.db_path = os.path.join( self.work_dir, 'test.db' )
+        self.web_db = os.path.join( self.work_dir, 'web.db' )
 
         self.red = 'red_sq.png'
         self.yellow = 'yellow_sq.png'
@@ -39,9 +41,13 @@ class TestCase( unittest.TestCase ):
         if( do_init ):
             self._init_hdbfs()
 
+        if( web_init ):
+            higu.model.init( self.web_db )
+
     def uninit_env( self ):
 
         hdbfs.dispose()
+        higu.model.dispose()
         shutil.rmtree( self.work_dir )
 
     def _init_hdbfs( self ):

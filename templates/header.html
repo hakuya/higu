@@ -2,8 +2,9 @@
      xmlns:py="http://genshi.edgewall.org/"
      id='header'>
 
-    <py:if test='logged_in'>
+    <py:if test='username is not None'>
         <form id='tagsearch' onsubmit='return false'>
+        <a href='/do_logout'>logout</a> /
         <a href='#allimg'>all</a> /
         <a href='#untagged'>untagged</a> /
         <a href='#newsel'>selection</a> /
@@ -13,7 +14,7 @@
         <input type="text" class='nokb'/>
         </form>
     </py:if>
-    <py:if test='not logged_in'>
+    <py:if test='username is None'>
         <a href='#login'>login</a>
     </py:if>
 </div>

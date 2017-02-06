@@ -38,6 +38,12 @@ if [ -z $1 ] || [ $1 == "insert" ]; then
     python test/insert_cases.py || exit $?
 fi
 
+if [ -z $1 ] || [ $1 == "web" ]; then
+    echo 'Testing web session'
+    echo '============================================================'
+    python test/websession_cases.py || exit $?
+fi
+
 if [ -z $1 ] || [ $1 == "legacy" ]; then
     echo 'Creating databases for next tests'
     echo '============================================================'
