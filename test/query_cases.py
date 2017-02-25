@@ -12,15 +12,20 @@ class HiguQueryCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        red_obj = h.register_file( self._load_data( self.red ), False )
-        yellow_obj = h.register_file( self._load_data( self.yellow ), False )
-        green_obj = h.register_file( self._load_data( self.green ), False )
-        cyan_obj = h.register_file( self._load_data( self.cyan ), False )
-        blue_obj = h.register_file( self._load_data( self.blue ), False )
-        magenta_obj = h.register_file( self._load_data( self.magenta ), False )
-        white_obj = h.register_file( self._load_data( self.white ), False )
-        grey_obj = h.register_file( self._load_data( self.grey ), False )
-        black_obj = h.register_file( self._load_data( self.black ), False )
+        red_obj = h.register_file( self._load_data( self.red ) )
+        yellow_obj = h.register_file( self._load_data( self.yellow ) )
+        green_obj = h.register_file( self._load_data( self.green ) )
+        cyan_obj = h.register_file( self._load_data( self.cyan ) )
+        blue_obj = h.register_file( self._load_data( self.blue ) )
+        magenta_obj = h.register_file( self._load_data( self.magenta ) )
+        white_obj = h.register_file( self._load_data( self.white ) )
+        grey_obj = h.register_file( self._load_data( self.grey ) )
+        black_obj = h.register_file( self._load_data( self.black ) )
+
+        red_obj['test'] = 1
+        yellow_obj['test'] = 2
+        green_obj['test'] = 3
+        blue_obj['test'] = 4
 
         warm_tag = h.make_tag( 'warm' )
         cool_tag = h.make_tag( 'cool' )
@@ -98,8 +103,11 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_require( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            require = [ self.warm_tag, self.paint_tag ] ) ]
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.warm_tag ) )
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.paint_tag ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj in rs, 'Red not in result' )
         self.assertTrue( self.yellow_obj in rs, 'Yellow not in result' )
@@ -108,8 +116,11 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_add( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            add = [ self.warm_tag, self.paint_tag ] ) ]
+        query = hdbfs.query.Query()
+        query.add_or_constraint( hdbfs.query.TagConstraint( self.warm_tag ) )
+        query.add_or_constraint( hdbfs.query.TagConstraint( self.paint_tag ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj in rs, 'Red not in result' )
         self.assertTrue( self.yellow_obj in rs, 'Yellow not in result' )
@@ -120,8 +131,11 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_sub( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            sub = [ self.warm_tag, self.paint_tag ] ) ]
+        query = hdbfs.query.Query()
+        query.add_not_constraint( hdbfs.query.TagConstraint( self.warm_tag ) )
+        query.add_not_constraint( hdbfs.query.TagConstraint( self.paint_tag ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.green_obj in rs, 'Green not in result' )
         self.assertTrue( self.cyan_obj in rs, 'Cyan not in result' )
@@ -133,9 +147,12 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_add_sub( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            add = [ self.rgb_tag, self.cmyk_tag ],
-            sub = [ self.cool_tag ] ) ]
+        query = hdbfs.query.Query()
+        query.add_or_constraint( hdbfs.query.TagConstraint( self.rgb_tag ) )
+        query.add_or_constraint( hdbfs.query.TagConstraint( self.cmyk_tag ) )
+        query.add_not_constraint( hdbfs.query.TagConstraint( self.cool_tag ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj in rs, 'Red not in result' )
         self.assertTrue( self.yellow_obj in rs, 'Yellow not in result' )
@@ -146,9 +163,12 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_require_add( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            require = [ self.warm_tag, self.paint_tag ],
-            add = [ self.cool_tag ] ) ]
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.warm_tag ) )
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.paint_tag ) )
+        query.add_or_constraint( hdbfs.query.TagConstraint( self.cool_tag ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj in rs, 'Red not in result' )
         self.assertTrue( self.yellow_obj in rs, 'Yellow not in result' )
@@ -160,10 +180,13 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_require_add_sub( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            require = [ self.warm_tag, self.paint_tag ],
-            add = [ self.cool_tag ],
-            sub = [ self.cmyk_tag ] ) ]
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.warm_tag ) )
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.paint_tag ) )
+        query.add_or_constraint( hdbfs.query.TagConstraint( self.cool_tag ) )
+        query.add_not_constraint( hdbfs.query.TagConstraint( self.cmyk_tag ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj in rs, 'Red not in result' )
         self.assertTrue( self.green_obj in rs, 'Green not in result' )
@@ -173,9 +196,11 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_order_add( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            require = [ self.rgb_tag ],
-            order = 'add' ) ]
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.rgb_tag ) )
+        query.set_order( 'add' )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj == rs[0], 'Red not in pos 0' )
         self.assertTrue( self.green_obj == rs[1], 'Green not in pos 1' )
@@ -185,15 +210,61 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_order_radd( self ):
 
-        rs = [ r for r in self.h.lookup_objects(
-            require = [ self.rgb_tag ],
-            order = 'add', rsort = True ) ]
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.rgb_tag ) )
+        query.set_order( 'add', True )
+
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.red_obj == rs[2], 'Red not in pos 2' )
         self.assertTrue( self.green_obj == rs[1], 'Green not in pos 1' )
         self.assertTrue( self.blue_obj == rs[0], 'Blue not in pos 0' )
 
         self.assertTrue( len( rs ) == 3, 'Result size mismatch' )
+
+    def test_query_by_name( self ):
+
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.StringConstraint( self.red ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
+
+        self.assertTrue( self.red_obj in rs, 'Red not in result' )
+        self.assertTrue( len( rs ) == 1, 'Result size mismatch' )
+
+    def test_query_by_name_subset( self ):
+
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.StringConstraint( 'e_sq.' ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
+
+        self.assertTrue( self.blue_obj in rs, 'Blue not in result' )
+        self.assertTrue( self.white_obj in rs, 'White not in result' )
+        self.assertTrue( len( rs ) == 2, 'Result size mismatch' )
+
+    def test_query_by_name_wildcard( self ):
+
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.StringConstraint( 'gr*sq' ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
+
+        self.assertTrue( self.green_obj in rs, 'Green not in result' )
+        self.assertTrue( self.grey_obj in rs, 'Grey not in result' )
+        self.assertTrue( len( rs ) == 2, 'Result size mismatch' )
+
+    def test_query_by_parameters( self ):
+
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.ParameterConstraint( 'test', '>=', 2 ) )
+        query.add_require_constraint( hdbfs.query.ParameterConstraint( 'test', '<=', 3 ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
+
+        self.assertTrue( self.yellow_obj in rs, 'Yellow not in result' )
+        self.assertTrue( self.green_obj in rs, 'Green not in result' )
+        self.assertTrue( len( rs ) == 2, 'Result size mismatch' )
 
 if( __name__ == '__main__' ):
     unittest.main()

@@ -27,10 +27,15 @@ class LegacyCases( testutil.TestCase ):
 
     def _lookup( self, h, tags = [], type = None ):
 
-        tags = map( lambda x: h.get_tag( x ), tags )
+        tags = map( lambda x: hdbfs.query.TagConstraint( x ), tags )
 
-        return [ obj for obj in
-                h.lookup_objects( tags, type = type ) ]
+        query = hdbfs.query.Query()
+        query.set_constraints( tags )
+        
+        if( type is not None ):
+            query.set_type( type )
+        
+        return [ obj for obj in query.execute( h ) ]
 
     def subtest_ensure_files_present( self, ver ):
 

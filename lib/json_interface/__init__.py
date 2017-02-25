@@ -282,108 +282,39 @@ class JsonInterface:
 
         else:
             if( data.has_key( 'query' ) ):
-                # Search by query
-                query = data['query']
-                strict = False
-                order = 'rand'
-                rsort = False
-                obj_type = None
-
-                clauses = query.split( ' ' )
-                clauses = [i for i in clauses if( len( i ) > 0 )]
-
-                commands = [i[1:] for i in clauses if( i[0] == '$' )]
-                add = [i[1:] for i in clauses if( i[0] == '?' )]
-                sub = [i[1:] for i in clauses if( i[0] == '!' )]
-                req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
-
-                for cmd in commands:
-                    if( cmd == 'strict' ):
-                        strict = True
-                    elif( cmd == 'sort:add' ):
-                        order = 'add'
-                    elif( cmd == 'sort:radd' ):
-                        order = 'add'
-                        rsort = True
-                    elif( cmd == 'type:orig' ):
-                        obj_type = hdbfs.TYPE_FILE;
-                    elif( cmd == 'type:dup' ):
-                        obj_type = hdbfs.TYPE_FILE_DUP;
-                    elif( cmd == 'type:var' ):
-                        obj_type = hdbfs.TYPE_FILE_VAR;
-                    elif( cmd == 'type:album' ):
-                        obj_type = hdbfs.TYPE_ALBUM;
-                    else:
-                        raise ValueError, 'Bad Command'
+                try:
+                    query = hdbfs.query.build_query( data['query'] )
+                except ( KeyError, ValueError, ), e:
+                    return json_err( e )
 
             else:
+                query = hdbfs.query.Query()
+
                 # Search by parts
                 if( data.has_key( 'strict' ) and data['strict'] ):
-                    strict = True
-                else:
-                    strict = False
+                    query.set_strict()
 
                 if( data.has_key( 'sort' ) and not data['randomize'] ):
-                    order = data['sort']
+                    if( data.has_key( 'rsort' ) and data['rsort'] ):
+                        desc = True
+                    else:
+                        desc = False
 
-                if( data.has_key( 'rsort' ) and data['rsort'] ):
-                    rsort = True
-                else:
-                    rsort = False
+                    query.add_sort( data['sort'], desc )
+
 
                 req = data['req'] if data.has_key( 'req' ) else []
                 add = data['add'] if data.has_key( 'add' ) else []
                 sub = data['sub'] if data.has_key( 'sub' ) else []
 
-            def create_constraint( pstr ):
+                try:
+                    req = map( higu.query.create_constraint, req )
+                    add = map( higu.query.create_constraint, req )
+                    sub = map( higu.query.create_constraint, req )
+                except ( KeyError, ValueError, ), e:
+                    return json_err( e )
 
-                ops = [ ( '>=', hdbfs.ParameterConstraint.Set_ge, ),
-                        ( '<=', hdbfs.ParameterConstraint.Set_le, ),
-                        ( '>', hdbfs.ParameterConstraint.Set_gt, ),
-                        ( '<', hdbfs.ParameterConstraint.Set_lt, ),
-                        ( '!=', hdbfs.ParameterConstraint.Set_ne, ),
-                        ( '=', hdbfs.ParameterConstraint.Set_eq, ), ]
-                int_ops = [ '>=', '<=', '>', '<' ]
-
-                key = None
-                op = None
-                value = None
-
-                for i in ops:
-                    try:
-                        idx = pstr.index( i[0] )
-                        key = pstr[0:idx]
-                        op = i
-                        value = pstr[idx+len(i[0]):]
-                        break
-                    except:
-                        pass
-
-                if( key is None ):
-                    return db.get_tag( pstr )
-
-                if( len( key ) == 0 ):
-                    raise ValueError, 'Bad Parameter Constraint'
-
-                if( op[0] in int_ops ):
-                    value = int( value )
-
-                c = hdbfs.ParameterConstraint( key )
-                i[1]( c, value )
-
-                return c
-
-
-            try:
-                req = map( create_constraint, req )
-                add = map( create_constraint, add )
-                sub = map( create_constraint, sub )
-            except ( KeyError, ValueError, ), e:
-                return json_err( e )
-
-            rs = db.lookup_objects( req, add, sub,
-                    strict, type = obj_type,
-                    order = order, rsort = rsort )
+            rs = query.execute( db )
 
         # Register the result set
         sel = self.__cache.register_selection(
