@@ -20,13 +20,13 @@ if [ -z $1 ] || [ $1 == "imgdb" ]; then
     python test/imgdb_cases.py || exit $?
 fi
 
-if [ -z $1 ] || [ $1 == "hdbfs" ]; then
+if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_core" ]; then
     echo 'Testing HDBFS core library and database functions'
     echo '============================================================'
     python test/higu_cases.py || exit $?
 fi
 
-if [ -z $1 ] || [ $1 == "hdbfs" ]; then
+if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_query" ]; then
     echo 'Testing HDBFS core library query functions'
     echo '============================================================'
     python test/query_cases.py || exit $?

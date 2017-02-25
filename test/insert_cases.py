@@ -404,7 +404,9 @@ class InsertCases( testutil.TestCase ):
         self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
 
-        it = h.lookup_objects( [ h.get_tag( 'bw' ) ] ).__iter__()
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( 'bw' ) )
+        it = query.execute( h ).__iter__()
 
         self.assertEqual( it.next(), al,
                 'Unexpected tagged item' )
@@ -425,7 +427,9 @@ class InsertCases( testutil.TestCase ):
         self._run( [ white, grey, black ], album = 'bw', text = bw_desc )
 
         h = hdbfs.Database()
-        al = h.lookup_objects( type = hdbfs.TYPE_ALBUM ).__iter__().next()
+        query = hdbfs.query.Query()
+        query.set_type( hdbfs.TYPE_ALBUM )
+        al = query.execute( h ).__iter__().next()
 
         self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
