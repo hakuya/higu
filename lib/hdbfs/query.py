@@ -16,8 +16,8 @@ class TagConstraint:
             tag = db.get_object_by_id( self.__tag )
         else:
             tag = db.get_tag( self.__tag )
-        return db.session.query( model.Relation.child ) \
-                         .filter( model.Relation.parent == tag.obj.id )
+        return db.session.query( model.Relation.child_id ) \
+                 .filter( model.Relation.parent_id == tag.obj.object_id )
 
 class StringConstraint:
 
@@ -37,8 +37,8 @@ class StringConstraint:
             if( sql_s[-1] != '%' ):
                 sql_s = sql_s + '%'
 
-        return db.session.query( model.Object.id ) \
-                         .filter( model.Object.name.like( sql_s ) )
+        return db.session.query( model.Object.object_id ) \
+                 .filter( model.Object.name.like( sql_s ) )
 
 class UnboundConstraint:
 
@@ -66,17 +66,17 @@ class ParameterConstraint:
         self.__key = key
 
         if( op == '=' ):
-            self.__constraint = (model.Metadata.value == str( value ))
+            self.__constraint = (model.ObjectMetadata.value == str( value ))
         elif( op == '!=' ):
-            self.__constraint = (model.Metadata.value != str( value ))
+            self.__constraint = (model.ObjectMetadata.value != str( value ))
         elif( op == '>' ):
-            self.__constraint = (model.Metadata.num > int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric > int( value ))
         elif( op == '>=' ):
-            self.__constraint = (model.Metadata.num >= int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric >= int( value ))
         elif( op == '<' ):
-            self.__constraint = (model.Metadata.num < int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric < int( value ))
         elif( op == '<=' ):
-            self.__constraint = (model.Metadata.num <= int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric <= int( value ))
         else:
             assert False
 
@@ -84,8 +84,8 @@ class ParameterConstraint:
 
         from sqlalchemy import and_
 
-        return db.session.query( model.Metadata.id ) \
-                         .filter( and_( model.Metadata.key == self.__key, \
+        return db.session.query( model.ObjectMetadata.object_id ) \
+                         .filter( and_( model.ObjectMetadata.key == self.__key, \
                                         self.__constraint ) )
 
 class Query:
@@ -162,33 +162,33 @@ class Query:
             if( add_q is not None ):
                 q = q.union( add_q )
 
-            query = query.filter( model.Object.id.in_( q ) )
+            query = query.filter( model.Object.object_id.in_( q ) )
         elif( add_q is not None ):
-            query = query.filter( model.Object.id.in_( add_q ) )
+            query = query.filter( model.Object.object_id.in_( add_q ) )
 
         if( sub_q is not None ):
-            query = query.filter( ~model.Object.id.in_( sub_q ) )
+            query = query.filter( ~model.Object.object_id.in_( sub_q ) )
 
         if( self.__obj_type is not None ):
-            query = query.filter( model.Object.type == self.__obj_type )
+            query = query.filter( model.Object.object_type == self.__obj_type )
         else:
-            query = query.filter( model.Object.type.in_( [
-                hdbfs.TYPE_FILE, hdbfs.TYPE_FILE_VAR, hdbfs.TYPE_ALBUM ] ) )
+            query = query.filter( model.Object.object_type.in_( [
+                hdbfs.TYPE_FILE, hdbfs.TYPE_ALBUM ] ) )
 
         if( self.__order_by == 'rand' ):
             query = query.order_by( 'RANDOM()' )
         elif( self.__order_by == 'add' ):
             if( not self.__order_desc ):
-                query = query.order_by( model.Object.id )
+                query = query.order_by( model.Object.object_id )
             else:
-                query = query.order_by( model.Object.id.desc() )
+                query = query.order_by( model.Object.object_id.desc() )
         elif( self.__order_by == 'name' ):
             if( not self.__order_desc ):
                 query = query.order_by( model.Object.name,
-                                        model.Object.id )
+                                        model.Object.object_id )
             else:
                 query = query.order_by( model.Object.name.desc(),
-                                        model.Object.id.desc() )
+                                        model.Object.object_id.desc() )
 
         return hdbfs.ModelObjToHiguObjIterator( db, query ) 
 
@@ -250,13 +250,9 @@ def build_query( s ):
             if( len( cmd ) < 2 ):
                 raise ValueError, 'Type command needs an argument'
 
-            if( cmd[1] == 'orig' ):
+            if( cmd[1] == 'file' ):
                 query.set_type( hdbfs.TYPE_FILE );
-            elif( cmd == 'dup' ):
-                query.set_type( hdbfs.TYPE_FILE_DUP );
-            elif( cmd == 'var' ):
-                query.set_type( hdbfs.TYPE_FILE_VAR );
-            elif( cmd == 'album' ):
+            elif( cmd[1] == 'album' ):
                 query.set_type( hdbfs.TYPE_ALBUM );
             else:
                 raise ValueError, 'Bad type'
