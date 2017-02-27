@@ -134,17 +134,19 @@ class InsertCases( testutil.TestCase ):
         self.assertFalse( obj is None,
                 'Image not in DB' )
 
-        h.imgdb.delete( obj.get_id() )
+        s = obj.get_root_stream()
+        h.imgdb.delete( s.get_stream_id(),
+                        s.get_priority() )
         h.imgdb.commit()
 
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertFalse( img_fd is not None,
                 'Remove failed' )
 
         black = self._load_data( self.black )
         self._run( black, recover = True )
 
-        self.assertTrue( self._diff_data( obj.read(), self.black ),
+        self.assertTrue( self._diff_data( obj.get_root_stream().read(), self.black ),
                 'Image not recovered' )
 
         self.assertFalse( os.path.exists( black ),

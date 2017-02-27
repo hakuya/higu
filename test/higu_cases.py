@@ -40,36 +40,9 @@ class HiguLibCases( testutil.TestCase ):
                     os.path.join( self.db_path, 'imgdat' ) ),
                 'Image data directory not created' )
 
-        red_fd = obj.read()
+        red_fd = obj.get_root_stream().read()
         self.assertTrue( self._diff_data( red_fd, self.red ),
                 'Image not read from library' )
-
-    def test_thumb( self ):
-
-        pass
-# TODO
-#        
-#        blue = self._load_data( self.blue )
-#
-#        h = hdbfs.Database()
-#        h.enable_write_access()
-#
-#        obj = h.register_file( blue, False )
-#
-#        orig_fd = obj.read()
-#        big_fd = obj.read_thumb( 10 )
-#        small_fd = obj.read_thumb( 4 )
-#
-#        self.assertFalse( big_fd is None,
-#                'Invalid image returned for bigger thumb' )
-#        self.assertFalse( small_fd is None,
-#                'Invalid image returned for smaller thumb' )
-#
-#        self.assertTrue( self._diff( orig_fd, big_fd ),
-#                'Bigger thumb created' )
-#        orig_fd = obj.read()
-#        self.assertFalse( self._diff( orig_fd, small_fd ),
-#                'Smaller thumb not created' )
 
     def test_delete( self ):
 
@@ -80,8 +53,8 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( yellow, False )
 
-        img_fd = obj.read()
-        tb_fd = obj.read_thumb( 4 )
+        img_fd = obj.get_root_stream().read()
+        tb_fd = obj.get_thumb_stream( 4 ).read()
         self.assertFalse( img_fd is None,
                 'Invalid image returned' )
         self.assertFalse( tb_fd is None,
@@ -90,12 +63,24 @@ class HiguLibCases( testutil.TestCase ):
         img_fd.close()
         tb_fd.close()
 
+        obj_id = obj.get_id()
+
+        s_id = obj.get_root_stream().get_stream_id()
+        s_prio = obj.get_root_stream().get_priority()
+
+        t_id = obj.get_thumb_stream( 4 ).get_stream_id()
+        t_prio = obj.get_thumb_stream( 4 ).get_priority()
+
         h.delete_object( obj )
 
-        img_fd = obj.read()
-        tb_fd = obj.read_thumb( 4 )
+        self.assertEqual( h.get_object_by_id( obj_id ), None,
+                          'Object returned by id after delete' )
+
+        img_fd = h.imgdb.read( s_id, s_prio )
         self.assertTrue( img_fd is None,
                 'Image returned after delete' )
+
+        tb_fd = h.imgdb.read( t_id, t_prio )
         self.assertTrue( tb_fd is None,
                 'Thumb returned after delete' )
 
@@ -132,7 +117,7 @@ class HiguLibCases( testutil.TestCase ):
         self.assertFalse( os.path.exists( green ),
                 'Old image was not removed' )
 
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertFalse( img_fd is None,
                 'Failed opening image' )
         img_fd.close()
@@ -147,7 +132,7 @@ class HiguLibCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( green ),
                 'Double image was removed' )
 
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertFalse( img_fd is None,
                 'Invalid image returned after double-add' )
         img_fd.close()
@@ -161,15 +146,17 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( cyan, False )
         
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertFalse( img_fd is None,
                 'Failed opening image' )
         img_fd.close()
 
-        h.imgdb.delete( obj.get_id() )
+        s = obj.get_root_stream()
+        h.imgdb.delete( s.get_stream_id(),
+                        s.get_priority() )
         h.imgdb.commit()
 
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertFalse( img_fd is not None,
                 'Remove failed' )
 
@@ -180,7 +167,7 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( cyan, False )
         
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertTrue( self._diff_data( img_fd, self.cyan ),
                 'Image not recovered' )
 
@@ -193,19 +180,22 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( magenta, False )
         
-        img_fd = obj.read()
+        img_fd = obj.get_root_stream().read()
         self.assertFalse( img_fd is None,
                 'Failed opening image' )
         img_fd.close()
 
-        img_fd = h.imgdb._debug_write( obj.get_id() )
+        s = obj.get_root_stream()
+        img_fd = h.imgdb._debug_write( s.get_stream_id(),
+                                       s.get_priority() )
 
         try:
             img_fd.write( 'this is junk' )
         finally:
             img_fd.close()
 
-        self.assertFalse( self._diff_data( obj.read(), self.magenta ),
+        self.assertFalse( self._diff_data( obj.get_root_stream().read(),
+                                           self.magenta ),
                 'Corruption failed' )
 
         magenta = self._load_data( self.magenta )
@@ -215,7 +205,8 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( magenta, False )
         
-        self.assertTrue( self._diff_data( obj.read(), self.magenta ),
+        self.assertTrue( self._diff_data( obj.get_root_stream().read(),
+                                          self.magenta ),
                 'Image not recovered' )
 
     def test_name( self ):
@@ -577,11 +568,18 @@ class HiguLibCases( testutil.TestCase ):
         wo = h.register_file( white, False )
         ko = h.register_file( black, False )
 
-        ko.set_duplicate_of( wo )
+        ko_id = ko.get_id()
+        ko_hash = ko.get_root_stream().get_hash()
 
-        self.assertFalse( wo.is_duplicate(), 'White is a duplicate' )
-        self.assertTrue( ko.is_duplicate(), 'Black is not a duplicate' )
-        self.assertTrue( ko in wo.get_duplicates(), 'Black not in duplicate list of white' )
+        h.merge_objects( wo, ko )
+
+        self.assertEqual( wo, ko, 'White and black are not duplicates' )
+        self.assertEqual( h.get_object_by_id( ko_id ), None, 'Blacks ID still exists' )
+
+        dups = wo.get_duplicates()
+        self.assertEqual( len( dups ), 1, 'Unexpected number of dups on white' )
+        self.assertEqual( dups[0].get_hash(),
+                          ko_hash, 'Black not in duplicate list of white' )
 
     def test_set_duplicate_of_variant( self ):
 
@@ -599,104 +597,21 @@ class HiguLibCases( testutil.TestCase ):
         bo = h.register_file( blue, False )
 
         go.set_variant_of( ro )
-        yo.set_duplicate_of( ro )
-        bo.set_duplicate_of( go )
+        h.merge_objects( ro, yo )
+        h.merge_objects( go, bo )
 
-        self.assertTrue( yo.get_similar_to() == ro, 'Yellow not child of red' )
-        self.assertTrue( bo.get_similar_to() == go, 'Blue not child of green' )
-        self.assertTrue( go.get_similar_to() == ro, 'Green not child of red' )
-
-        self.assertFalse( ro.is_duplicate(), 'Red is a duplicate' )
-        self.assertTrue( yo.is_duplicate(), 'Yellow is not a duplicate' )
-        self.assertFalse( go.is_duplicate(), 'Green is a duplicate' )
-        self.assertTrue( bo.is_duplicate(), 'Blue is not a duplicate' )
+        self.assertEqual( ro, yo, 'Yellow not equal to red' )
+        self.assertEqual( go, bo, 'Blue not equal to green' )
+        self.assertTrue( go in ro.get_variants(), 'Green not variant of red' )
 
         self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
-        self.assertEqual( len( yo.get_duplicates() ), 0, 'Yellow duplicate list mismatch' )
         self.assertEqual( len( go.get_duplicates() ), 1, 'Green duplicate list mismatch' )
-        self.assertEqual( len( bo.get_duplicates() ), 0, 'Blue duplicate list mismatch' )
 
-        self.assertFalse( ro.is_variant(), 'Red is a variant' )
-        self.assertTrue( go.is_variant(), 'Green is not a variant' )
+        self.assertEqual( len( ro.get_variant_of() ), 0, 'Red is a variant' )
+        self.assertEqual( len( go.get_variant_of() ), 1, 'Green is not a variant' )
 
         self.assertEqual( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
         self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
-
-    def test_duplicate_duplicate_circle( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        wo = h.register_file( white, False )
-        ko = h.register_file( black, False )
-
-        ko.set_duplicate_of( wo )
-        wo.set_duplicate_of( ko )
-
-        self.assertTrue( wo.is_duplicate(), 'White is not a duplicate' )
-        self.assertFalse( ko.is_duplicate(), 'Black is a duplicate' )
-        self.assertTrue( wo in ko.get_duplicates(), 'White not in duplicate list of black' )
-        self.assertFalse( ko in wo.get_duplicates(), 'Black in duplicate list of black' )
-
-    def test_duplicate_variant_circle( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        wo = h.register_file( white, False )
-        ko = h.register_file( black, False )
-
-        ko.set_duplicate_of( wo )
-        wo.set_variant_of( ko )
-
-        self.assertTrue( wo.is_variant(), 'White is not a variant' )
-        self.assertFalse( ko.is_duplicate(), 'Black is a duplicate' )
-        self.assertTrue( wo in ko.get_variants(), 'White not in variant list of black' )
-        self.assertFalse( ko in wo.get_duplicates(), 'Black in duplicate list of black' )
-
-    def test_variant_duplicate_circle( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        wo = h.register_file( white, False )
-        ko = h.register_file( black, False )
-
-        ko.set_variant_of( wo )
-        wo.set_duplicate_of( ko )
-
-        self.assertTrue( wo.is_duplicate(), 'White is not a duplicate' )
-        self.assertFalse( ko.is_variant(), 'Black is a variant' )
-        self.assertTrue( wo in ko.get_duplicates(), 'White not in duplicate list of black' )
-        self.assertFalse( ko in wo.get_variants(), 'Black in variant list of black' )
-
-    def test_variant_variant_circle( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        wo = h.register_file( white, False )
-        ko = h.register_file( black, False )
-
-        ko.set_variant_of( wo )
-        wo.set_variant_of( ko )
-
-        self.assertTrue( wo.is_variant(), 'White is not a variant' )
-        self.assertFalse( ko.is_variant(), 'Black is a variant' )
-        self.assertTrue( wo in ko.get_variants(), 'White not in variant list of black' )
-        self.assertFalse( ko in wo.get_variants(), 'Black in variant list of black' )
 
     def test_duplicates_moved( self ):
 
@@ -713,24 +628,30 @@ class HiguLibCases( testutil.TestCase ):
         go = h.register_file( green, False )
         bo = h.register_file( blue, False )
 
-        yo.set_duplicate_of( ro )
-        bo.set_duplicate_of( go )
-        go.set_duplicate_of( ro )
+        ro_id = ro.get_id()
+        yo_id = yo.get_id()
+        go_id = go.get_id()
+        bo_id = bo.get_id()
 
-        self.assertFalse( ro.is_duplicate(), 'Red is a duplicate' )
-        self.assertTrue( yo.is_duplicate(), 'Yellow is not a duplicate' )
-        self.assertTrue( go.is_duplicate(), 'Green is not a duplicate' )
-        self.assertTrue( bo.is_duplicate(), 'Blue is not a duplicate' )
+        ro_s_id = ro.get_root_stream().get_stream_id()
+        yo_s_id = yo.get_root_stream().get_stream_id()
+        go_s_id = go.get_root_stream().get_stream_id()
+        bo_s_id = go.get_root_stream().get_stream_id()
 
-        self.assertEqual( len( ro.get_duplicates() ), 3, 'Red duplicate list mismatch' )
-        self.assertEqual( len( yo.get_duplicates() ), 0, 'Yellow duplicate list mismatch' )
-        self.assertEqual( len( go.get_duplicates() ), 0, 'Green duplicate list mismatch' )
-        self.assertEqual( len( bo.get_duplicates() ), 0, 'Blue duplicate list mismatch' )
+        h.merge_objects( ro, yo )
+        h.merge_objects( go, bo )
+        h.merge_objects( ro, go )
 
-        dups = ro.get_duplicates()
-        self.assertTrue( yo in dups, 'Yellow not in dup list' )
-        self.assertTrue( go in dups, 'Green not in dup list' )
-        self.assertTrue( bo in dups, 'Blue not in dup list' )
+        self.assertEqual( ro.get_id(), ro_id, 'Red was removed' )
+        self.assertEqual( h.get_object_by_id( yo_id ), None, 'Yellow was not removed' )
+        self.assertEqual( h.get_object_by_id( go_id ), None, 'Green was not removed' )
+        self.assertEqual( h.get_object_by_id( bo_id ), None, 'Blue was not removed' )
+
+        dups = map( lambda x: x.get_stream_id(), ro.get_duplicates() )
+        self.assertFalse( ro_s_id in dups, 'Red in dup list' )
+        self.assertTrue( yo_s_id in dups, 'Yellow not in dup list' )
+        self.assertTrue( go_s_id in dups, 'Green not in dup list' )
+        self.assertTrue( bo_s_id in dups, 'Blue not in dup list' )
 
     def test_variants_moved( self ):
 
@@ -749,22 +670,17 @@ class HiguLibCases( testutil.TestCase ):
 
         yo.set_variant_of( ro )
         bo.set_variant_of( go )
-        go.set_duplicate_of( ro )
+        h.merge_objects( ro, go )
 
-        self.assertFalse( ro.is_duplicate(), 'Red is a duplicate' )
-        self.assertFalse( ro.is_variant(), 'Red is a variant' )
-        self.assertTrue( yo.is_variant(), 'Yellow is not a variant' )
-        self.assertTrue( go.is_duplicate(), 'Green is not a duplicate' )
-        self.assertTrue( bo.is_variant(), 'Blue is not a variant' )
+        self.assertEqual( len( ro.get_variant_of() ), 0, 'Red is a variant' )
+        self.assertEqual( len( yo.get_variant_of() ), 1, 'Yellow is not a variant' )
+        self.assertEqual( len( bo.get_variant_of() ), 1, 'Blue is not a variant' )
 
         self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
         self.assertEqual( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
-        self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
 
-        dups = ro.get_duplicates()
         variants = ro.get_variants()
         self.assertTrue( yo in variants, 'Yellow not in variant list' )
-        self.assertTrue( go in dups, 'Green not in dup list' )
         self.assertTrue( bo in variants, 'Blue not in variant list' )
 
     def test_albums_moved( self ):
@@ -788,7 +704,7 @@ class HiguLibCases( testutil.TestCase ):
         bo.assign( album, 3 )
         ro.assign( album, 1 )
 
-        yo.set_duplicate_of( go )
+        h.merge_objects( go, yo )
 
         files = album.get_files()
         self.assertEqual( len( files ), 3, 'Album size mismatch' )
@@ -820,38 +736,15 @@ class HiguLibCases( testutil.TestCase ):
 
         bo.assign( tag3 )
 
-        go.set_duplicate_of( ro )
-        bo.set_duplicate_of( ro )
+        h.merge_objects( ro, go )
+        h.merge_objects( ro, bo )
 
         self.assertEqual( len( ro.get_tags() ), 3, 'Red tag list mismatch' )
-        self.assertEqual( len( go.get_tags() ), 0, 'Green tag list mismatch' )
-        self.assertEqual( len( bo.get_tags() ), 0, 'Blue tag list mismatch' )
 
         tags = ro.get_tags()
         self.assertTrue( tag1 in tags, 'tag1 not in dup list' )
         self.assertTrue( tag2 in tags, 'tag2 not in dup list' )
         self.assertTrue( tag3 in tags, 'tag3 not in dup list' )
-
-    def test_assign_on_duplicate( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        tag = h.make_tag( 'a_tag' )
-
-        wo = h.register_file( white, False )
-        ko = h.register_file( black, False )
-
-        ko.set_duplicate_of( wo )
-
-        try:
-            ko.assign( tag )
-            self.fail( 'Did not except on assign to duplicate' )
-        except ValueError:
-            pass
 
 if( __name__ == '__main__' ):
     unittest.main()

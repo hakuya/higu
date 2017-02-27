@@ -28,6 +28,16 @@ class TestCase( unittest.TestCase ):
         self.cl_desc = 'cl_sq_desc.txt'
         self.bw_desc = 'bw_sq_desc.txt'
 
+        self.red_hash = '92a5cf2c69d16d57c5dde8e0c0d4bdb9d76bc316'
+        self.yellow_hash = 'ca90c86d1621d000f1de2071f766615417298537'
+        self.green_hash = '2cc964f5c885bde996b38a6f0fd8a3b907d038c9'
+        self.cyan_hash = 'ef0495c17ef137143fb3ca403bef657e77d411ae'
+        self.blue_hash = '0ca527049c4e8f2b145e15afbf3d6393473e0178'
+        self.magenta_hash = 'ab8d44c936e2ccfe1c73cde3d7ace31750530442'
+        self.white_hash = 'f5a7cebc04fdd67e746b14b9492eb0cf56d815cf'
+        self.grey_hash = '5c75230de43a5617f7e85f32602ce3866a430e19'
+        self.black_hash = 'c2d1060c9ea2949e327d412778ccda8d31cdb538'
+
         cfg_file = open( self.cfg_file_path, 'w' )
         cfg_file.write( '[main]\n' )
         cfg_file.write( 'library = %s\n' % ( self.db_path ) )

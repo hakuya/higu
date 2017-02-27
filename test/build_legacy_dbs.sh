@@ -40,7 +40,8 @@ run() {
     python "$HIGU_DIR/test/make_test_db.py" $1 > /dev/null || return $?
 
     echo "Saving DB..."
-    cp $MKDB_LIB_PATH/hfdb.dat $DATA_DIR/hfdb_$1.dat
+    rm -rf $DATA_DIR/ver_$1.db
+    mv -b $MKDB_LIB_PATH $DATA_DIR/ver_$1.db
 
     echo ""
     clean

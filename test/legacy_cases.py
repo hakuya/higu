@@ -19,11 +19,9 @@ class LegacyCases( testutil.TestCase ):
 
     def _create_library_structure( self, ver ):
 
-        os.makedirs( self.db_path )
-        src = os.path.join( self.data_dir, 'hfdb_%d.%d.dat' % ver )
-        tgt = os.path.join( self.db_path, 'hfdb.dat' )
-
-        shutil.copy( src, tgt )
+        shutil.copytree( os.path.join( self.data_dir,
+                                       'ver_%d.%d.db' % ver ),
+                         self.db_path )
 
     def _lookup( self, h, tags = [], type = None ):
 
@@ -37,15 +35,20 @@ class LegacyCases( testutil.TestCase ):
         
         return [ obj for obj in query.execute( h ) ]
 
+    def _single( self, h, tags = [], type = None ):
+
+        r = self._lookup( h, tags, type )
+        if( len( r ) == 0 ):
+            self.fail( 'Result expected' )
+        return r[0]
+
     def subtest_ensure_files_present( self, ver ):
 
         h = hdbfs.Database()
 
         files = self._lookup( h, type = hdbfs.TYPE_FILE )
-        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_DUP ) )
-        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_VAR ) )
 
-        self.assertEqual( len( files ), 9,
+        self.assertEqual( len( files ), 8,
                 'Unexpected number of files in DB' )
 
         for f in files:
@@ -74,16 +77,46 @@ class LegacyCases( testutil.TestCase ):
                     'White not found' )
         self.assertTrue( self.grey in fnames,
                 'Grey not found' )
-        self.assertTrue( self.black in fnames,
-                'Black not found: ' + str( fnames ) )
+
+    def subtest_ensure_streams_present( self, ver ):
+
+        h = hdbfs.Database()
+
+        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        streams = []
+
+        for f in files:
+            streams.append( f.get_root_stream() )
+            streams.extend( f.get_duplicates() )
+
+        self.assertEqual( len( streams ), 9,
+                'Unexpected number of streams in DB' )
+
+        hashs = map( lambda x: x.get_hash(), streams )
+        self.assertTrue( self.magenta_hash in hashs,
+                'Magenta not found' )
+        self.assertTrue( self.red_hash in hashs,
+                'Red not found' )
+        self.assertTrue( self.yellow_hash in hashs,
+                'Yellow not found' )
+        self.assertTrue( self.green_hash in hashs,
+                'Green not found' )
+        self.assertTrue( self.cyan_hash in hashs,
+                'Cyan not found' )
+        self.assertTrue( self.blue_hash in hashs,
+                'Blue not found' )
+        self.assertTrue( self.white_hash in hashs,
+                'White not found' )
+        self.assertTrue( self.grey_hash in hashs,
+                'Grey not found' )
+        self.assertTrue( self.black_hash in hashs,
+                'Black not found' )
 
     def subtest_ensure_files_have_timestamp( self, ver ):
 
         h = hdbfs.Database()
 
         files = self._lookup( h, type = hdbfs.TYPE_FILE )
-        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_DUP ) )
-        files.extend( self._lookup( h, type = hdbfs.TYPE_FILE_VAR ) )
 
         now = datetime.datetime.utcnow()
         for f in files:
@@ -91,6 +124,20 @@ class LegacyCases( testutil.TestCase ):
                            < datetime.timedelta( minutes = 5 ),
                     'Unexpected timestamp in file, %r' % (
                         f.get_creation_time_utc(), ) )
+
+    def subtest_ensure_streams_have_timestamp( self, ver ):
+
+        h = hdbfs.Database()
+
+        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+
+        now = datetime.datetime.utcnow()
+        for f in files:
+            for s in f.get_streams():
+                self.assertTrue( now - s.get_creation_time_utc()
+                               < datetime.timedelta( minutes = 5 ),
+                        'Unexpected timestamp in file, %r' % (
+                            s.get_creation_time_utc(), ) )
 
     def subtest_check_tagging( self, ver ):
 
@@ -123,25 +170,27 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        white = self._lookup( h, [ 'white' ] )[0]
-        grey = self._lookup( h, [ 'grey' ] )[0]
+        white = self._single( h, [ 'white' ] )
+        grey = self._single( h, [ 'grey' ] )
 
-        self.assertTrue( grey.is_variant()
-                    and grey.get_similar_to() == white,
+        vo_list = grey.get_variant_of()
+        self.assertEqual( len( vo_list ), 1,
+                'Grey variant of list len mismatch' )
+        self.assertTrue( white in grey.get_variant_of(),
                 'Grey should be variant of white' )
-        self.assertEqual( len( grey.get_duplicates() ), 1,
-                'Grey duplicate list len mismatch' )
 
-        black = grey.get_duplicates()[0]
-        self.assertEqual( black.get_name(), self.black,
+        dup_list = grey.get_duplicates()
+        self.assertEqual( len( dup_list ), 1,
+                'Grey duplicate list len mismatch' )
+        self.assertEqual( dup_list[0].get_hash(), self.black_hash,
                 'Black is not the duplicate of grey' )
 
     def subtest_check_dup_moved( self, ver ):
 
         h = hdbfs.Database()
         
-        grey = self._lookup( h, [ 'grey' ] )[0]
-        grey2 = self._lookup( h, [ 'black' ] )[0]
+        grey = self._single( h, [ 'grey' ] )
+        grey2 = self._single( h, [ 'black' ] )
 
         self.assertEqual( grey, grey2,
                 'Black tag not moved' )
@@ -154,7 +203,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        grey = self._lookup( h, [ 'grey' ] )[0]
+        grey = self._single( h, [ 'grey' ] )
         names = grey.get_names()
 
         self.assertTrue( self.grey in names,
@@ -167,7 +216,7 @@ class LegacyCases( testutil.TestCase ):
         h = hdbfs.Database()
 
         if( ver[0] < 2 ):
-            cl_al = self._lookup( h, type = hdbfs.TYPE_ALBUM )[0]
+            cl_al = self._single( h, type = hdbfs.TYPE_ALBUM )
 
             self.assertTrue( isinstance( cl_al, hdbfs.Album ),
                     'Unexpected type found %s' % (
@@ -179,8 +228,8 @@ class LegacyCases( testutil.TestCase ):
                     'Unexpected number of files in colour album' )
 
         else:
-            cl_al = self._lookup( h, [ 'colour_album'] )[0]
-            bw_al = self._lookup( h, [ 'white_blue_album'] )[0]
+            cl_al = self._single( h, [ 'colour_album'] )
+            bw_al = self._single( h, [ 'white_blue_album'] )
 
             self.assertTrue( isinstance( cl_al, hdbfs.Album ),
                     'Unexpected type found %s' % (
@@ -204,7 +253,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        album = self._lookup( h, [ 'colour_album'] )[0]
+        album = self._single( h, [ 'colour_album'] )
         colours = album.get_files()
 
         self.assertEqual( colours[0].get_name(), self.blue,
@@ -227,10 +276,33 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        album = self._lookup( h, [ 'white_blue_album'] )[0]
+        album = self._single( h, [ 'white_blue_album'] )
 
         self.assertEqual( album.get_text(), 'White & Blue',
                 'Text mismatch in album' )
+
+    def subtest_check_thumb_streams( self, ver ):
+
+        if( ver[0] < 5 ):
+            return
+
+        h = hdbfs.Database()
+
+        white = self._single( h, [ 'white' ] )
+        grey = self._single( h, [ 'grey' ] )
+        
+        white_s = white.get_streams()
+        grey_s = grey.get_streams()
+
+        if( ver[0] < 8 ):
+            self.assertEqual( len( white_s ), 1,
+                    'Unexpected number of streams in white obj' )
+        else:
+            self.assertEqual( len( white_s ), 2,
+                    'Unexpected number of streams in white obj' )
+
+        self.assertEqual( len( grey_s ), 4,
+                'Unexpected number of streams in grey obj' )
 
 class BoundSubtest:
 

@@ -54,12 +54,12 @@ class DatabaseFile:
         info = session.query( Schema ).filter( Schema.schema == schema ).first()
 
         if( info is None ):
-            rev, ver, uuid = self.__migrators[schema].determine_schema_info( session )
+            ver, rev, uuid = self.__migrators[schema].determine_schema_info( session )
 
-            if( rev is None ):
+            if( ver is None ):
                 return None, None
 
-            info = Schema( schema, rev, ver, uuid )
+            info = Schema( schema, ver, rev, uuid )
             session.add( info )
 
         return info.ver, info.rev

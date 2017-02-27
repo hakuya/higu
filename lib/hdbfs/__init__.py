@@ -18,11 +18,8 @@ DB_REVISION = model.REVISION
 
 DEFAULT_LIBRARY = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
-HIGURASHI_DATA_PATH = 'imgdat'
 
 TYPE_FILE       = model.TYPE_FILE
-TYPE_FILE_DUP   = model.TYPE_FILE_DUP
-TYPE_FILE_VAR   = model.TYPE_FILE_VAR
 TYPE_GROUP      = model.TYPE_GROUP
 TYPE_ALBUM      = model.TYPE_ALBUM
 TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
@@ -43,16 +40,116 @@ def make_unicode( s ):
 
 def model_obj_to_higu_obj( db, obj ):
 
-    if( obj.type == TYPE_FILE 
-     or obj.type == TYPE_FILE_DUP
-     or obj.type == TYPE_FILE_VAR ):
+    if( obj.object_type == TYPE_FILE ):
         return File( db, obj )
-    elif( obj.type == TYPE_ALBUM ):
+    elif( obj.object_type == TYPE_ALBUM ):
         return Album( db, obj )
-    elif( obj.type == TYPE_CLASSIFIER ):
+    elif( obj.object_type == TYPE_CLASSIFIER ):
         return Tag( db, obj )
     else:
         assert False
+
+class Stream:
+
+    def __init__( self, db, stream ):
+
+        self.db = db
+        self.stream = stream
+
+    def _get_file( self ):
+
+        return File( self.db, self.stream.obj )
+
+    def get_file( self ):
+
+        with self.db._access():
+            return self.get_file()
+
+    def get_stream_id( self ):
+
+        with self.db._access():
+            return self.stream.stream_id
+
+    def get_priority( self ):
+
+        with self.db._access():
+            return self.stream.priority
+
+    def get_creation_time( self ):
+
+        with self.db._access():
+            return datetime.datetime.fromtimestamp( self.stream.create_ts )
+
+    def get_creation_time_utc( self ):
+
+        with self.db._access():
+            return datetime.datetime.utcfromtimestamp( self.stream.create_ts )
+
+    def get_length( self ):
+
+        with self.db._access():
+            return self.stream.stream_length
+
+    def get_hash( self ):
+
+        with self.db._access():
+            return self.stream.hash_sha1
+
+    def get_mime( self ):
+
+        with self.db._access():
+            return self.db.imgdb.get_mime( self.stream.stream_id,
+                                           self.stream.priority )
+
+    def _read( self ):
+
+        return self.db.imgdb.read( self.stream.stream_id,
+                                   self.stream.priority )
+
+    def read( self ):
+
+        with self.db._access():
+            return self._read()
+
+    def _verify( self ):
+
+        fd = self._read()
+
+        if( fd is None ):
+            return False
+
+        details = calculate_details( fd )
+
+        if( details[0] != self.stream.stream_length ):
+            return False
+        if( details[1] != self.stream.hash_crc32 ):
+            return False
+        if( details[2] != self.stream.hash_md5 ):
+            return False
+        if( details[3] != self.stream.hash_sha1 ):
+            return False
+
+        return True
+
+    def verify( self ):
+
+        with self._access():
+            return self._verify()
+
+    def _drop_data( self ):
+
+        self.db.imgdb.delete( self.stream.stream_id,
+                              self.stream.priority )
+
+    def __getitem__( self, key ):
+
+        with self.db._access():
+            return self.stream[key]
+
+    def __setitem__( self, key, value ):
+
+        with self.db._access( write = True ):
+            self.stream[key] = value
 
 class Obj:
 
@@ -61,23 +158,15 @@ class Obj:
         self.db = db
         self.obj = obj
 
-    def is_duplicate( self ):
-
-        return self.get_type() == TYPE_FILE_DUP
-
-    def is_variant( self ):
-
-        return self.get_type() == TYPE_FILE_VAR
-
     def get_id( self ):
 
         with self.db._access():
-            return self.obj.id
+            return self.obj.object_id
 
     def get_type( self ):
 
         with self.db._access():
-            return self.obj.type
+            return self.obj.object_type
 
     def get_creation_time( self ):
 
@@ -92,17 +181,15 @@ class Obj:
     def get_tags( self ):
 
         with self.db._access():
-            tag_objs = [ obj for obj in self.obj.parents if obj.type == TYPE_CLASSIFIER ]
+            tag_objs = [ obj for obj in self.obj.parents
+                                     if obj.object_type == TYPE_CLASSIFIER ]
             return map( lambda x: Tag( self.db, x ), tag_objs )
 
     def _assign( self, group, order ):
     
-        if( self.obj.type == TYPE_FILE_DUP ):
-            raise ValueError, 'Cannot assign to a duplicate'
-
         rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent == group.obj.id ) \
-                .filter( model.Relation.child == self.obj.id ).first()
+                .filter( model.Relation.parent_id == group.obj.object_id ) \
+                .filter( model.Relation.child_id == self.obj.object_id ).first()
         if( rel is not None ):
             rel.sort = order
             return
@@ -118,8 +205,8 @@ class Obj:
     def _unassign( self, group ):
 
         rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent == group.obj.id ) \
-                .filter( model.Relation.child == self.obj.id ).first()
+                .filter( model.Relation.parent_id == group.obj.object_id ) \
+                .filter( model.Relation.child_id == self.obj.object_id ).first()
 
         if( rel is not None ):
             self.db.session.delete( rel )
@@ -132,8 +219,9 @@ class Obj:
     def _reorder( self, group, order ):
 
         rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent == group.obj.id ) \
-                .filter( model.Relation.child == self.obj.id ).first()
+                .filter( model.Relation.parent_id == group.obj.object_id ) \
+                .filter( model.Relation.child_id == self.obj.object_id ) \
+                .first()
         if( rel is None ):
             raise ValueError, str( self ) + ' is not in ' + str( group )
         rel.sort = order
@@ -147,8 +235,8 @@ class Obj:
 
         with self.db._access():
             rel = self.db.session.query( model.Relation ) \
-                    .filter( model.Relation.parent == group.obj.id ) \
-                    .filter( model.Relation.child == self.obj.id ).first()
+                    .filter( model.Relation.parent_id == group.obj.id ) \
+                    .filter( model.Relation.child_id == self.obj.id ).first()
             if( rel is None ):
                 raise ValueError, str( self ) + ' is not in ' + str( group )
             return rel.sort
@@ -158,40 +246,50 @@ class Obj:
         with self.db._access():
             return self.obj.name
 
-    def _set_name( self, name, saveold ):
+    def _clear_names( self ):
 
-        oname = self.obj.name
-        self.obj.name = name
+        self.obj.name = None
+        del self.obj.root_stream['names']
 
-        if( saveold and oname is not None ):
-            self._add_name( oname )
+    def _set_names( self, names ):
+
+        if( len( names ) == 0 ):
+            self._clear_names()
+
+        self.obj.name = names[0]
+        self.obj.root_stream['names'] = ':'.join( names )
+
+    def _set_name( self, name ):
+
+        try:
+            names = self.obj.root_stream['names'].split( ':' )
+            try:
+                names.remove( name )
+            except ValueError:
+                pass
+        except:
+            names = []
+
+        names.insert( name, 0 )
+
+        self._set_names( names )
+
+    def _add_name( self, name ):
+
+        try:
+            names = self.obj.root_stream['names'].split( ':' )
+            if( name in names ):
+                return
+            names.append( name )
+        except:
+            names = [ name ]
+
+        self._set_names( names )
 
     def set_name( self, name, saveold = False ):
 
         with self.db._access( write = True ):
             self._set_name( name, saveold )
-
-    def _add_name( self, name ):
-
-        name = make_unicode( name )
-
-        if( self.obj.name is None ):
-            self._set_name( name, False )
-        elif( self.obj.name != name ):
-            try:
-                xnames = self.obj['altname']
-
-                if( len( xnames ) == 0 ):
-                    self.obj['altname'] = name
-                else:
-                    xnames = xnames.split( ':' )
-                    if( name not in xnames ):
-                        xnames.append( name )
-                        xnames = ':'.join( xnames )
-                        self.obj['altname'] = xnames
-
-            except KeyError:
-                self.obj['altname'] = name
 
     def add_name( self, name ):
 
@@ -200,15 +298,10 @@ class Obj:
 
     def get_names( self ):
 
-        names = [ self.get_repr() ]
-
         try:
-            xnames = self['altname']
-            names.extend( xnames.split( ':' ) )
+            return self.get_root_stream()['names'].split( ':' )
         except KeyError:
-            pass
-
-        return names
+            return None
 
     def set_text( self, text ):
 
@@ -263,7 +356,8 @@ class Group( Obj ):
 
     def _get_files( self ):
 
-        objs = [ obj for obj in self.obj.children if( obj.type == TYPE_FILE or obj.type == TYPE_FILE_DUP or obj.type == TYPE_FILE_VAR ) ]
+        objs = [ obj for obj in self.obj.children
+                             if obj.object_type == TYPE_FILE ]
         return map( lambda x: File( self.db, x ), objs )
 
     def get_files( self ):
@@ -326,7 +420,7 @@ class File( Obj ):
 
     def _get_albums( self ):
 
-        objs = [ obj for obj in self.obj.parents if obj.type == TYPE_ALBUM ]
+        objs = [ obj for obj in self.obj.parents if obj.object_type == TYPE_ALBUM ]
         return map( lambda x: Album( self.db, x ), objs )
 
     def get_albums( self ):
@@ -334,10 +428,25 @@ class File( Obj ):
         with self.db._access():
             return self._get_albums()
 
+    def _get_variant_of( self ):
+
+        objs = [ obj for obj in self.obj.parents if obj.object_type == TYPE_FILE ]
+        return map( lambda x: File( self.db, x ), objs )
+
+    def get_variant_of( self ):
+
+        with self.db._access():
+            return self._get_variant_of()
+
     def _get_duplicates( self ):
 
-        objs = [ obj for obj in self.obj.similars if obj.type == TYPE_FILE_DUP ]
-        return map( lambda x: File( self.db, x ), objs )
+        from sqlalchemy import and_
+
+        return [ Stream( self.db, s ) for s in
+            self.db.session.query( model.Stream )
+                           .filter( and_( model.Stream.object_id == self.obj.object_id,
+                                          model.Stream.name.like( 'dup:%' ) ) )
+                           .order_by( model.Stream.stream_id ) ]
 
     def get_duplicates( self ):
 
@@ -346,82 +455,19 @@ class File( Obj ):
 
     def _get_variants( self ):
 
-        objs = [ obj for obj in self.obj.similars if obj.type == TYPE_FILE_VAR ]
-        return map( lambda x: File( self.db, x ), objs )
+        return [ File( self.db, o ) for o in self.obj.children ]
 
     def get_variants( self ):
 
         with self.db._access():
             return self._get_variants()
 
-    def _get_similar_to( self ):
-
-        if( self.obj.similar_to is None ):
-            return None
-        else:
-            return File( self.db, self.obj.similar_to )
-
-    def get_similar_to( self ):
-
-        with self.db._access():
-            return self._get_similar_to()
-
-    def _set_duplicate_of( self, parent ):
-
-        assert( isinstance( parent, File ) )
-        assert( parent.obj != self.obj )
-
-        # Remove any previous duplication
-        self._clear_duplication()
-
-        # If we are a duplicate, we need to move all our assignments and
-        # children to our parent. We begin by moving over all our
-        # association
-        assocs = [ ( assoc.parent, assoc.sort )
-                    for assoc in self.obj.parent_rel ]
-        for obj_id, sort in assocs:
-            group = self.db._get_object_by_id( obj_id )
-            parent._assign( group, sort )
-            self._unassign( group )
-
-        # Now we move across all our duplicates to our parent
-        dups = self._get_duplicates()
-        for d in dups:
-            if( d == parent ):
-                # Protect from circular duplication
-                d._clear_duplication()
-            else:
-                d._set_duplicate_of( parent )
-
-        # Now we move across all our variants to our parent
-        variants = self._get_variants()
-        for v in variants:
-            if( v.obj.id == parent.obj.id ):
-                v._clear_duplication()
-            else:
-                v._set_variant_of( parent )
-
-        self.obj.type = TYPE_FILE_DUP
-        self.obj.similar_to = parent.obj
-
-    def set_duplicate_of( self, parent ):
-
-        with self.db._access( write = True ):
-            self._set_duplicate_of( parent )
-
     def _set_variant_of( self, parent ):
 
         assert( isinstance( parent, File ) )
         assert( parent.obj != self.obj )
 
-        # Protect from circular duplication
-        if( parent in self._get_duplicates()
-         or parent in self._get_variants() ):
-
-            parent._clear_duplication()
-
-        self.obj.type = TYPE_FILE_VAR
-        self.obj.similar_to = parent.obj
+        self._assign( parent, None )
 
     def set_variant_of( self, parent ):
 
@@ -444,23 +490,87 @@ class File( Obj ):
         if( name is not None ):
             return name
         else:
-            obj_id = self.get_id()
+            with self.db._access():
+                obj_id = self.obj.object_id
+                stream_id = self.obj.stream.stream_id
+                priority = self.obj.stream.priority
 
-            e = self.db.imgdb.get_ext( obj_id )
+            e = self.db.imgdb.get_ext( stream_id, priority )
             if( e == None ):
                 return '%016x' % ( obj_id, )
             else:
                 return '%016x.%s' % ( obj_id, e, )
 
-    def get_length( self ):
+    def _get_stream( self, name ):
+
+        s = self.obj.streams \
+                .filter( model.Stream.name == name ) \
+                .first()
+
+        if( s is not None ):
+            return Stream( self.db, s )
+        else:
+            return None
+
+    def get_stream( self, name ):
 
         with self.db._access():
-            return self.obj.fchk.len
+            return self._get_stream( name )
+    
+    def _get_streams( self ):
 
-    def get_hash( self ):
+        return [ Stream( self.db, s ) for s in
+            self.db.session.query( model.Stream )
+                .filter( model.Stream.object_id == self.obj.object_id )
+                .order_by( model.Stream.stream_id ) ]
+
+    def get_streams( self ):
 
         with self.db._access():
-            return self.obj.fchk.sha1
+            return self._get_streams()
+
+    def _drop_streams( self ):
+
+        for s in self._get_streams():
+            s._drop_data()
+
+            self.db.session.query( model.StreamMetadata ) \
+                .filter( model.StreamMetadata.stream_id != s.stream.stream_id ) \
+                .delete()
+
+        self.db.session.query( model.Stream ) \
+            .filter( model.Stream.object_id == self.obj.object_id ) \
+            .delete()
+
+    def _drop_expendable_streams( self ):
+
+        for s in self.db.session.query( model.Stream ) \
+                     .filter( model.Stream.priority < model.SP_NORMAL ):
+
+            stream = Stream( self.db, s )
+            stream._drop_data()
+
+            self.db.session.query( model.StreamMetadata ) \
+                .filter( model.StreamMetadata.stream_id != s.stream_id ) \
+                .delete()
+
+        self.db.session.query( model.Stream ) \
+            .filter( model.Stream.priority < model.SP_NORMAL ) \
+            .delete()
+
+    def drop_expendable_streams( self ):
+
+        with self.db._access( write = True ):
+            self._drop_expendible_streams()
+
+    def _get_root_stream( self ):
+
+        return Stream( self.db, self.obj.root_stream )
+
+    def get_root_stream( self ):
+
+        with self.db._access():
+            return self._get_root_stream()
 
     def rotate( self, rot ):
 
@@ -485,24 +595,16 @@ class File( Obj ):
             self.obj['rotation'] = rotation
             self.obj['thumb-gen'] = gen
 
-            self.db.tbcache.purge_thumbs( self.obj.id )
+            self.db.tbcache.purge_thumbs( self )
 
-    def get_mime( self ):
+    def get_thumb_stream( self, exp ):
 
-        return self.db.imgdb.get_mime( self.get_id() )
+        return self.db.tbcache.make_thumb( self, exp )
 
-    def _read( self ):
+    def _verify( self ):
 
-        return self.db.imgdb.read( self.obj.id )
-
-    def read( self ):
-
-        with self.db._access():
-            return self._read()
-
-    def read_thumb( self, exp ):
-
-        return self.db.tbcache.read_thumb( self, exp )
+        for s in self._get_streams():
+            s._verify()
 
 class ModelObjToHiguObjIterator:
 
@@ -599,11 +701,11 @@ class Database:
     def __init__( self ):
         global _LIBRARY
 
-        imgpat = os.path.join( _LIBRARY, HIGURASHI_DATA_PATH )
-
         self.session = model.Session()
-        self.imgdb = ark.ImageDatabase( imgpat )
-        self.tbcache = ark.ThumbCache( self.imgdb, imgpat )
+
+        imgdat_config = ark.ImageDbDataConfig( _LIBRARY )
+        self.imgdb = ark.StreamDatabase( imgdat_config )
+        self.tbcache = ark.ThumbCache( self, self.imgdb )
 
         self._access = AccessManager( self )
         self._trans_write = False
@@ -634,8 +736,6 @@ class Database:
             self.imgdb.unprepare_commit()
             raise
 
-        for id in self.obj_del_list:
-            self.tbcache.purge_thumbs( id )
         self.obj_del_list = []
         self._trans_write = False
 
@@ -657,62 +757,65 @@ class Database:
 
         self._access.enable_writes()
 
-    def _get_object_by_id( self, id ):
+    def _get_object_by_id( self, object_id ):
 
-        obj = self.session.query( model.Object ).filter( model.Object.id == id ).first()
+        obj = self.session.query( model.Object ) \
+                  .filter( model.Object.object_id == object_id ) \
+                  .first()
         if( obj is None ):
             return None
 
         return model_obj_to_higu_obj( self, obj )
 
-    def get_object_by_id( self, id ):
+    def get_object_by_id( self, object_id ):
 
         with self._access():
-            return self._get_object_by_id( id )
+            return self._get_object_by_id( object_id )
 
     def all_albums_or_free_files( self ):
 
-        files = self.session.query( model.Object.id ) \
-                .filter( model.Object.type == TYPE_FILE )
-        albums = self.session.query( model.Object.id ) \
-                .filter( model.Object.type == TYPE_ALBUM )
-        all_children = self.session.query( model.Relation.child ) \
-                .filter( model.Relation.parent.in_( albums ) )
-        free_files = files.filter( ~model.Object.id.in_( all_children ) )
+        files = self.session.query( model.Object.object_id ) \
+                .filter( model.Object.object_type == TYPE_FILE )
+        albums = self.session.query( model.Object.object_id ) \
+                .filter( model.Object.object_type == TYPE_ALBUM )
+        all_children = self.session.query( model.Relation.child_id ) \
+                .filter( model.Relation.parent_id.in_( albums ) )
+        free_files = files.filter( ~model.Object.object_id.in_( all_children ) )
 
         select_ids = free_files.union( albums )
 
         return ModelObjToHiguObjIterator( self, 
                 self.session.query( model.Object )
-                    .filter( model.Object.id.in_( select_ids ) )
+                    .filter( model.Object.object_id.in_( select_ids ) )
                     .order_by( 'RANDOM()' ) )
 
     def unowned_files( self ):
 
         from sqlalchemy import or_
 
-        all_children = self.session.query( model.Relation.child )
+        all_children = self.session.query( model.Relation.child_id )
         return ModelObjToHiguObjIterator( self,
                 self.session.query( model.Object )
-                    .filter( or_( model.Object.type == TYPE_FILE, model.Object.type == TYPE_ALBUM ) )
-                    .filter( ~model.Object.id.in_( all_children ) )
+                    .filter( model.Object.object_type.in_( [ TYPE_FILE, TYPE_ALBUM ] ) )
+                    .filter( ~model.Object.object_id.in_( all_children ) )
                     .order_by( 'RANDOM()' ) )
 
-    def lookup_files_by_details( self, len = None, crc32 = None, md5 = None, sha1 = None ):
+    def lookup_streams_by_details( self, file_length = None,
+                                         hash_crc32 = None,
+                                         hash_md5 = None,
+                                         hash_sha1 = None ):
 
-        q = self.session.query( model.FileChecksum.id )
-        if( len is not None ):
-            q = q.filter( model.FileChecksum.len == len )
-        if( crc32 is not None ):
-            q = q.filter( model.FileChecksum.crc32 == crc32 )
-        if( md5 is not None ):
-            q = q.filter( model.FileChecksum.md5 == md5 )
-        if( sha1 is not None ):
-            q = q.filter( model.FileChecksum.sha1 == sha1 )
+        q = self.session.query( model.Stream )
+        if( file_length is not None ):
+            q = q.filter( model.Stream.stream_length == file_length )
+        if( hash_crc32 is not None ):
+            q = q.filter( model.Stream.hash_crc32 == hash_crc32 )
+        if( hash_md5 is not None ):
+            q = q.filter( model.Stream.hash_md5 == hash_md5 )
+        if( hash_sha1 is not None ):
+            q = q.filter( model.Stream.hash_sha1 == hash_sha1 )
 
-        objs = self.session.query( model.Object ).filter(
-                model.Object.id.in_( q ) )
-        return ModelObjToHiguObjIterator( self, objs )
+        return [ Stream( self, s ) for s in q ]
 
     def lookup_untagged_files( self ):
 
@@ -721,7 +824,7 @@ class Database:
     def all_tags( self ):
 
         objs = self.session.query( model.Object ) \
-                .filter( model.Object.type == TYPE_CLASSIFIER ) \
+                .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
                 .order_by( model.Object.name )
 
         return ModelObjToHiguObjIterator( self, objs )
@@ -729,7 +832,7 @@ class Database:
     def get_tag( self, name ):
 
         obj = self.session.query( model.Object ) \
-                .filter( model.Object.type == TYPE_CLASSIFIER ) \
+                .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
                 .filter( model.Object.name == name ).first()
         if( obj is None ):
             raise KeyError, 'No such tag "%s"' % ( name, )
@@ -765,7 +868,9 @@ class Database:
 
             try:
                 d = self.get_tag( target ).obj
-                self.session.query( model.Relation ).filter( model.Relation.parent == c.id ).update( { 'parent' : d.id } )
+                self.session.query( model.Relation ) \
+                    .filter( model.Relation.parent_id == c.id ) \
+                    .update( { 'parent' : d.id } )
                 self.session.delete( c )
 
             except KeyError:
@@ -789,46 +894,19 @@ class Database:
                 rel_copy.parent_obj = d
                 rel_copy.child_obj = rel.child_obj
 
-    def __verify_file( self, obj ):
-
-        assert isinstance( obj, File )
-        fd = obj._read()
-
-        if( fd is None ):
-            return False
-
-        details = calculate_details( fd )
-
-        if( details[0] != obj.obj.fchk.len ):
-            return False
-        if( details[1] != obj.obj.fchk.crc32 ):
-            return False
-        if( details[2] != obj.obj.fchk.md5 ):
-            return False
-        if( details[3] != obj.obj.fchk.sha1 ):
-            return False
-
-        return True
-
-    def verify_file( self, obj ):
-
-        with self._access():
-            return self.__verify_file( obj )
-
     def __recover_file( self, path ):
 
         name = os.path.split( path )[1]
 
         details = calculate_details( path )
-        results = self.lookup_files_by_details( *details )
+        streams = self.lookup_streams_by_details( *details )
 
-        try:
-            f = results.next()
-        except StopIteration:
+        if( len( streams ) == 0 ):
             return False
 
-        if( not self.__verify_file( f ) ):
-            self.imgdb.load_data( path, f.obj.id )
+        if( not streams[0]._verify() ):
+            self.imgdb.load_data( path, streams[0].stream.stream_id,
+                                        streams[0].stream.priority )
         return True
 
     def recover_files( self, files ):
@@ -863,27 +941,39 @@ class Database:
 
     def __register_file( self, path, add_name ):
 
+        import mimetypes
+
         name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
         details = calculate_details( path )
 
-        try:
-            results = self.lookup_files_by_details( *details )
-            f = results.next()
-        except StopIteration:
+        mime_type = mimetypes.guess_type( path, strict=False )[0]
+        streams = self.lookup_streams_by_details( *details )
+
+        if( len( streams ) == 0 ):
             obj = model.Object( TYPE_FILE )
             self.session.add( obj )
-            fchk = model.FileChecksum( obj, *details )
-            self.session.add( fchk )
-            f = File( self, obj )
-            self.session.flush()
+            stream = model.Stream( obj, '.', model.SP_NORMAL, mime_type )
+            stream.set_details( *details )
+            self.session.add( stream )
+            obj.root_stream = stream
 
-        id = f.obj.id
+            f = File( self, obj )
+            stream = Stream( self, stream )
+
+            self.session.flush()
+        else:
+            stream = streams[0]
+            if( stream.stream.mime_type is None ):
+                stream.stream.mime_type = mime_type
+
+            f = stream._get_file()
 
         if( add_name ):
             f._add_name( name )
 
-        if( not self.__verify_file( f ) ):
-            self.imgdb.load_data( path, id )
+        if( not stream._verify() ):
+            self.imgdb.load_data( path, stream.stream.stream_id,
+                                        stream.stream.priority )
 
         return f
 
@@ -891,6 +981,28 @@ class Database:
 
         with self._access( write = True ):
             return self.__register_file( path, add_name )
+
+    def __register_thumb( self, path, obj, name ):
+
+        import mimetypes
+
+        details = calculate_details( path )
+        mime_type = mimetypes.guess_type( path, strict=False )[0]
+
+        stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE, mime_type )
+        stream.set_details( *details )
+        self.session.add( stream )
+        self.session.flush()
+
+        self.imgdb.load_data( path, stream.stream_id,
+                                    stream.priority )
+
+        return Stream( self, stream )
+
+    def register_thumb( self, path, obj, name ):
+
+        with self._access( write = True ):
+            return self.__register_thumb( path, obj, name )
 
     def batch_add_files( self, files, tags = [], tags_new = [], save_name = False,
                          create_album = False, album_name = None, album_text = None ):
@@ -910,42 +1022,143 @@ class Database:
             for f in files:
                 x = self.__register_file( f, save_name )
 
-                if( x.obj.type == TYPE_FILE_DUP ):
-                    x = x._get_similar_to()
-
                 if( album is not None ):
                     x._assign( album, None )
                 else:
                     for t in taglist:
                         x._assign( t, None )
 
+    def _merge_objects( self, primary_obj, merge_obj ):
+
+        from sqlalchemy import and_, or_
+        from sqlalchemy.orm import aliased
+
+        assert isinstance( primary_obj, File ), 'Expected File got %r' % ( merge_obj )
+        assert isinstance( merge_obj, File ), 'Expected File got %r' % ( merge_obj )
+
+        obj_p = primary_obj.obj
+        obj_m = merge_obj.obj
+
+        assert obj_p != obj_m
+
+        merge_obj._drop_expendable_streams()
+
+        # Rename the root stream of the object to be merged so that it
+        # appears as a duplicate stream
+        stream = obj_m.root_stream
+        stream.name = 'dup:' + stream.hash_sha1
+
+        # Move all streams from the object to be merged to the 
+        self.session.query( model.Stream ) \
+            .filter( model.Stream.object_id == obj_m.object_id ) \
+            .update( { 'object_id' : obj_p.object_id } )
+
+        # Delete the metadata on the object to be merged, it will not be
+        # persisted
+        self.session.query( model.ObjectMetadata ) \
+            .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
+            .delete()
+
+        # Drop relationships with duplicate
+        self.session.query( model.Relation ) \
+            .filter( and_( model.Relation.parent_id == obj_p.object_id,
+                           model.Relation.child_id == obj_m.object_id ) ) \
+            .delete()
+        self.session.query( model.Relation ) \
+            .filter( and_( model.Relation.parent_id == obj_m.object_id,
+                           model.Relation.child_id == obj_p.object_id ) ) \
+            .delete()
+
+        # Move relationships which do not conflict
+        r_i = aliased( model.Relation )
+
+        self.session.query( model.Relation ) \
+            .filter( and_( model.Relation.parent_id == obj_m.object_id,
+                           ~self.session.query( r_i )
+                                .filter( and_( r_i.parent_id == obj_p.object_id,
+                                               r_i.child_id == model.Relation.child_id ) )
+                               .exists() ) ) \
+            .update( { 'parent_id' : obj_p.object_id },
+                     synchronize_session = 'fetch' )
+        self.session.query( model.Relation ) \
+            .filter( and_( model.Relation.child_id == obj_m.object_id,
+                           ~self.session.query( r_i )
+                                .filter( and_( r_i.parent_id == model.Relation.parent_id,
+                                               r_i.child_id == obj_p.object_id ) )
+                               .exists() ) ) \
+            .update( { 'child_id' : obj_p.object_id },
+                     synchronize_session = 'fetch' )
+
+        # Copy sort from relationships that conflict
+        for r_m in self.session.query( model.Relation ) \
+                       .filter( model.Relation.parent_id == obj_m.object_id ):
+
+            r_p = self.session.query( model.Relation ) \
+                      .filter( and_( model.Relation.parent_id == obj_p.object_id,
+                                     model.Relation.child_id == r_m.child_id ) ) \
+                      .first()
+
+            if( r_p.sort is None ):
+                r_p.sort = r_m.sort
+
+        for r_m in self.session.query( model.Relation ) \
+                       .filter( model.Relation.child_id == obj_m.object_id ):
+
+            r_p = self.session.query( model.Relation ) \
+                      .filter( and_( model.Relation.child_id == obj_p.object_id,
+                                     model.Relation.parent_id == r_m.parent_id ) ) \
+                      .first()
+
+            if( r_p.sort is None ):
+                r_p.sort = r_m.sort
+
+        self.session.query( model.Relation ) \
+            .filter( and_( model.Relation.parent_id == obj_m.object_id,
+                           self.session.query( r_i )
+                               .filter( and_( r_i.parent_id == model.Relation.parent_id,
+                                              r_i.child_id == model.Relation.child_id ) )
+                               .exists() ) ) \
+            .update( { 'sort' : obj_p.object_id },
+                     synchronize_session = 'fetch' )
+
+        # Drop remaining relationships
+        self.session.query( model.Relation ) \
+                    .filter( or_( model.Relation.parent_id == obj_m.object_id,
+                                  model.Relation.child_id == obj_m.object_id ) ) \
+                    .delete()
+
+        merge_obj.obj = primary_obj.obj
+        self.session.query( model.Object ) \
+            .filter( model.Object.object_id == obj_m.object_id ) \
+            .delete()
+
+    def merge_objects( self, primary_obj, merge_obj ):
+
+        with self._access( write = True ):
+            self._merge_objects( primary_obj, merge_obj )
+
     def delete_object( self, obj ):
 
         with self._access( write = True ):
 
-            id = obj.obj.id
+            object_id = obj.obj.object_id
 
             if( isinstance( obj, File ) ):
-                self.imgdb.delete( id )
-                self.obj_del_list.append( id )
+                obj._drop_streams()
+                self.obj_del_list.append( object_id )
 
-            # Clear out similar to
-            objs = [ o for o in obj.obj.similars ]
-            for o in objs:
-                if( o.type == TYPE_FILE_DUP or o.type == TYPE_FILE_VAR ):
-                    o.type = TYPE_FILE
-                o.similar_to = None
-
-            self.session.query( model.Metadata ) \
-                    .filter( model.Metadata.id == id ).delete()
+            self.session.query( model.ObjectMetadata ) \
+                .filter( model.ObjectMetadata.object_id == object_id ) \
+                .delete()
             self.session.query( model.Relation ) \
-                    .filter( model.Relation.parent == id ).delete()
+                .filter( model.Relation.parent_id == object_id ) \
+                .delete()
             self.session.query( model.Relation ) \
-                    .filter( model.Relation.child == id ).delete()
-            self.session.query( model.FileChecksum ) \
-                    .filter( model.FileChecksum.id == id ).delete()
+                .filter( model.Relation.child_id == object_id ) \
+                .delete()
             self.session.query( model.Object ) \
-                    .filter( model.Object.id == id ).delete()
+                .filter( model.Object.object_id == object_id ) \
+                .delete()
 
 def init( library_path = None ):
     global _LIBRARY
@@ -958,7 +1171,8 @@ def init( library_path = None ):
     if( not os.path.isdir( _LIBRARY ) ):
         os.makedirs( _LIBRARY )
 
-    model.init( os.path.join( _LIBRARY, HIGURASHI_DB_NAME ) )
+    model.init( os.path.join( _LIBRARY, HIGURASHI_DB_NAME ),
+                _LIBRARY )
 
 def dispose():
     global _LIBRARY

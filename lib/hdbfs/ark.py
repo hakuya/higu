@@ -3,6 +3,10 @@ import shutil
 import tempfile
 import zipfile
 import mimetypes
+import model
+
+IMGDB_DATA_PATH = 'imgdat'
+IMGDB_THUMB_PATH = 'tbdat'
 
 MIN_THUMB_EXP = 7
 
@@ -72,17 +76,20 @@ class ZipVolume:
 
 class FileVolume:
 
-    def __init__( self, path ):
+    def __init__( self, data_config, vol_id ):
 
-        self.path = path
+        self.data_config = data_config
+        self.vol_id = vol_id
         self.to_commit = []
         self.state = 'clean'
         self.rm_dir = None
 
-    def __get_path( self, id ):
+    def __get_path( self, id, priority ):
+
+        path = self.data_config.get_file_vol_path( self.vol_id, priority )
 
         try:
-            ls = os.listdir( self.path )
+            ls = os.listdir( path )
             ids = '%016x.' % ( id )
         except OSError:
             return None
@@ -90,7 +97,7 @@ class FileVolume:
         for f in ls:
             try:
                 if( f.index( ids ) == 0 ):
-                    return os.path.join( self.path, f )
+                    return os.path.join( path, f )
             except ValueError:
                 pass
 
@@ -100,9 +107,9 @@ class FileVolume:
 
         return True
 
-    def get_ext( self, id ):
+    def get_ext( self, id, priority ):
 
-        p = self.__get_path( id )
+        p = self.__get_path( id, priority )
         if( p is None ):
             return None
         else:
@@ -111,17 +118,17 @@ class FileVolume:
             except IndexError:
                 return None
 
-    def get_mime( self, id ):
+    def get_mime( self, id, priority ):
 
-        p = self.__get_path( id )
+        p = self.__get_path( id, priority )
         if( p is None ):
             return None
         else:
             return mimetypes.guess_type( p )[0]
 
-    def read( self, id ):
+    def read( self, id, priority ):
 
-        p = self.__get_path( id )
+        p = self.__get_path( id, priority )
         if( p is None ):
             return None
         else:
@@ -130,9 +137,9 @@ class FileVolume:
             except IndexError:
                 return None
 
-    def _debug_write( self, id ):
+    def _debug_write( self, id, priority ):
 
-        p = self.__get_path( id )
+        p = self.__get_path( id, priority )
         if( p is None ):
             return None
         else:
@@ -204,15 +211,16 @@ class FileVolume:
 
             self.state = 'dirty'
 
-    def load_data( self, path, id ):
+    def load_data( self, path, id, priority ):
 
         if( self.state == 'committed' ):
             self.reset_state()
 
         self.state = 'dirty'
 
-        if( not os.path.isdir( self.path ) ):
-            os.makedirs( self.path )
+        new_path = self.data_config.get_file_vol_path( self.vol_id, priority )
+        if( not os.path.isdir( new_path ) ):
+            os.makedirs( new_path )
 
         name = os.path.split( path )[-1]
         try:
@@ -220,10 +228,10 @@ class FileVolume:
         except ValueError:
             ext = '.dat'
 
-        tgt = os.path.join( self.path, '%016x%s' % ( id, ext ) )
+        tgt = os.path.join( new_path, '%016x%s' % ( id, ext ) )
         self.to_commit.append( ( path, tgt, ) )
 
-    def delete( self, id ):
+    def delete( self, id, priority ):
 
         if( self.state == 'committed' ):
             self.reset_state()
@@ -233,24 +241,24 @@ class FileVolume:
         if( self.rm_dir is None ):
             self.rm_dir = tempfile.mkdtemp()
 
-        src = self.__get_path( id )
+        src = self.__get_path( id, priority )
 
         name = os.path.split( src )[-1]
         tgt = os.path.join( self.rm_dir, name )
         self.to_commit.append( ( src, tgt, ) )
 
-class ImageDatabase:
+class ImageDbDataConfig:
 
-    def __init__( self, path ):
+    def __init__( self, imgdb_path ):
 
-        self.volumes = {}
-        self.data_path = path
-        self.state = 'clean'
+        self.imgdb_path = imgdb_path
 
-    def __get_volume( self, vol_id ):
+    def get_file_vol_path( self, vol_id, priority ):
 
-        if( self.volumes.has_key( vol_id ) ):
-            return self.volumes[vol_id]
+        if( priority > model.SP_EXPENDABLE ):
+            path = os.path.join( self.imgdb_path, IMGDB_DATA_PATH )
+        else:
+            path = os.path.join( self.imgdb_path, IMGDB_THUMB_PATH )
 
         lv2 = vol_id & 0xfff
         lv3 = (vol_id >> 12) & 0xfff
@@ -258,10 +266,25 @@ class ImageDatabase:
 
         assert lv4 == 0
 
-        path = os.path.join( self.data_path, '%03x' % ( lv3 ),
-                                             '%03x' % ( lv2 ) )
+        path = os.path.join( path, '%03x' % ( lv3 ),
+                                   '%03x' % ( lv2 ) )
 
-        vol = FileVolume( path )
+        return path
+
+class StreamDatabase:
+
+    def __init__( self, data_config ):
+
+        self.volumes = {}
+        self.data_config = data_config
+        self.state = 'clean'
+
+    def __get_volume( self, vol_id ):
+
+        if( self.volumes.has_key( vol_id ) ):
+            return self.volumes[vol_id]
+
+        vol = FileVolume( self.data_config, vol_id )
         self.volumes[vol_id] = vol
 
         return vol
@@ -269,11 +292,6 @@ class ImageDatabase:
     def __get_vol_for_id( self, id ):
 
         return self.__get_volume( id >> 12 )
-
-    def __get_fname_base( self, id ):
-
-        fname = '%016x' % ( id, )
-        return os.path.join( self.__get_dir_for_id( id ), fname )
 
     def get_state( self ):
 
@@ -376,7 +394,7 @@ class ImageDatabase:
 
             self.state = 'clean'
 
-    def load_data( self, path, id ):
+    def load_data( self, path, id, priority ):
 
         if( self.state == 'committed' ):
             # Clean things up before we begin. We need to do this so that
@@ -387,9 +405,9 @@ class ImageDatabase:
         self.state = 'dirty'
 
         v = self.__get_vol_for_id( id )
-        v.load_data( path, id )
+        v.load_data( path, id, priority )
 
-    def delete( self, id ):
+    def delete( self, id, priority ):
 
         if( self.state == 'committed' ):
             # Clean things up before we begin. We need to do this so that
@@ -400,158 +418,189 @@ class ImageDatabase:
         self.state = 'dirty'
 
         v = self.__get_vol_for_id( id )
-        v.delete( id )
+        v.delete( id, priority )
 
-    def get_ext( self, id ):
-
-        v = self.__get_vol_for_id( id )
-        return v.get_ext( id )
-
-    def get_mime( self, id ):
+    def get_ext( self, id, priority ):
 
         v = self.__get_vol_for_id( id )
-        return v.get_mime( id )
+        return v.get_ext( id, priority )
 
-    def read( self, id ):
-
-        v = self.__get_vol_for_id( id )
-        return v.read( id )
-
-    def _debug_write( self, id ):
+    def get_mime( self, id, priority ):
 
         v = self.__get_vol_for_id( id )
-        return v._debug_write( id )
+        return v.get_mime( id, priority )
 
-class ThumbCache:
+    def read( self, id, priority ):
 
-    def __init__( self, imgdb, path ):
+        v = self.__get_vol_for_id( id )
+        return v.read( id, priority )
+
+    def _debug_write( self, id, priority ):
+
+        v = self.__get_vol_for_id( id )
+        return v._debug_write( id, priority )
+
+class ImageInfo:
+
+    def __init__( self, imgdb, obj ):
 
         self.imgdb = imgdb
-        self.data_path = path
+        self.obj = obj
+        self.root_stream = None
 
-    def __get_dir_for_id( self, id ):
+        self.tb_gen = None
+        self.max_e = None
+        self.use_root = None
+        self.w = None
+        self.h = None
+        self.rot = None
+        self.img = None
 
-        lv2 = (id >> 12) % 0xfff
-        lv3 = (id >> 24) % 0xfff
-        lv4 = id >> 36
+    def get_root_stream( self ):
 
-        assert lv4 == 0
+        if( self.root_stream is None ):
+            self.root_stream = self.obj.get_root_stream()
 
-        return os.path.join( self.data_path, '%03x' % ( lv3 ),
-                                             '%03x' % ( lv2 ) )
+        return self.root_stream
 
-    def __get_fname_base( self, id ):
-
-        fname = '%016x' % ( id, )
-        return os.path.join( self.__get_dir_for_id( id ), fname )
-
-    def __get_path( self, id ):
-
-        try:
-            d = self.__get_dir_for_id( id )
-            ls = os.listdir( d )
-            ids = '%016x.' % ( id )
-        except OSError:
-            return None
-
-        for f in ls:
-            try:
-                if( f.index( ids ) == 0 ):
-                    return os.path.join( d, f )
-            except ValueError:
-                pass
-
-        return None
-
-    def read_thumb( self, obj, exp ):
-
-        t = self.make_thumb( obj, exp, False )
-        if( t is None ):
-            return self.imgdb.read( obj.get_id() )
-        else:
-            return open( t, 'rb' )
-
-    def make_thumb( self, obj, exp, force = True ):
-
-        if( exp < MIN_THUMB_EXP ):
-            exp = MIN_THUMB_EXP 
+    def get_img( self ):
 
         from PIL import Image
 
-        id = obj.get_id()
-        s = 2**exp
-        img = None
+        if( self.img is None ):
+            root_stream = self.get_root_stream()
+            f = root_stream.read()
+            self.img = Image.open( f )
 
-        # Read the iamge metadata from the obejct
-        try:
-            w = obj['original-width']
-        except:
-            w = None
+        return self.img
 
-        try:
-            h = obj['original-height']
-        except:
-            h = None
+    def get_rot( self ):
 
-        try:
-            rot = obj['rotation']
-        except:
-            rot = 0
+        if( self.rot is None ):
+            try:
+                self.rot = self.root_stream['rotation']
+            except:
+                self.rot = 0
 
-        # If image size info is not present, read it from the file and write it
-        # back to the obejct
-        if( w is None or h is None ):
-            f = self.imgdb.read( id )
-            if( f is None ):
-                return None
+        return self.rot
+
+    def get_dims( self ):
+
+        if( self.w is None or self.h is None ):
+            root_stream = self.get_root_stream()
 
             try:
-                img = Image.open( f )
-                w, h = img.size
+                self.w = root_stream['width']
+            except:
+                pass
+
+            try:
+                self.h = root_stream['height']
+            except:
+                pass
+
+        # Image info is not present, we need to read it from the file
+        if( self.w is None or self.h is None ):
+            root_stream = self.get_root_stream()
+
+            try:
+                self.img = self.get_img()
+                self.w, self.h = self.img.size
             except IOError:
                 return None
 
-            obj['original-width'] = w
-            obj['original-height'] = h
+            root_stream['width'] = self.w
+            root_stream['height'] = self.h
 
-        t = None
+        return self.w, self.h
 
-        # Do we need to resize?
-        if( w > s or h > s ):
-            t = self.__get_fname_base( id ) + '_%02d.jpg' % ( exp, )
+    def get_tb_info( self, bump_gen = False ):
 
-        # Do we need to rotate?
-        if( t is None and rot != 0 ):
-            t = self.__get_fname_base( id ) + '_max.jpg'
+        commit_tb_info = False
 
-        # If no operations are necessary, we won't create a thumb
-        if( t is None ):
-
-            # Ensure the size is written to the object
-            try:
-                obj['width']
-            except:
-                obj['width'] = w
+        if( self.tb_gen is None
+         or self.max_e is None
+         or self.use_root is None ):
 
             try:
-                obj['height']
+                tb_info = map( int, self.obj['.tbinfo'].split( ':' ) )
+
+                self.tb_gen = tb_info[0]
+                self.max_e = tb_info[1]
+                self.use_root = tb_info[2]
+
+                if( bump_gen ):
+                    self.tb_gen += 1
+                    commit_tb_info = True
+
             except:
-                obj['height'] = h
+                pass
 
-            return None
+        if( self.tb_gen is None
+         or self.max_e is None
+         or self.use_root is None ):
 
-        # Is the thumb already created?
-        if( os.path.isfile( t ) and not force ):
-            return t
+            w, h = self.get_dims()
+            rot = self.get_rot()
+
+            self.tb_gen = 0
+            self.max_e = 0
+            if( rot == 0 ):
+                self.use_root = 1
+            else:
+                self.use_root = 0
+
+            while( 2**self.max_e < w or 2**self.max_e < h ):
+                self.max_e += 1
+
+            commit_tb_info = True
+
+
+        if( commit_tb_info ):
+            tb_info = [ self.tb_gen, self.max_e, self.use_root ]
+            self.obj['.tbinfo'] = ':'.join( map( str, tb_info ) )
+
+        return self.tb_gen, self.max_e, self.use_root
+
+class ThumbCache:
+
+    def __init__( self, fsdb, imgdb ):
+
+        self.fsdb = fsdb
+        self.imgdb = imgdb
+
+    def make_thumb( self, obj, exp ):
+
+        from PIL import Image
+
+        imginfo = ImageInfo( self.imgdb, obj )
+
+        gen, max_e, use_root = imginfo.get_tb_info()
+
+        if( exp < MIN_THUMB_EXP ):
+            exp = MIN_THUMB_EXP
+
+        if( exp >= max_e ):
+            if( use_root == 1 ):
+                return imginfo.get_root_stream()
+            else:
+                exp = max_e
+
+        t_stream = obj.get_stream( 'tb:%d' % ( exp, ) )
+        if( t_stream is not None ):
+            return t_stream
+
+        s = 2**exp
+
+        # If we're here, we need to produce a thumb
+        t = tempfile.mkstemp( '.jpg' )
+        os.close( t[0] )
 
         # At this point, we need to create a thumb, open the file
         try:
-            if( img is None ):
-                f = self.imgdb.read( id )
-                if( f is None ):
-                    return None
-
-                img = Image.open( f )
+            img = imginfo.get_img()
+            w, h = imginfo.get_dims()
+            rot = imginfo.get_rot()
 
             if( rot == 1 or rot == 3 ):
                 w, h = h, w
@@ -588,17 +637,15 @@ class ThumbCache:
                 img = img.resize( ( tw, th, ), Image.ANTIALIAS )
 
             # Save the image
-            img.save( t )
+            img.save( t[1] )
+
+            # Now load the thumb into the database
+            return obj.db.register_thumb( t[1], obj, 'tb:%d' % ( exp, ) )
 
         except IOError:
             return None
 
-        return t
+    def purge_thumbs( self, obj ):
 
-    def purge_thumbs( self, id ):
-
-        from glob import glob
-    
-        fs = glob( self.__get_fname_base( id ) + '_*.jpg' )
-        for f in fs:
-            os.remove( f )
+        obj.drop_expendible_streams()
+        ImageInfo( obj ).get_tb_info( True )

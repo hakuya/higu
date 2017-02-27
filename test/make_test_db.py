@@ -14,6 +14,9 @@ if( __name__ == '__main__' ):
         import higu
         hdbfs = higu
 
+    if( ver[0] >= 5 ):
+        hdbfs.ark.MIN_THUMB_EXP = 2
+
     if( ver[0] < 5 ):
         hdbfs.DEFAULT_ENVIRON = os.environ['MKDB_LIB_PATH']
         h = hdbfs.init_default()
@@ -40,6 +43,29 @@ if( __name__ == '__main__' ):
     lo = h.register_file( 'grey_sq.png' )
     lo = h.register_file( 'grey_sq2.png' )
     ko = h.register_file( 'black_sq.png' )
+
+    if( ver[0] > 7 ):
+        wo.rotate( 1 )
+
+    if( ver[0] < 5 ):
+        pass
+    elif( ver[0] < 10 ):
+        if( ver[0] < 8 ):
+            # Old versions of the database don't move the image files until
+            # commit is called. This causes read_thumb() to fail
+            h.commit()
+
+        wo.read_thumb( 10 )
+        lo.read_thumb( 3 )
+        lo.read_thumb( 4 )
+        ko.read_thumb( 3 )
+        ko.read_thumb( 4 )
+    else:
+        wo.get_thumb_stream( 10 )
+        lo.get_thumb_stream( 3 )
+        lo.get_thumb_stream( 4 )
+        ko.get_thumb_stream( 3 )
+        ko.get_thumb_stream( 4 )
 
     if( ver[0] < 4 ):
         mo.tag( 'colour' )

@@ -32,6 +32,12 @@ if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_query" ]; then
     python test/query_cases.py || exit $?
 fi
 
+if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_thumb" ]; then
+    echo 'Testing HDBFS thumbnail functions'
+    echo '============================================================'
+    python test/thumb_cases.py || exit $?
+fi
+
 if [ -z $1 ] || [ $1 == "insert" ]; then
     echo 'Testing insertfile script'
     echo '============================================================'

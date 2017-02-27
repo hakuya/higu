@@ -5,6 +5,7 @@ log = logging.getLogger( __name__ )
 
 import pre8
 import ver8rules
+import imgdb_rules
 
 from hdbfs.db import SqlLiteDatabase
 from hdbfs.hash import calculate_details
@@ -49,20 +50,31 @@ class HDBFSMigrator:
             return ver8rules.upgrade_from_8_to_8_1( log, session )
         elif( ver == 8 ):
             return ver8rules.upgrade_from_8_1_to_9( log, session )
+        elif( ver == 9 ):
+            return ver8rules.upgrade_from_9_to_10( log, session )
         else:
             raise RuntimeError( 'Incompatible database version for upgrade' )
 
 class ImgDBMigrator:
 
-    def __init__( self ):
+    def __init__( self, dbpath ):
 
-        pass
+        self.dbpath = dbpath
 
     def determine_schema_info( self, session ):
 
         try:
             result = session.execute( 'SELECT imgdb_ver FROM dbi' ).first()
-            return result['imgdb_ver'], 0, None
+            if( result is None ):
+                return None, None, None
+
+            # Due to a bug in initialization, sometimes version is left
+            # NULL
+            ver = result['imgdb_ver']
+            if( ver is None ):
+                ver = 0;
+
+            return ver, 0, None
         except:
             return None, None, None
 
@@ -72,6 +84,7 @@ class ImgDBMigrator:
 
     def upgrade_schema( self, session, ver, rev ):
 
-        return ver, rev
+        if( ver == 0 ): 
+            return imgdb_rules.upgrade_from_0_to_1( log, session, self.dbpath )
 
 # vim:sts=4:et
