@@ -183,6 +183,7 @@ class Stream( Base ):
     create_ts = Column( Integer, nullable = False )
     origin_stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ) )
     origin_method = Column( Text )
+    extension = Column( Text )
     mime_type = Column( Text )
     stream_length = Column( Integer )
     hash_crc32 = Column( Text )
@@ -196,7 +197,8 @@ class Stream( Base ):
                             remote_side = [ stream_id ] )
 
     def __init__( self, obj, name, priority,
-                  origin_stream, origin_method, mime_type ):
+                  origin_stream, origin_method,
+                  extension, mime_type ):
 
         self.obj = obj
         self.name = name
@@ -204,6 +206,7 @@ class Stream( Base ):
         self.create_ts = calendar.timegm(time.gmtime())
         self.origin_stream = origin_stream
         self.origin_method = origin_method
+        self.extension = extension
         self.mime_type = mime_type
 
     def set_details( self, stream_length, hash_crc32, hash_md5, hash_sha1 ):

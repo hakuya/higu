@@ -113,16 +113,21 @@ class Stream:
         with self.db._access():
             return self.stream.hash_sha1
 
+    def get_extension( self ):
+
+        with self.db._access():
+            return self.stream.extension
+
     def get_mime( self ):
 
         with self.db._access():
-            return self.db.imgdb.get_mime( self.stream.stream_id,
-                                           self.stream.priority )
+            return self.stream.mime_type
 
     def _read( self ):
 
         return self.db.imgdb.read( self.stream.stream_id,
-                                   self.stream.priority )
+                                   self.stream.priority,
+                                   self.stream.extension  )
 
     def read( self ):
 
@@ -157,7 +162,8 @@ class Stream:
     def _drop_data( self ):
 
         self.db.imgdb.delete( self.stream.stream_id,
-                              self.stream.priority )
+                              self.stream.priority,
+                              self.stream.extension  )
 
     def __getitem__( self, key ):
 
@@ -520,12 +526,12 @@ class File( Obj ):
                 obj_id = self.obj.object_id
                 stream_id = self.obj.stream.stream_id
                 priority = self.obj.stream.priority
+                extension = self.obj.stream.extension
 
-            e = self.db.imgdb.get_ext( stream_id, priority )
-            if( e == None ):
+            if( extension == None ):
                 return '%016x' % ( obj_id, )
             else:
-                return '%016x.%s' % ( obj_id, e, )
+                return '%016x.%s' % ( obj_id, extension, )
 
     def _get_stream( self, name ):
 
@@ -918,6 +924,8 @@ class Database:
 
     def __recover_file( self, path ):
 
+        import mimetypes
+
         name = os.path.split( path )[1]
 
         details = calculate_details( path )
@@ -928,7 +936,13 @@ class Database:
 
         if( not streams[0]._verify() ):
             self.imgdb.load_data( path, streams[0].stream.stream_id,
-                                        streams[0].stream.priority )
+                                        streams[0].stream.priority,
+                                        streams[0].stream.extension )
+
+            ext = os.path.splitext( path )[1]
+            assert ext[0] == '.'
+            streams[0].stream.extension = ext[1:]
+            streams[0].stream.mime_type = mimetypes.guess_type( path, strict=False )[0]
         return True
 
     def recover_files( self, files ):
@@ -966,6 +980,10 @@ class Database:
         import mimetypes
 
         name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
+        ext = os.path.splitext( name )[1]
+        assert ext[0] == '.'
+        ext = ext[1:]
+
         details = calculate_details( path )
 
         mime_type = mimetypes.guess_type( path, strict=False )[0]
@@ -976,7 +994,7 @@ class Database:
             self.session.add( obj )
             stream = model.Stream( obj, '.', model.SP_NORMAL,
                                    None, 'hdbfs:register',
-                                   mime_type )
+                                   ext, mime_type )
             stream.set_details( *details )
             self.session.add( stream )
             obj.root_stream = stream
@@ -997,7 +1015,8 @@ class Database:
 
         if( not stream._verify() ):
             self.imgdb.load_data( path, stream.stream.stream_id,
-                                        stream.stream.priority )
+                                        stream.stream.priority,
+                                        stream.stream.extension )
 
         return f
 
@@ -1010,18 +1029,23 @@ class Database:
 
         import mimetypes
 
+        ext = os.path.splitext( path )[1]
+        assert ext[0] == '.'
+        ext = ext[1:]
+
         details = calculate_details( path )
         mime_type = mimetypes.guess_type( path, strict=False )[0]
 
         stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE,
                                origin.stream, 'imgdb:thumb',
-                               mime_type )
+                               ext, mime_type )
         stream.set_details( *details )
         self.session.add( stream )
         self.session.flush()
 
         self.imgdb.load_data( path, stream.stream_id,
-                                    stream.priority )
+                                    stream.priority,
+                                    stream.extension )
 
         return Stream( self, stream )
 

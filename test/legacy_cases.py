@@ -323,6 +323,10 @@ class LegacyCases( testutil.TestCase ):
                                      'Unexpected origin stream for root' )
                     self.assertEqual( s, f.get_root_stream(),
                                       'Unexpected mapping for root' )
+                    self.assertEqual( s.get_extension(), 'png',
+                                      'Unexpected extension for root' )
+                    self.assertEqual( s.get_mime(), 'image/png',
+                                      'Unexpected mime for root' )
                 elif( s.get_name().startswith( 'dup:' ) ):
                     self.assertEqual( s.get_origin_method(),
                                       'hdbfs:legacy',
@@ -330,6 +334,10 @@ class LegacyCases( testutil.TestCase ):
                     self.assertTrue( s.get_origin_stream()
                                   is None,
                                      'Unexpected origin stream for dup' )
+                    self.assertEqual( s.get_extension(), 'png',
+                                      'Unexpected extension for dup' )
+                    self.assertEqual( s.get_mime(), 'image/png',
+                                      'Unexpected mime for dup' )
                 elif( s.get_name().startswith( 'thumb:' ) ):
                     self.assertEqual( s.get_origin_method(),
                                       'imgdb:legacy',
@@ -337,6 +345,10 @@ class LegacyCases( testutil.TestCase ):
                     self.assertEqual( s.get_origin_stream(),
                                       f.get_root_stream(),
                                      'Unexpected origin stream for thumb' )
+                    self.assertEqual( s.get_extension(), 'jpg',
+                                      'Unexpected extension for thumb' )
+                    self.assertEqual( s.get_mime(), 'image/jpeg',
+                                      'Unexpected mime for jpg' )
                 else:
                     self.fail( 'Unexpected stream name' )
 
