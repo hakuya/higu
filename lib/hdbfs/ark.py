@@ -516,8 +516,6 @@ class ImageInfo:
 
     def get_tb_info( self, bump_gen = False ):
 
-        commit_tb_info = False
-
         if( self.tb_gen is None
          or self.max_e is None
          or self.use_root is None ):
@@ -529,21 +527,22 @@ class ImageInfo:
                 self.max_e = tb_info[1]
                 self.use_root = tb_info[2]
 
-                if( bump_gen ):
-                    self.tb_gen += 1
-                    commit_tb_info = True
-
             except:
                 pass
 
-        if( self.tb_gen is None
+        if( bump_gen
+         or self.tb_gen is None
          or self.max_e is None
          or self.use_root is None ):
 
             w, h = self.get_dims()
             rot = self.get_rot()
 
-            self.tb_gen = 0
+            if( self.tb_gen is not None ):
+                self.tb_gen += 1
+            else:
+                self.tb_gen = 0
+
             self.max_e = 0
             if( rot == 0 ):
                 self.use_root = 1
@@ -553,10 +552,6 @@ class ImageInfo:
             while( 2**self.max_e < w or 2**self.max_e < h ):
                 self.max_e += 1
 
-            commit_tb_info = True
-
-
-        if( commit_tb_info ):
             tb_info = [ self.tb_gen, self.max_e, self.use_root ]
             self.obj['.tbinfo'] = ':'.join( map( str, tb_info ) )
 
@@ -640,12 +635,14 @@ class ThumbCache:
             img.save( t[1] )
 
             # Now load the thumb into the database
-            return obj.db.register_thumb( t[1], obj, 'tb:%d' % ( exp, ) )
+            return obj.db.register_thumb( t[1], obj,
+                                          imginfo.get_root_stream(),
+                                          'tb:%d' % ( exp, ) )
 
         except IOError:
             return None
 
     def purge_thumbs( self, obj ):
 
-        obj.drop_expendible_streams()
-        ImageInfo( obj ).get_tb_info( True )
+        obj.drop_expendable_streams()
+        ImageInfo( self.imgdb, obj ).get_tb_info( True )

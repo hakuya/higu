@@ -304,6 +304,42 @@ class LegacyCases( testutil.TestCase ):
         self.assertEqual( len( grey_s ), 4,
                 'Unexpected number of streams in grey obj' )
 
+    def subtest_check_stream_origin( self, ver ):
+
+        h = hdbfs.Database()
+
+        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+
+        now = datetime.datetime.utcnow()
+        for f in files:
+            for s in f.get_streams():
+
+                if( s.get_name() == '.' ):
+                    self.assertEqual( s.get_origin_method(),
+                                      'hdbfs:legacy',
+                                      'Unexpected origin method for root' )
+                    self.assertTrue( s.get_origin_stream()
+                                  is None,
+                                     'Unexpected origin stream for root' )
+                    self.assertEqual( s, f.get_root_stream(),
+                                      'Unexpected mapping for root' )
+                elif( s.get_name().startswith( 'dup:' ) ):
+                    self.assertEqual( s.get_origin_method(),
+                                      'hdbfs:legacy',
+                                      'Unexpected origin method for dup' )
+                    self.assertTrue( s.get_origin_stream()
+                                  is None,
+                                     'Unexpected origin stream for dup' )
+                elif( s.get_name().startswith( 'thumb:' ) ):
+                    self.assertEqual( s.get_origin_method(),
+                                      'imgdb:legacy',
+                                      'Unexpected origin method for thumb' )
+                    self.assertEqual( s.get_origin_stream(),
+                                      f.get_root_stream(),
+                                     'Unexpected origin stream for thumb' )
+                else:
+                    self.fail( 'Unexpected stream name' )
+
 class BoundSubtest:
 
     def __init__( self, fn, ver ):

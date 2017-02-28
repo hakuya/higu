@@ -181,6 +181,8 @@ class Stream( Base ):
     name = Column( Text, nullable = False )
     priority = Column( Integer, nullable = False )
     create_ts = Column( Integer, nullable = False )
+    origin_stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ) )
+    origin_method = Column( Text )
     mime_type = Column( Text )
     stream_length = Column( Integer )
     hash_crc32 = Column( Text )
@@ -189,13 +191,19 @@ class Stream( Base ):
 
     obj = relation( 'Object', foreign_keys = [ object_id ],
                     backref = backref( 'streams', lazy = 'dynamic' ) )
+    origin_stream = relation( 'Stream',
+                        backref = 'derived_streams',
+                            remote_side = [ stream_id ] )
 
-    def __init__( self, obj, name, priority, mime_type ):
+    def __init__( self, obj, name, priority,
+                  origin_stream, origin_method, mime_type ):
 
         self.obj = obj
         self.name = name
         self.priority = priority
         self.create_ts = calendar.timegm(time.gmtime())
+        self.origin_stream = origin_stream
+        self.origin_method = origin_method
         self.mime_type = mime_type
 
     def set_details( self, stream_length, hash_crc32, hash_md5, hash_sha1 ):
@@ -243,12 +251,11 @@ class Stream( Base ):
 
     def __repr__( self ):
 
-        return 'Stream( %r, %r, %r, %r, %r, %r, %r, %r, %r, %r )' % (
+        return 'Stream( %r, %r, %r, %r, %r, %r, %r, %r, %r, %r, %r, %r )' % (
                 self.stream_id, self.object_id, self.name, self.priority,
-                self.create_ts, self.mime_type, self.stream_length,
-                self.hash_crc32, self.hash_md5, self.hash_sha1 )
-
-
+                self.create_ts, self.origin_stream_id, self.origin_method,
+                self.mime_type, self.stream_length, self.hash_crc32,
+                self.hash_md5, self.hash_sha1 )
 
 class ObjectMetadata( Base ):
     __tablename__ = 'object_metadata'

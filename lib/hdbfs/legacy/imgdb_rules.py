@@ -91,7 +91,9 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                 mime_type = mimetypes.guess_type( t, strict=False )[0]
 
                 t_stream = model.Stream( obj, 'thumb:' + exp,
-                                         model.SP_EXPENDABLE, mime_type )
+                                         model.SP_EXPENDABLE,
+                                         stream, 'imgdb:legacy',
+                                         mime_type )
                 t_stream.set_details( *details )
                 session.add( t_stream )
                 session.flush()

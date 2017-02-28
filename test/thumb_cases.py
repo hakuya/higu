@@ -62,6 +62,43 @@ class ThumbCases( testutil.TestCase ):
                       == root_stream.get_priority(),
                           'Oddity in return root for large priority' )
 
+    def test_rot_does_not_return_orig( self ):
+
+        blue = self._load_data( self.blue )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        obj = h.register_file( blue, False )
+
+        obj.rotate( 1 )
+
+        root_stream = obj.get_root_stream()
+        thumb_stream = obj.get_thumb_stream( 10 )
+
+        self.assertFalse( thumb_stream.get_stream_id()
+                      == root_stream.get_stream_id(),
+                          'Root returned on rotated image' )
+
+    def test_thumb_points_to_root( self ):
+
+        blue = self._load_data( self.blue )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        obj = h.register_file( blue, False )
+
+        root_stream = obj.get_root_stream()
+        thumb_stream = obj.get_thumb_stream( 4 )
+        origin_stream = thumb_stream.get_origin_stream()
+
+        self.assertTrue( origin_stream is not None,
+                         'Thumb has not origin' )
+        self.assertTrue( origin_stream.get_stream_id()
+                      == root_stream.get_stream_id(),
+                         'Origin stream is not root stream' )
+
     def test_create_very_small( self ):
 
         blue = self._load_data( self.blue )

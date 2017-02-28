@@ -70,6 +70,11 @@ class Stream:
         with self.db._access():
             return self.stream.stream_id
 
+    def get_name( self ):
+
+        with self.db._access():
+            return self.stream.name
+
     def get_priority( self ):
 
         with self.db._access():
@@ -84,6 +89,19 @@ class Stream:
 
         with self.db._access():
             return datetime.datetime.utcfromtimestamp( self.stream.create_ts )
+
+    def get_origin_stream( self ):
+
+        with self.db._access():
+            if( self.stream.origin_stream is not None ):
+                return Stream( self.db, self.stream.origin_stream )
+            else:
+                return None
+
+    def get_origin_method( self ):
+
+        with self.db._access():
+            return self.stream.origin_method
 
     def get_length( self ):
 
@@ -150,6 +168,14 @@ class Stream:
 
         with self.db._access( write = True ):
             self.stream[key] = value
+
+    def __eq__( self, o ):
+
+        if( o == None ):
+            return False
+        if( not isinstance( o, self.__class__ ) ):
+            return False
+        return self.db == o.db and self.stream == o.stream
 
 class Obj:
 
@@ -561,7 +587,7 @@ class File( Obj ):
     def drop_expendable_streams( self ):
 
         with self.db._access( write = True ):
-            self._drop_expendible_streams()
+            self._drop_expendable_streams()
 
     def _get_root_stream( self ):
 
@@ -575,10 +601,13 @@ class File( Obj ):
     def rotate( self, rot ):
 
         with self.db._access( write = True ):
+            if( self.obj.root_stream is None ):
+                return
+
             try:
-                rotation = self.obj['rotation']
+                rotation = self.obj.root_stream['rotation']
             except:
-                rotation = 0;
+                rotation = 0
 
             rotation += int( rot )
             rotation %= 4
@@ -586,16 +615,9 @@ class File( Obj ):
             if( rotation < 0 ):
                 rotation += 4
 
-            try:
-                gen = self.obj['thumb-gen']
-                gen += 1
-            except:
-                gen = 1
+            self.obj.root_stream['rotation'] = rotation
 
-            self.obj['rotation'] = rotation
-            self.obj['thumb-gen'] = gen
-
-            self.db.tbcache.purge_thumbs( self )
+        self.db.tbcache.purge_thumbs( self )
 
     def get_thumb_stream( self, exp ):
 
@@ -952,7 +974,9 @@ class Database:
         if( len( streams ) == 0 ):
             obj = model.Object( TYPE_FILE )
             self.session.add( obj )
-            stream = model.Stream( obj, '.', model.SP_NORMAL, mime_type )
+            stream = model.Stream( obj, '.', model.SP_NORMAL,
+                                   None, 'hdbfs:register',
+                                   mime_type )
             stream.set_details( *details )
             self.session.add( stream )
             obj.root_stream = stream
@@ -982,14 +1006,16 @@ class Database:
         with self._access( write = True ):
             return self.__register_file( path, add_name )
 
-    def __register_thumb( self, path, obj, name ):
+    def __register_thumb( self, path, obj, origin, name ):
 
         import mimetypes
 
         details = calculate_details( path )
         mime_type = mimetypes.guess_type( path, strict=False )[0]
 
-        stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE, mime_type )
+        stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE,
+                               origin.stream, 'imgdb:thumb',
+                               mime_type )
         stream.set_details( *details )
         self.session.add( stream )
         self.session.flush()
@@ -999,10 +1025,10 @@ class Database:
 
         return Stream( self, stream )
 
-    def register_thumb( self, path, obj, name ):
+    def register_thumb( self, path, obj, origin, name ):
 
         with self._access( write = True ):
-            return self.__register_thumb( path, obj, name )
+            return self.__register_thumb( path, obj, origin, name )
 
     def batch_add_files( self, files, tags = [], tags_new = [], save_name = False,
                          create_album = False, album_name = None, album_text = None ):
