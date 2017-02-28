@@ -130,6 +130,7 @@ def upgrade_from_9_to_10( log, session ):
                        'create_ts           INTEGER NOT NULL,\n'
                        'origin_stream_id    INTEGER,\n'
                        'origin_method       TEXT,\n'
+                       'extension           TEXT,\n'
                        'mime_type           TEXT,\n'
                        'stream_length       INTEGER,\n'
                        'hash_crc32          TEXT,\n'

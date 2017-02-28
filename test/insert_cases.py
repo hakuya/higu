@@ -136,7 +136,8 @@ class InsertCases( testutil.TestCase ):
 
         s = obj.get_root_stream()
         h.imgdb.delete( s.get_stream_id(),
-                        s.get_priority() )
+                        s.get_priority(),
+                        s.get_extension() )
         h.imgdb.commit()
 
         img_fd = obj.get_root_stream().read()

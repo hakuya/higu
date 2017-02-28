@@ -36,25 +36,7 @@ class ZipVolume:
 
         return self.zf.testzip() is None
 
-    def get_ext( self, id ):
-
-        try:
-            info = self.ls[id]
-            fname = info.filename
-            return fname[fname.rindex( '.' )+1:]
-        except ( KeyError, ValueError ):
-            return None
-
-    def get_mime( self, id ):
-
-        try:
-            info = self.ls[id]
-            fname = info.filename
-            return mimetypes.guess_type( fname )[0]
-        except ( KeyError, ValueError ):
-            return None
-
-    def read( self, id ):
+    def read( self, id, extension ):
 
         try:
             info = self.ls[id]
@@ -62,7 +44,7 @@ class ZipVolume:
         except KeyError:
             return None
 
-    def _debug_write( self, id ):
+    def _debug_write( self, id, extension ):
 
         assert False
 
@@ -84,52 +66,19 @@ class FileVolume:
         self.state = 'clean'
         self.rm_dir = None
 
-    def __get_path( self, id, priority ):
+    def __get_path( self, id, priority, extension ):
 
         path = self.data_config.get_file_vol_path( self.vol_id, priority )
-
-        try:
-            ls = os.listdir( path )
-            ids = '%016x.' % ( id )
-        except OSError:
-            return None
-
-        for f in ls:
-            try:
-                if( f.index( ids ) == 0 ):
-                    return os.path.join( path, f )
-            except ValueError:
-                pass
-
-        return None
+        return os.path.join( path, '%016x.%s' % ( id, extension ) )
 
     def verify( self ):
 
         return True
 
-    def get_ext( self, id, priority ):
+    def read( self, id, priority, extension ):
 
-        p = self.__get_path( id, priority )
-        if( p is None ):
-            return None
-        else:
-            try:
-                return p[p.rindex( '.' )+1:]
-            except IndexError:
-                return None
-
-    def get_mime( self, id, priority ):
-
-        p = self.__get_path( id, priority )
-        if( p is None ):
-            return None
-        else:
-            return mimetypes.guess_type( p )[0]
-
-    def read( self, id, priority ):
-
-        p = self.__get_path( id, priority )
-        if( p is None ):
+        p = self.__get_path( id, priority, extension )
+        if( not os.path.isfile( p ) ):
             return None
         else:
             try:
@@ -137,16 +86,14 @@ class FileVolume:
             except IndexError:
                 return None
 
-    def _debug_write( self, id, priority ):
+    def _debug_write( self, id, priority, extension ):
 
-        p = self.__get_path( id, priority )
-        if( p is None ):
+        p = self.__get_path( id, priority, extension )
+
+        try:
+            return open( p, 'wb' )
+        except IndexError:
             return None
-        else:
-            try:
-                return open( p, 'wb' )
-            except IndexError:
-                return None
 
     def get_state( self ):
 
@@ -211,7 +158,7 @@ class FileVolume:
 
             self.state = 'dirty'
 
-    def load_data( self, path, id, priority ):
+    def load_data( self, path, id, priority, extension ):
 
         if( self.state == 'committed' ):
             self.reset_state()
@@ -222,16 +169,10 @@ class FileVolume:
         if( not os.path.isdir( new_path ) ):
             os.makedirs( new_path )
 
-        name = os.path.split( path )[-1]
-        try:
-            ext = name[name.rindex( '.' ):]
-        except ValueError:
-            ext = '.dat'
-
-        tgt = os.path.join( new_path, '%016x%s' % ( id, ext ) )
+        tgt = os.path.join( new_path, '%016x.%s' % ( id, extension ) )
         self.to_commit.append( ( path, tgt, ) )
 
-    def delete( self, id, priority ):
+    def delete( self, id, priority, extension ):
 
         if( self.state == 'committed' ):
             self.reset_state()
@@ -241,7 +182,9 @@ class FileVolume:
         if( self.rm_dir is None ):
             self.rm_dir = tempfile.mkdtemp()
 
-        src = self.__get_path( id, priority )
+        src = self.__get_path( id, priority, extension )
+        if( not os.path.isfile( src ) ):
+            return
 
         name = os.path.split( src )[-1]
         tgt = os.path.join( self.rm_dir, name )
@@ -394,7 +337,7 @@ class StreamDatabase:
 
             self.state = 'clean'
 
-    def load_data( self, path, id, priority ):
+    def load_data( self, path, id, priority, extension ):
 
         if( self.state == 'committed' ):
             # Clean things up before we begin. We need to do this so that
@@ -405,9 +348,9 @@ class StreamDatabase:
         self.state = 'dirty'
 
         v = self.__get_vol_for_id( id )
-        v.load_data( path, id, priority )
+        v.load_data( path, id, priority, extension )
 
-    def delete( self, id, priority ):
+    def delete( self, id, priority, extension ):
 
         if( self.state == 'committed' ):
             # Clean things up before we begin. We need to do this so that
@@ -418,27 +361,17 @@ class StreamDatabase:
         self.state = 'dirty'
 
         v = self.__get_vol_for_id( id )
-        v.delete( id, priority )
+        v.delete( id, priority, extension )
 
-    def get_ext( self, id, priority ):
-
-        v = self.__get_vol_for_id( id )
-        return v.get_ext( id, priority )
-
-    def get_mime( self, id, priority ):
+    def read( self, id, priority, extension ):
 
         v = self.__get_vol_for_id( id )
-        return v.get_mime( id, priority )
+        return v.read( id, priority, extension )
 
-    def read( self, id, priority ):
-
-        v = self.__get_vol_for_id( id )
-        return v.read( id, priority )
-
-    def _debug_write( self, id, priority ):
+    def _debug_write( self, id, priority, extension ):
 
         v = self.__get_vol_for_id( id )
-        return v._debug_write( id, priority )
+        return v._debug_write( id, priority, extension )
 
 class ImageInfo:
 

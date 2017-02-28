@@ -67,20 +67,22 @@ class HiguLibCases( testutil.TestCase ):
 
         s_id = obj.get_root_stream().get_stream_id()
         s_prio = obj.get_root_stream().get_priority()
+        s_ext = obj.get_root_stream().get_extension()
 
         t_id = obj.get_thumb_stream( 4 ).get_stream_id()
         t_prio = obj.get_thumb_stream( 4 ).get_priority()
+        t_ext = obj.get_thumb_stream( 4 ).get_extension()
 
         h.delete_object( obj )
 
         self.assertEqual( h.get_object_by_id( obj_id ), None,
                           'Object returned by id after delete' )
 
-        img_fd = h.imgdb.read( s_id, s_prio )
+        img_fd = h.imgdb.read( s_id, s_prio, s_ext )
         self.assertTrue( img_fd is None,
                 'Image returned after delete' )
 
-        tb_fd = h.imgdb.read( t_id, t_prio )
+        tb_fd = h.imgdb.read( t_id, t_prio, t_ext )
         self.assertTrue( tb_fd is None,
                 'Thumb returned after delete' )
 
@@ -153,7 +155,8 @@ class HiguLibCases( testutil.TestCase ):
 
         s = obj.get_root_stream()
         h.imgdb.delete( s.get_stream_id(),
-                        s.get_priority() )
+                        s.get_priority(),
+                        s.get_extension() )
         h.imgdb.commit()
 
         img_fd = obj.get_root_stream().read()
@@ -187,7 +190,8 @@ class HiguLibCases( testutil.TestCase ):
 
         s = obj.get_root_stream()
         img_fd = h.imgdb._debug_write( s.get_stream_id(),
-                                       s.get_priority() )
+                                       s.get_priority(),
+                                       s.get_extension() )
 
         try:
             img_fd.write( 'this is junk' )

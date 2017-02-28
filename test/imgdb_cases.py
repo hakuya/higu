@@ -24,8 +24,10 @@ class ImgDbCases( testutil.TestCase ):
     def test_imgdat_structure( self ):
 
         red = self._load_data( self.red )
+        green = self._load_data( self.green )
 
-        self.idb.load_data( red, 0x123, PRI_DATA )
+        self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
+        self.idb.load_data( green, 0xabc, PRI_DATA, 'dat' )
 
         # Should not be moved before commit
         self.assertTrue( os.path.exists( red ),
@@ -42,12 +44,16 @@ class ImgDbCases( testutil.TestCase ):
                     os.path.join( self.db_path,
                     'imgdat/000/000/0000000000000123.png' ) ),
                 'Image file moved to incorrect location' )
+        self.assertTrue( os.path.isfile(
+                    os.path.join( self.db_path,
+                    'imgdat/000/000/0000000000000abc.dat' ) ),
+                'Image file moved to incorrect location' )
 
-        red_fd = self.idb.read( 0x123, PRI_DATA )
+        red_fd = self.idb.read( 0x123, PRI_DATA, 'png' )
         self.assertTrue( self._diff_data( red_fd, self.red ),
                 'Image not read properly from library' )
 
-        uk_fd = self.idb.read( 0xabc, PRI_DATA )
+        uk_fd = self.idb.read( 0xabc, PRI_DATA, 'png' )
         self.assertTrue( uk_fd is None,
                 'Missing file somehow read from library' )
 
@@ -55,7 +61,7 @@ class ImgDbCases( testutil.TestCase ):
 
         red = self._load_data( self.red )
 
-        self.idb.load_data( red, 0x123, PRI_THUMB )
+        self.idb.load_data( red, 0x123, PRI_THUMB, 'png' )
 
         # Should not be moved before commit
         self.assertTrue( os.path.exists( red ),
@@ -73,11 +79,11 @@ class ImgDbCases( testutil.TestCase ):
                     'tbdat/000/000/0000000000000123.png' ) ),
                 'Image file moved to incorrect location' )
 
-        red_fd = self.idb.read( 0x123, PRI_THUMB )
+        red_fd = self.idb.read( 0x123, PRI_THUMB, 'png' )
         self.assertTrue( self._diff_data( red_fd, self.red ),
                 'Image not read properly from library' )
 
-        uk_fd = self.idb.read( 0xabc, PRI_THUMB )
+        uk_fd = self.idb.read( 0xabc, PRI_THUMB, 'png' )
         self.assertTrue( uk_fd is None,
                 'Missing file somehow read from library' )
 
@@ -90,12 +96,12 @@ class ImgDbCases( testutil.TestCase ):
         blue = self._load_data( self.blue )
         magenta = self._load_data( self.magenta )
 
-        self.idb.load_data( red, 0x123, PRI_DATA )
-        self.idb.load_data( yellow, 0xabc, PRI_THUMB )
-        self.idb.load_data( green, 0xdef, PRI_DATA )
-        self.idb.load_data( cyan, 0x123abc, PRI_DATA )
-        self.idb.load_data( blue, 0xabc123abc, PRI_THUMB )
-        self.idb.load_data( magenta, 0xabc123def, PRI_DATA )
+        self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
+        self.idb.load_data( yellow, 0xabc, PRI_THUMB, 'png' )
+        self.idb.load_data( green, 0xdef, PRI_DATA, 'png' )
+        self.idb.load_data( cyan, 0x123abc, PRI_DATA, 'png' )
+        self.idb.load_data( blue, 0xabc123abc, PRI_THUMB, 'png' )
+        self.idb.load_data( magenta, 0xabc123def, PRI_DATA, 'png' )
         self.idb.commit()
 
         self.assertTrue( os.path.isdir(
@@ -139,22 +145,22 @@ class ImgDbCases( testutil.TestCase ):
                     'imgdat/abc/123/0000000abc123def.png' ) ),
                 'Image file abc123def moved to incorrect location' )
 
-        red_fd = self.idb.read( 0x123, PRI_DATA )
+        red_fd = self.idb.read( 0x123, PRI_DATA, 'png' )
         self.assertTrue( self._diff_data( red_fd, self.red ),
                 'Image 123 not read properly from library' )
-        yellow_fd = self.idb.read( 0xabc, PRI_THUMB )
+        yellow_fd = self.idb.read( 0xabc, PRI_THUMB, 'png' )
         self.assertTrue( self._diff_data( yellow_fd, self.yellow ),
                 'Image not read properly from library' )
-        green_fd = self.idb.read( 0xdef, PRI_DATA )
+        green_fd = self.idb.read( 0xdef, PRI_DATA, 'png' )
         self.assertTrue( self._diff_data( green_fd, self.green ),
                 'Image not read properly from library' )
-        cyan_fd = self.idb.read( 0x123abc, PRI_DATA )
+        cyan_fd = self.idb.read( 0x123abc, PRI_DATA, 'png' )
         self.assertTrue( self._diff_data( cyan_fd, self.cyan ),
                 'Image not read properly from library' )
-        blue_fd = self.idb.read( 0xabc123abc, PRI_THUMB )
+        blue_fd = self.idb.read( 0xabc123abc, PRI_THUMB, 'png' )
         self.assertTrue( self._diff_data( blue_fd, self.blue ),
                 'Image not read properly from library' )
-        magenta_fd = self.idb.read( 0xabc123def, PRI_DATA )
+        magenta_fd = self.idb.read( 0xabc123def, PRI_DATA, 'png' )
         self.assertTrue( self._diff_data( magenta_fd, self.magenta ),
                 'Image not read properly from library' )
 
@@ -165,7 +171,7 @@ class ImgDbCases( testutil.TestCase ):
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
-        self.idb.load_data( red, 0x123, PRI_DATA )
+        self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
 
         self.assertEquals( self.idb.get_state(), 'dirty',
                 'Database not dirty after load' )
@@ -208,10 +214,10 @@ class ImgDbCases( testutil.TestCase ):
         yellow = self._load_data( self.yellow )
         green = self._load_data( self.green )
 
-        self.idb.load_data( red, 0x1, PRI_DATA )
+        self.idb.load_data( red, 0x1, PRI_DATA, 'png' )
         self.idb.commit()
 
-        self.idb.load_data( yellow, 0x2, PRI_THUMB )
+        self.idb.load_data( yellow, 0x2, PRI_THUMB, 'png' )
         self.idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
@@ -234,7 +240,7 @@ class ImgDbCases( testutil.TestCase ):
                     'tbdat/000/000/0000000000000002.png' ) ),
                 'File 0x2 present when should have been removed' )
 
-        self.idb.load_data( green, 0x3, PRI_DATA )
+        self.idb.load_data( green, 0x3, PRI_DATA, 'png' )
         self.idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
@@ -268,7 +274,7 @@ class ImgDbCases( testutil.TestCase ):
         self.assertEqual( self.idb.get_state(), 'clean',
                 'Reset state did not reset state to clean' )
 
-        self.idb.load_data( green, 0x3, PRI_DATA )
+        self.idb.load_data( green, 0x3, PRI_DATA, 'png' )
         self.idb.commit()
 
         self.assertTrue( os.path.isfile(
@@ -294,9 +300,9 @@ class ImgDbCases( testutil.TestCase ):
         yellow = self._load_data( self.yellow )
         green = self._load_data( self.green )
 
-        self.idb.load_data( red, 0x1001, PRI_DATA )
+        self.idb.load_data( red, 0x1001, PRI_DATA, 'png' )
         self.idb.commit()
-        self.idb.load_data( yellow, 0x2001, PRI_DATA )
+        self.idb.load_data( yellow, 0x2001, PRI_DATA, 'png' )
         self.idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
@@ -319,7 +325,7 @@ class ImgDbCases( testutil.TestCase ):
                     'imgdat/000/002/0000000000002001.png' ) ),
                 'File 0x2001 present when should have been removed' )
 
-        self.idb.load_data( green, 0x3001, PRI_DATA )
+        self.idb.load_data( green, 0x3001, PRI_DATA, 'png' )
         self.idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
@@ -353,7 +359,7 @@ class ImgDbCases( testutil.TestCase ):
         self.assertEqual( self.idb.get_state(), 'clean',
                 'Reset state did not reset state to clean' )
 
-        self.idb.load_data( green, 0x3001, PRI_DATA )
+        self.idb.load_data( green, 0x3001, PRI_DATA, 'png' )
         self.idb.commit()
 
         self.assertTrue( os.path.isfile(
@@ -379,9 +385,9 @@ class ImgDbCases( testutil.TestCase ):
         yellow = self._load_data( self.yellow )
         green = self._load_data( self.green )
 
-        self.idb.load_data( red, 0x1001, PRI_DATA )
+        self.idb.load_data( red, 0x1001, PRI_DATA, 'png' )
         self.idb.commit()
-        self.idb.load_data( yellow, 0x1002, PRI_THUMB )
+        self.idb.load_data( yellow, 0x1002, PRI_THUMB, 'png' )
         self.idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
@@ -404,7 +410,7 @@ class ImgDbCases( testutil.TestCase ):
                     'tbdat/000/001/0000000000001002.png' ) ),
                 'File 0x1002 present when should have been removed' )
 
-        self.idb.load_data( green, 0x3001, PRI_DATA )
+        self.idb.load_data( green, 0x3001, PRI_DATA, 'png' )
         self.idb.prepare_commit()
 
         self.assertTrue( os.path.isfile(
@@ -438,7 +444,7 @@ class ImgDbCases( testutil.TestCase ):
         self.assertEqual( self.idb.get_state(), 'clean',
                 'Reset state did not reset state to clean' )
 
-        self.idb.load_data( green, 0x3001, PRI_DATA )
+        self.idb.load_data( green, 0x3001, PRI_DATA, 'png' )
         self.idb.commit()
 
         self.assertTrue( os.path.isfile(
@@ -460,7 +466,7 @@ class ImgDbCases( testutil.TestCase ):
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
-        self.idb.load_data( red, 0x123, PRI_DATA )
+        self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
 
         self.assertEquals( self.idb.get_state(), 'dirty',
                 'Database not dirty after load' )
@@ -490,7 +496,7 @@ class ImgDbCases( testutil.TestCase ):
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
-        self.idb.load_data( red, 0x123, PRI_DATA )
+        self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
 
         os.remove( red )
         
@@ -512,9 +518,9 @@ class ImgDbCases( testutil.TestCase ):
         yellow = self._load_data( self.yellow )
         green = self._load_data( self.green )
 
-        self.idb.load_data( red, 0x1, PRI_DATA )
-        self.idb.load_data( yellow, 0x2, PRI_DATA )
-        self.idb.load_data( green, 0x3, PRI_DATA )
+        self.idb.load_data( red, 0x1, PRI_DATA, 'png' )
+        self.idb.load_data( yellow, 0x2, PRI_DATA, 'png' )
+        self.idb.load_data( green, 0x3, PRI_DATA, 'png' )
 
         os.remove( yellow )
 
@@ -538,9 +544,9 @@ class ImgDbCases( testutil.TestCase ):
         yellow = self._load_data( self.yellow )
         green = self._load_data( self.green )
 
-        self.idb.load_data( red, 0x1001, PRI_DATA )
-        self.idb.load_data( yellow, 0x2001, PRI_DATA )
-        self.idb.load_data( green, 0x3001, PRI_DATA )
+        self.idb.load_data( red, 0x1001, PRI_DATA, 'png' )
+        self.idb.load_data( yellow, 0x2001, PRI_DATA, 'png' )
+        self.idb.load_data( green, 0x3001, PRI_DATA, 'png' )
 
         os.remove( yellow )
 
@@ -563,13 +569,13 @@ class ImgDbCases( testutil.TestCase ):
 
         red = self._load_data( self.red )
         green = self._load_data( self.green )
-        self.idb.load_data( red, 0x123, PRI_DATA )
-        self.idb.load_data( green, 0xabc, PRI_THUMB )
+        self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
+        self.idb.load_data( green, 0xabc, PRI_THUMB, 'png' )
 
         self.idb.commit()
 
-        self.idb.delete( 0x123, PRI_DATA )
-        self.idb.delete( 0xabc, PRI_THUMB )
+        self.idb.delete( 0x123, PRI_DATA, 'png' )
+        self.idb.delete( 0xabc, PRI_THUMB, 'png' )
 
         self.assertTrue( os.path.isfile(
                     os.path.join( self.db_path,
