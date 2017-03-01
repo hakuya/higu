@@ -221,7 +221,8 @@ def upgrade_from_9_to_10( log, session ):
                              'AND key NOT IN ( "altname", '
                                               '"original-width", '
                                               '"original-height", '
-                                              '"rotation" ) ' )
+                                              '"rotation", '
+                                              '"thumb-gen" ) ' )
 
     # Copy altnames from primaries
     session.execute( 'INSERT INTO stream_metadata ( stream_id, '
