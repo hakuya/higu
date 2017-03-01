@@ -11,9 +11,7 @@ REVISION = 0
 def get_type_str( obj ):
 
     type = obj.get_type()
-    if( type == hdbfs.TYPE_FILE
-     or type == hdbfs.TYPE_FILE_DUP
-     or type == hdbfs.TYPE_FILE_VAR ):
+    if( type == hdbfs.TYPE_FILE ):
         return 'file'
     elif( type == hdbfs.TYPE_ALBUM ):
         return 'album'
@@ -140,30 +138,17 @@ class JsonInterface:
                 info['text'] = target.get_text()
             if( 'repr' in items ):
                 info['repr'] = target.get_repr()
-            if( isinstance( target, hdbfs.File ) and 'mime' in items ):
-                info['mime'] = target.get_mime()
             if( 'tags' in items ):
                 tags = target.get_tags()
                 info['tags'] = map( lambda x: x.get_name(), tags )
             if( 'names' in items ):
                 info['names'] = target.get_names()
-            if( isinstance( target, hdbfs.File ) and 'duplication' in items ):
-                if( target.is_duplicate() ):
-                    info['duplication'] = 'duplicate'
-                elif( target.is_variant() ):
-                    info['duplication'] = 'variant'
-                else:
-                    info['duplication'] = 'original'
-            if( isinstance( target, hdbfs.File ) and 'similar_to' in items ):
-                similar = target.get_similar_to()
-                if( similar is not None ):
-                    info['similar_to'] = [ similar.get_id(), similar.get_repr() ]
-            if( isinstance( target, hdbfs.File ) and 'duplicates' in items ):
-                duplicates = target.get_duplicates()
-                info['duplicates'] = map( make_obj_tuple, duplicates )
             if( isinstance( target, hdbfs.File ) and 'variants' in items ):
                 variants = target.get_variants()
                 info['variants'] = map( make_obj_tuple, variants )
+            if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
+                variants_of = target.get_variants_of()
+                info['variants_of'] = map( make_obj_tuple, variants )
             if( isinstance( target, hdbfs.File ) and 'albums' in items ):
                 albums = target.get_albums()
                 info['albums'] = map( make_obj_tuple, albums )
@@ -172,7 +157,7 @@ class JsonInterface:
                 info['files'] = map( make_obj_tuple, files )
             if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
                 try:
-                    info['thumb_gen'] = target['thumb-gen']
+                    info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
                 except:
                     info['thumb_gen'] = 0
             if( isinstance( target, hdbfs.File ) and 'width' in items ):

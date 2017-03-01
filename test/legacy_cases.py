@@ -173,10 +173,10 @@ class LegacyCases( testutil.TestCase ):
         white = self._single( h, [ 'white' ] )
         grey = self._single( h, [ 'grey' ] )
 
-        vo_list = grey.get_variant_of()
+        vo_list = grey.get_variants_of()
         self.assertEqual( len( vo_list ), 1,
                 'Grey variant of list len mismatch' )
-        self.assertTrue( white in grey.get_variant_of(),
+        self.assertTrue( white in grey.get_variants_of(),
                 'Grey should be variant of white' )
 
         dup_list = grey.get_duplicates()
@@ -198,6 +198,16 @@ class LegacyCases( testutil.TestCase ):
                 'Unexpected variant count' )
         self.assertEqual( grey.get_variants()[0].get_name(), self.blue,
                 'Blue not moved as black\'s variant' )
+
+    def subtest_check_single_names( self, ver ):
+
+        h = hdbfs.Database()
+
+        grey = self._single( h, [ 'red' ] )
+        names = grey.get_names()
+
+        self.assertTrue( self.red in names,
+                'Name not found' )
 
     def subtest_check_multi_names( self, ver ):
 

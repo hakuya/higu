@@ -54,38 +54,68 @@ function public_make_sortable( disp, elem, index )
     elem.data( 'index', index );
 };
 
-function public_make_link( repr, target )
+function private_make_link( repr, target, extra, action )
 {
     label = $( '<a href="#">' + repr + '</a>' );
     label.data( 'repr', repr );
-    label.data( 'obj_id', target );
+    label.data( 'target', target );
+    if( extra != null ) {
+        label.data( 'extra', extra );
+    }
 
-    label.click( function( e ) {
-        obj_id = $( this ).data( 'obj_id' );
-        repr = $( this ).data( 'repr' );
-
-        provider = new tabs.SingleProvider( obj_id );
-        tabs.create_display_tab( repr, provider );
-    });
+    label.click( action );
 
     return label;
-};
+}
 
-function public_make_link2( pair )
+function public_make_link( repr, target, ext_actions )
 {
-    return public_make_link( pair[1], pair[0] );
+    main_action = function( e ) {
+        target = $( this ).data( 'target' );
+        repr = $( this ).data( 'repr' );
+
+        provider = new tabs.SingleProvider( target );
+        tabs.create_display_tab( repr, provider );
+    }
+
+    if( typeof ext_actions !== 'undefined' && ext_actions.length > 0 ) {
+        span = $( '<span></span>' )
+        span.append( private_make_link( repr, target, null, main_action ) );
+        span.append( ' (' )
+        span.append( private_make_link( ext_actions[0].label,
+                                        target,
+                                        ext_actions[0].extra,
+                                        ext_actions[0].action ) );
+        for( i = 1; i < list.length; i++ ) {
+            span.append( ', ' );
+            span.append( private_make_link( ext_actions[i].label,
+                                            target,
+                                            ext_actions[i].extra,
+                                            ext_actions[i].action ) );
+        }
+        span.append( ')' )
+
+        return span;
+    } else {
+        return private_make_link( repr, target, null, main_action );
+    }
 };
 
-function public_make_link_list( list )
+function public_make_link2( pair, ext_actions )
+{
+    return public_make_link( pair[1], pair[0], ext_actions );
+};
+
+function public_make_link_list( list, ext_actions )
 {
     if( list.length == 0 ) return;
 
     span = $( '<span></span>' );
-    span.append( public_make_link2( list[0] ) );
+    span.append( public_make_link2( list[0], ext_actions ) );
 
     for( i = 1; i < list.length; i++ ) {
         span.append( ', ' );
-        span.append( public_make_link2( list[i] ) );
+        span.append( public_make_link2( list[i], ext_actions ) );
     }
 
     return span;
@@ -121,9 +151,12 @@ DisplayableBase = function()
     DisplayableBase.prototype.rename = function( name, saveold ) {};
     DisplayableBase.prototype.drop = function( obj_id, repr, type ) {};
     DisplayableBase.prototype.rm = function( obj_id, repr, type ) {};
-    DisplayableBase.prototype.set_duplication = function(
-            original, variant, is_duplicate ) {};
-    DisplayableBase.prototype.clear_duplication = function() {};
+    DisplayableBase.prototype.set_variant = function(
+            original, variant ) {}
+    DisplayableBase.prototype.clear_variant = function(
+            original, variant ) {}
+    DisplayableBase.prototype.merge_duplicates = function(
+            original, duplicate ) {}
     DisplayableBase.prototype.rotate = function( rot ) {};
     DisplayableBase.prototype.reorder = function( obj_id, idx ) {};
     DisplayableBase.prototype.on_event = function( e ) { return null; };
@@ -321,35 +354,30 @@ DisplayableObject = function( obj_id, info )
                 [ this.obj_id ] } );
     };
 
-    DisplayableBase.prototype.set_duplication = function(
-            original, variant, is_duplicate )
+    DisplayableBase.prototype.set_variant = function(
+            original, variant )
     {
         var request = {
-            action:     'set_duplication',
+            action:     'set_variant',
             original:   original,
+            variant:    variant,
         };
 
-        if( is_duplicate ) {
-            request.duplicates = [ variant ];
-        } else {
-            request.variants = [ variant ];
-        }
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
     };
 
-    DisplayableObject.prototype.clear_duplication = function()
+    DisplayableBase.prototype.clear_variant = function(
+            original, variant )
     {
         var request = {
-            action:     'clear_duplication',
-            targets:    [ this.obj_id ],
+            action:     'clear_variant',
+            original:   original,
+            variant:    variant,
         };
 
-        dup_id = this.info.similar_to[0];
-
         load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected:
-                [ this.obj_id, dup_id ] } );
+        tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
     };
 
     DisplayableObject.prototype.rotate = function( rot )
@@ -386,9 +414,9 @@ DisplayableObject = function( obj_id, info )
         var request = {
             action:     'info',
             targets:    [ this.obj_id ],
-            items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
-                'similar_to', 'duplicates', 'variants', 'albums', 'files',
-                'mime', 'text', 'thumb_gen', 'width', 'height' ],
+            items:      [ 'type', 'repr', 'tags', 'names',
+                'variants', 'variants_of', 'albums', 'files',
+                'text', 'thumb_gen', 'width', 'height' ],
         };
         
         response = load_sync( request );
@@ -446,52 +474,42 @@ DisplayableObject = function( obj_id, info )
     {
         div.append( 'Size: ' + this.info.width + 'x' + this.info.height + '<br/>' );
 
-        if( this.info.similar_to ) {
-            if( this.info.duplication == 'duplicate' ) {
-                div.append( 'Duplicate of: ' );
-            } else {
-                div.append( 'Variant of: ' );
-            }
-
-            div.append( util.make_link2( this.info.similar_to ) );
-            clr_link = $( '<a href="#">Clear</a>' );
-            clr_link.data( 'obj', this );
-            clr_link.click( function( e ) {
-                obj = $( this ).data( 'obj' );
-                obj.clear_duplication();
-            });
-
-            div.append( ' (' );
-            div.append( clr_link );
-            div.append( ')' );
-            div.append( '<br/>' );
-        }
-
         if( this.info.albums && this.info.albums.length > 0 ) {
             div.append( 'Albums: ' );
             div.append( util.make_link_list( this.info.albums ) );
             div.append( '<br/>' );
         }
 
-        if( this.info.variants && this.info.variants.length > 0 ) {
-            div.append( 'Variants: ' );
-            div.append( util.make_link_list( this.info.variants ) );
+        if( this.info.variants_of && this.info.variants_of.length > 0 ) {
+            rem_variant_of_action = function( e ) {
+                target = $( this ).data( 'target' );
+                extra = $( this ).data( 'extra' );
+                extra.obj.clear_variant( target, extra.obj.obj_id );
+            }
+
+            actions = [ { label: 'Rem',
+                          extra: { obj: obj, },
+                          action: rem_variant_of_action, } ]
+
+            div.append( 'Variants of: ' );
+            div.append( util.make_link_list( this.info.variants_of, actions ) );
             div.append( '<br/>' );
         }
 
-        if( this.info.duplicates && this.info.duplicates.length > 0 ) {
-            div.append( 'Duplicates: ' );
-            div.append( util.make_link_list( this.info.duplicates ) );
+        if( this.info.variants && this.info.variants.length > 0 ) {
+            rem_variant_action = function( e ) {
+                target = $( this ).data( 'target' );
+                extra = $( this ).data( 'extra' );
+                extra.obj.clear_variant( extra.obj.obj_id, target );
+            }
+
+            actions = [ { label: 'Rem',
+                          extra: { obj: obj, },
+                          action: rem_variant_action, } ]
+
+            div.append( 'Variants: ' );
+            div.append( util.make_link_list( this.info.variants, actions ) );
             div.append( '<br/>' );
-
-            var gather = $( '<a href="#">Gather Tags</a><br/>' );
-            gather.data( 'obj', this );
-            gather.click( function( e ) {
-                obj = $( this ).data( 'obj' );
-                obj.gather_tags();
-            });
-
-            div.append( gather );
         }
 
         div.append( 'Rotate: ' );
@@ -513,9 +531,21 @@ DisplayableObject = function( obj_id, info )
         div.append( '<br/>' );
 
         var vieworig = $( '<a href="/img?id=' + this.obj_id +'">'
-                + 'View Original</a>' );
-
+                + 'View Original</a><br/>' );
         div.append( vieworig );
+
+        if( this.info.duplicates && this.info.duplicates.length > 0 ) {
+            div.append( 'Duplicates: ' );
+
+            for( i = 0; i < this.info.duplicates.length; i++ ) {
+                var viewdup = $( '<a href="/img?id=' + this.obj_id
+                               + '&stream=' + this.info.duplicates[i] + '">'
+                               + (i + 1) + '</a> ' );
+                div.append( viewdup );
+            }
+            div.append( '<br/>' );
+        }
+
         activate_links( div );
     };
 
@@ -807,10 +837,10 @@ ImageView = function()
     {
         div.html( '' );
 
-        if( !disp.info.mime ) {
-            div.append( 'Image not available<br/>' );
-            return;
-        }
+//        if( !disp.info.mime ) {
+//            div.append( 'Image not available<br/>' );
+//            return;
+//        }
 
         this.viewer = attach_image(
             div, disp.obj_id, disp.info.thumb_gen, disp.info.repr, disp.info.type );
@@ -969,15 +999,16 @@ Display = function( disp, view )
         this.disp.rm( obj_id, repr, type );
     };
 
-    Display.prototype.set_duplication = function(
-            original, variant, is_duplicate )
+    Display.prototype.set_variant = function(
+            original, variant )
     {
-        this.disp.set_duplication( original, variant, is_duplicate );
+        this.disp.set_variant( original, variant );
     };
 
-    Display.prototype.clear_duplication = function()
+    Display.prototype.clear_variant = function(
+            original, variant )
     {
-        this.disp.clear_duplication();
+        this.disp.clear_variant( original, variant );
     };
 
     Display.prototype.reorder = function( obj_id, idx )
@@ -1051,9 +1082,9 @@ var public_make_object_display = function( obj_id )
     var request = {
         action:     'info',
         targets:    [ obj_id ],
-        items:      [ 'type', 'repr', 'tags', 'names', 'duplication',
-            'similar_to', 'duplicates', 'variants', 'albums', 'files',
-            'mime', 'text', 'thumb_gen', 'width', 'height' ],
+        items:      [ 'type', 'repr', 'tags', 'names',
+            'variants', 'variants_of', 'albums', 'files',
+            'text', 'thumb_gen', 'width', 'height' ],
     };
     
     response = load_sync( request );

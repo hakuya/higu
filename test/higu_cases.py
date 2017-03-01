@@ -227,6 +227,40 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( len( obj.get_names() ), 1,
                 'Name count does not match' )
 
+    def test_repr( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        w_f = h.register_file( white, True )
+        k_f = h.register_file( black, False )
+
+        self.assertEqual( w_f.get_repr(), self.white,
+                'Repr on white did not return name' )
+        self.assertEqual( k_f.get_repr(),
+                '%016x.%s' % ( k_f.get_id(),
+                               k_f.get_root_stream().get_extension() ),
+                'Repr on black did not return default name' )
+
+    def test_names_single( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        w_f = h.register_file( white, True )
+        k_f = h.register_file( black, False )
+
+        self.assertTrue( self.white in w_f.get_names(),
+                'Name list on white did not return single name' )
+        self.assertTrue( len( k_f.get_names() ) == 0,
+                'Name list on black did not return empty' )
+
     def test_duplicate_name( self ):
 
         grey = self._load_data( self.grey )
@@ -611,8 +645,8 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
         self.assertEqual( len( go.get_duplicates() ), 1, 'Green duplicate list mismatch' )
 
-        self.assertEqual( len( ro.get_variant_of() ), 0, 'Red is a variant' )
-        self.assertEqual( len( go.get_variant_of() ), 1, 'Green is not a variant' )
+        self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
+        self.assertEqual( len( go.get_variants_of() ), 1, 'Green is not a variant' )
 
         self.assertEqual( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
         self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
@@ -676,9 +710,9 @@ class HiguLibCases( testutil.TestCase ):
         bo.set_variant_of( go )
         h.merge_objects( ro, go )
 
-        self.assertEqual( len( ro.get_variant_of() ), 0, 'Red is a variant' )
-        self.assertEqual( len( yo.get_variant_of() ), 1, 'Yellow is not a variant' )
-        self.assertEqual( len( bo.get_variant_of() ), 1, 'Blue is not a variant' )
+        self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
+        self.assertEqual( len( yo.get_variants_of() ), 1, 'Yellow is not a variant' )
+        self.assertEqual( len( bo.get_variants_of() ), 1, 'Blue is not a variant' )
 
         self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
         self.assertEqual( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
