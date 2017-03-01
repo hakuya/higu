@@ -224,15 +224,6 @@ def upgrade_from_9_to_10( log, session ):
                                               '"rotation", '
                                               '"thumb-gen" ) ' )
 
-    # Copy altnames from primaries
-    session.execute( 'INSERT INTO stream_metadata ( stream_id, '
-                                                   'key, '
-                                                   'value ) '
-                     'SELECT o.id, "names", o.name || ":" || m.value '
-                     'FROM mtda m '
-                     'INNER JOIN objl o ON o.id = m.id '
-                     'WHERE m.key = "altname"' )
-
     # Copy original-width/height from primaries
     session.execute( 'INSERT INTO stream_metadata ( stream_id, '
                                                    'key, '
@@ -315,7 +306,7 @@ def upgrade_from_9_to_10( log, session ):
                      'WHERE o.type = 1001 '
                        'AND m.key = "original-height"' )
 
-    # Copy rotation from primaries
+    # Copy rotation from duplicates
     session.execute( 'INSERT INTO stream_metadata ( stream_id, '
                                                    'key, '
                                                    'value, '
@@ -325,6 +316,38 @@ def upgrade_from_9_to_10( log, session ):
                      'INNER JOIN mtda m ON m.id = o.id '
                      'WHERE o.type = 1001 '
                        'AND m.key = "rotation"' )
+
+    # Copy names for streams
+    session.execute( 'INSERT INTO stream_metadata ( stream_id, '
+                                                   'key, '
+                                                   'value ) '
+                     'SELECT o.id, "names", '
+                            'CASE '
+                              'WHEN m.value IS NULL THEN o.name '
+                              'ELSE o.name || ":" || m.value '
+                              'END '
+                     'FROM objl o '
+                     'LEFT OUTER JOIN mtda m ON m.id = o.id '
+                                           'AND m.key = "altname"'
+                     'WHERE EXISTS (SELECT 1 FROM streams '
+                                   'WHERE stream_id = o.id) '
+                       'AND o.name IS NOT NULL' )
+
+    # Copy names for objects
+    session.execute( 'INSERT INTO object_metadata ( object_id, '
+                                                    'key, '
+                                                    'value ) '
+                     'SELECT o.id, "names", '
+                            'CASE '
+                              'WHEN m.value IS NULL THEN o.name '
+                              'ELSE o.name || ":" || m.value '
+                              'END '
+                     'FROM objl o '
+                     'LEFT OUTER JOIN mtda m ON m.id = o.id '
+                                           'AND m.key = "altname"'
+                     'WHERE EXISTS (SELECT 1 FROM objects '
+                                   'WHERE object_id = o.id) '
+                       'AND o.name IS NOT NULL' )
 
     # Assign root streams
     session.execute( 'UPDATE objects SET root_stream_id = object_id '

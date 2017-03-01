@@ -86,6 +86,7 @@ if( __name__ == '__main__' ):
         lo.tag( 'greyscale' )
         ko.tag( 'greyscale' )
 
+        ro.tag( 'red' )
         wo.tag( 'white' )
         lo.tag( 'grey' )
         ko.tag( 'black' )
@@ -112,6 +113,7 @@ if( __name__ == '__main__' ):
         lo.assign( bw )
         ko.assign( bw )
 
+        ro.assign( h.make_tag( 'red' ) )
         wo.assign( h.make_tag( 'white' ) )
         lo.assign( h.make_tag( 'grey' ) )
         ko.assign( h.make_tag( 'black' ) )

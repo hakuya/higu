@@ -179,15 +179,15 @@ class Server:
 
             f = db.get_object_by_id( id )
             if( exp is None ):
-                p = f.read()
-                mime = f.get_mime()
+                stream = f.get_root_stream()
             else:
-                p = f.read_thumb( exp )
-                mime = 'image/jpeg'
+                stream = f.get_thumb_stream( exp )
 
-            if( p == None ):
+            if( stream is None ):
                 raise cherrypy.HTTPError( 404 )
 
+            p = stream.read()
+            mime = stream.get_mime()
             name = f.get_repr()
         finally:
             db.close()

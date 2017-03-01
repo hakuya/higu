@@ -123,6 +123,29 @@ class Stream:
         with self.db._access():
             return self.stream.mime_type
 
+    def _clear_names( self ):
+
+        del self.stream['names']
+
+    def _set_names( self, names ):
+
+        if( len( names ) == 0 ):
+            self._clear_names()
+
+        self.stream['names'] = ':'.join( names )
+
+    def _add_name( self, name ):
+
+        try:
+            names = self.stream['names'].split( ':' )
+            if( name in names ):
+                return
+            names.append( name )
+        except:
+            names = [ name ]
+
+        self._set_names( names )
+
     def _read( self ):
 
         return self.db.imgdb.read( self.stream.stream_id,
@@ -281,7 +304,7 @@ class Obj:
     def _clear_names( self ):
 
         self.obj.name = None
-        del self.obj.root_stream['names']
+        del self.obj['names']
 
     def _set_names( self, names ):
 
@@ -289,12 +312,12 @@ class Obj:
             self._clear_names()
 
         self.obj.name = names[0]
-        self.obj.root_stream['names'] = ':'.join( names )
+        self.obj['names'] = ':'.join( names )
 
     def _set_name( self, name ):
 
         try:
-            names = self.obj.root_stream['names'].split( ':' )
+            names = self.obj['names'].split( ':' )
             try:
                 names.remove( name )
             except ValueError:
@@ -309,7 +332,7 @@ class Obj:
     def _add_name( self, name ):
 
         try:
-            names = self.obj.root_stream['names'].split( ':' )
+            names = self.obj['names'].split( ':' )
             if( name in names ):
                 return
             names.append( name )
@@ -331,9 +354,9 @@ class Obj:
     def get_names( self ):
 
         try:
-            return self.get_root_stream()['names'].split( ':' )
+            return self['names'].split( ':' )
         except KeyError:
-            return None
+            return []
 
     def set_text( self, text ):
 
@@ -460,15 +483,15 @@ class File( Obj ):
         with self.db._access():
             return self._get_albums()
 
-    def _get_variant_of( self ):
+    def _get_variants_of( self ):
 
         objs = [ obj for obj in self.obj.parents if obj.object_type == TYPE_FILE ]
         return map( lambda x: File( self.db, x ), objs )
 
-    def get_variant_of( self ):
+    def get_variants_of( self ):
 
         with self.db._access():
-            return self._get_variant_of()
+            return self._get_variants_of()
 
     def _get_duplicates( self ):
 
@@ -524,9 +547,9 @@ class File( Obj ):
         else:
             with self.db._access():
                 obj_id = self.obj.object_id
-                stream_id = self.obj.stream.stream_id
-                priority = self.obj.stream.priority
-                extension = self.obj.stream.extension
+                stream_id = self.obj.root_stream.stream_id
+                priority = self.obj.root_stream.priority
+                extension = self.obj.root_stream.extension
 
             if( extension == None ):
                 return '%016x' % ( obj_id, )
@@ -1011,6 +1034,7 @@ class Database:
             f = stream._get_file()
 
         if( add_name ):
+            stream._add_name( name )
             f._add_name( name )
 
         if( not stream._verify() ):

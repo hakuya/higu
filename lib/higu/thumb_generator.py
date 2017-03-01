@@ -16,8 +16,8 @@ class ThumbGenerator:
             
             # TODO, this is hacky!
             self.__objects = [ obj_id[0] for obj_id in
-                    db.session.query( hdbfs.model.Object.id ) \
-                    .filter( hdbfs.model.Object.type == hdbfs.TYPE_FILE ) \
+                    db.session.query( hdbfs.model.Object.object_id ) \
+                    .filter( hdbfs.model.Object.object_type == hdbfs.TYPE_FILE ) \
                     .order_by( 'RANDOM()' ).limit( 500 ) ]
 
         obj_id = self.__objects.pop()
