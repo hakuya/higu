@@ -49,10 +49,8 @@ class InsertCases( testutil.TestCase ):
             cmd.append( '-r' )
 
         if( name is not None ):
-            if( name ):
-                cmd.append( '-N' )
-            else:
-                cmd.append( '-n' )
+            cmd.append( '-n' )
+            cmd.append( name )
 
         if( isinstance( files, str ) ):
             cmd.append( files )
@@ -156,14 +154,14 @@ class InsertCases( testutil.TestCase ):
     def test_no_name( self ):
 
         black = self._load_data( self.black )
-        self._run( black, name = False )
+        self._run( black, name = 'noset' )
 
         h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
 
         self.assertFalse( obj is None,
                 'Image not in DB' )
-        self.assertNotEqual( obj.get_name(), self.black,
+        self.assertTrue( obj.get_name() is None,
                 'Name loaded' )
 
     def test_name( self ):
@@ -182,7 +180,7 @@ class InsertCases( testutil.TestCase ):
     def test_name2( self ):
 
         black = self._load_data( self.black )
-        self._run( black, name = True )
+        self._run( black, name = 'setundef' )
 
         h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
@@ -206,18 +204,18 @@ class InsertCases( testutil.TestCase ):
         self.assertFalse( obj is None,
                 'Image not in DB' )
 
-        names = obj.get_names()
+        names = obj.get_origin_names()
         self.assertTrue( self.black in names,
                 'First name not loaded' )
         self.assertTrue( 'altname.png' in names,
                 'Second name not loaded' )
-        self.assertEqual( len( obj.get_names() ), 2,
+        self.assertEqual( len( names ), 2,
                 'Name count does not match' )
 
     def test_load_name( self ):
 
         black = self._load_data( self.black )
-        self._run( black, name = False )
+        self._run( black, name = 'noset' )
 
         h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )
@@ -225,13 +223,13 @@ class InsertCases( testutil.TestCase ):
         self.assertFalse( obj is None,
                 'Image not in DB' )
 
-        self.assertNotEqual( obj.get_name(), self.black,
+        self.assertTrue( obj.get_name() is None,
                 'Name loaded when it shouldn\'t have been' )
 
         h.close()
 
         black = self._load_data( self.black )
-        self._run( black, name = True )
+        self._run( black )
 
         h = hdbfs.Database()
         obj = h.get_object_by_id( 1 )

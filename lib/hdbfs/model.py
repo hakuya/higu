@@ -180,9 +180,7 @@ class Stream( Base ):
     object_id = Column( Integer, ForeignKey( 'objects.object_id' ), nullable = False )
     name = Column( Text, nullable = False )
     priority = Column( Integer, nullable = False )
-    create_ts = Column( Integer, nullable = False )
     origin_stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ) )
-    origin_method = Column( Text )
     extension = Column( Text )
     mime_type = Column( Text )
     stream_length = Column( Integer )
@@ -197,15 +195,12 @@ class Stream( Base ):
                             remote_side = [ stream_id ] )
 
     def __init__( self, obj, name, priority,
-                  origin_stream, origin_method,
-                  extension, mime_type ):
+                  origin_stream, extension, mime_type ):
 
         self.obj = obj
         self.name = name
         self.priority = priority
-        self.create_ts = calendar.timegm(time.gmtime())
         self.origin_stream = origin_stream
-        self.origin_method = origin_method
         self.extension = extension
         self.mime_type = mime_type
 
@@ -254,11 +249,42 @@ class Stream( Base ):
 
     def __repr__( self ):
 
-        return 'Stream( %r, %r, %r, %r, %r, %r, %r, %r, %r, %r, %r, %r )' % (
+        return 'Stream( %r, %r, %r, %r, %r, %r, %r, %r, %r, %r )' % (
                 self.stream_id, self.object_id, self.name, self.priority,
-                self.create_ts, self.origin_stream_id, self.origin_method,
-                self.mime_type, self.stream_length, self.hash_crc32,
-                self.hash_md5, self.hash_sha1 )
+                self.origin_stream_id, self.mime_type, self.stream_length,
+                self.hash_crc32, self.hash_md5, self.hash_sha1 )
+
+class StreamLog( Base ):
+    __tablename__ = 'stream_log'
+    __table_args__ = (
+        Index( 'stream_log_stream_id_index', 'stream_id' ),
+    )
+
+    log_id = Column( Integer, primary_key = True )
+    stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ), nullable = False )
+    timestamp = Column( Integer, nullable = False )
+    origin_method = Column( Text, nullable = False )
+    origin_stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ) )
+    origin_name = Column( Text )
+
+    stream = relation( 'Stream', foreign_keys = [ stream_id ],
+                        backref = backref( 'log_entries', lazy = 'dynamic' ) )
+    origin_stream = relation( 'Stream', foreign_keys = [ origin_stream_id ] )
+
+    def __init__( self, stream, origin_method,
+                  origin_stream, origin_name ):
+
+        self.stream = stream
+        self.timestamp = calendar.timegm(time.gmtime())
+        self.origin_method = origin_method
+        self.origin_stream = origin_stream
+        self.origin_name = origin_name
+
+    def __repr__( self ):
+
+        return 'StreamLog( %r, %r, %r, %r, %r )' % (
+                self.stream_id, self.timestamp, self.origin_method,
+                self.origin_stream_id, self.origin_name )
 
 class ObjectMetadata( Base ):
     __tablename__ = 'object_metadata'

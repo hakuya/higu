@@ -203,9 +203,11 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        grey = self._single( h, [ 'red' ] )
-        names = grey.get_names()
+        red = self._single( h, [ 'red' ] )
 
+        names = red.get_origin_names()
+        self.assertEqual( red.get_name(), self.red,
+                'Unexpected name' )
         self.assertTrue( self.red in names,
                 'Name not found' )
 
@@ -214,7 +216,7 @@ class LegacyCases( testutil.TestCase ):
         h = hdbfs.Database()
 
         grey = self._single( h, [ 'grey' ] )
-        names = grey.get_names()
+        names = grey.get_origin_names()
 
         self.assertTrue( self.grey in names,
                 'Primary name not found' )
@@ -326,7 +328,7 @@ class LegacyCases( testutil.TestCase ):
 
                 if( s.get_name() == '.' ):
                     self.assertEqual( s.get_origin_method(),
-                                      'hdbfs:legacy',
+                                      'hdbfs:legacy_create',
                                       'Unexpected origin method for root' )
                     self.assertTrue( s.get_origin_stream()
                                   is None,
@@ -339,7 +341,7 @@ class LegacyCases( testutil.TestCase ):
                                       'Unexpected mime for root' )
                 elif( s.get_name().startswith( 'dup:' ) ):
                     self.assertEqual( s.get_origin_method(),
-                                      'hdbfs:legacy',
+                                      'hdbfs:legacy_create',
                                       'Unexpected origin method for dup' )
                     self.assertTrue( s.get_origin_stream()
                                   is None,
@@ -348,9 +350,9 @@ class LegacyCases( testutil.TestCase ):
                                       'Unexpected extension for dup' )
                     self.assertEqual( s.get_mime(), 'image/png',
                                       'Unexpected mime for dup' )
-                elif( s.get_name().startswith( 'thumb:' ) ):
-                    self.assertEqual( s.get_origin_method(),
-                                      'imgdb:legacy',
+                elif( s.get_name().startswith( 'tb:' ) ):
+                    self.assertTrue( s.get_origin_method().startswith(
+                                        'imgdb:legacy_tb:' ),
                                       'Unexpected origin method for thumb' )
                     self.assertEqual( s.get_origin_stream(),
                                       f.get_root_stream(),
