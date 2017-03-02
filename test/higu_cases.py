@@ -220,12 +220,16 @@ class HiguLibCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( white, True )
+        obj = h.register_file( white )
 
         self.assertEqual( obj.get_name(), self.white,
                 'Name not loaded' )
-        self.assertEqual( len( obj.get_names() ), 1,
+
+        origin_names = obj.get_origin_names()
+        self.assertEqual( len( origin_names ), 1,
                 'Name count does not match' )
+        self.assertEqual( origin_names[0], self.white,
+                'Unexpected name in origin list' )
 
     def test_repr( self ):
 
@@ -235,8 +239,8 @@ class HiguLibCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        w_f = h.register_file( white, True )
-        k_f = h.register_file( black, False )
+        w_f = h.register_file( white )
+        k_f = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
 
         self.assertEqual( w_f.get_repr(), self.white,
                 'Repr on white did not return name' )
@@ -245,7 +249,7 @@ class HiguLibCases( testutil.TestCase ):
                                k_f.get_root_stream().get_extension() ),
                 'Repr on black did not return default name' )
 
-    def test_names_single( self ):
+    def test_log_names_single( self ):
 
         white = self._load_data( self.white )
         black = self._load_data( self.black )
@@ -253,13 +257,34 @@ class HiguLibCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        w_f = h.register_file( white, True )
-        k_f = h.register_file( black, False )
+        w_f = h.register_file( white )
+        k_f = h.register_file( black, hdbfs.NAME_POLICY_DONT_REGISTER )
 
-        self.assertTrue( self.white in w_f.get_names(),
+        self.assertTrue( self.white in w_f.get_origin_names(),
                 'Name list on white did not return single name' )
-        self.assertTrue( len( k_f.get_names() ) == 0,
+        self.assertTrue( len( k_f.get_origin_names() ) == 0,
                 'Name list on black did not return empty' )
+
+    def test_log_all_names( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        w_f = h.register_file( white )
+        k_f = h.register_file( black )
+
+        h.merge_objects( w_f, k_f )
+
+        names = w_f.get_origin_names( True )
+        self.assertTrue( self.white in names,
+                'Name list did not return white' )
+        self.assertTrue( self.black in names,
+                'Name list did not return black' )
+        self.assertEqual( len( names ), 2,
+                'Name list had an unexpected number of names' )
 
     def test_duplicate_name( self ):
 
@@ -268,16 +293,16 @@ class HiguLibCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( grey, True )
+        obj = h.register_file( grey )
 
         grey2 = self._load_data( self.grey )
 
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( grey2, True )
+        obj = h.register_file( grey2 )
 
-        names = obj.get_names()
+        names = obj.get_origin_names()
         self.assertTrue( self.grey in names,
                 'Name not loaded' )
         self.assertEqual( len( names ), 1,
@@ -290,21 +315,21 @@ class HiguLibCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( grey, True )
+        obj = h.register_file( grey )
 
         grey2 = self._load_data( self.grey, 'altname.png' )
 
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( grey2, True )
+        obj = h.register_file( grey2 )
 
-        names = obj.get_names()
+        names = obj.get_origin_names()
         self.assertTrue( self.grey in names,
                 'First name not loaded' )
         self.assertTrue( 'altname.png' in names,
                 'Second name not loaded' )
-        self.assertEqual( len( obj.get_names() ), 2,
+        self.assertEqual( len( names ), 2,
                 'Name count does not match' )
 
     def test_load_name( self ):
@@ -314,22 +339,36 @@ class HiguLibCases( testutil.TestCase ):
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( black, False )
+        obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_REGISTER )
 
-        self.assertNotEqual( obj.get_name(), self.black,
-                'Name loaded when it shouldn\'t have been' )
+        self.assertTrue( obj.get_name() is None,
+                'Name set when it shouldn\'t have been' )
+        self.assertEqual( len( obj.get_origin_names() ), 0,
+                'Name registered when it shouldn\'t have been' )
 
         black = self._load_data( self.black )
 
         h = hdbfs.Database()
         h.enable_write_access()
 
-        obj = h.register_file( black, True )
+        obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
+
+        self.assertTrue( obj.get_name() is None,
+                'Name set when it shouldn\'t have been' )
+        self.assertEqual( len( obj.get_origin_names() ), 1,
+                'Name not registered when it should\'ve been' )
+        self.assertEqual( obj.get_origin_names()[0], self.black,
+                'Name not registered when it should\'ve been' )
+
+        black = self._load_data( self.black )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        obj = h.register_file( black )
 
         self.assertEqual( obj.get_name(), self.black,
-                'name not loaded' )
-        self.assertEqual( len( obj.get_names() ), 1,
-                'Name count does not match' )
+                'Name not set when it should\'ve been' )
 
     def test_fetch_missing_tag( self ):
 

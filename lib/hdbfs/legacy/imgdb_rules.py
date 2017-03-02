@@ -114,17 +114,23 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                     while( 2**e < w or 2**e < h ):
                         e += 1
                     
-                    exp = str( e )
+                    exp = e
+                else:
+                    exp = int( exp )
 
                 details = calculate_details( t )
                 mime_type = mimetypes.guess_type( t, strict=False )[0]
 
-                t_stream = model.Stream( obj, 'thumb:' + exp,
+                t_stream = model.Stream( obj, 'tb:%d' % ( exp, ),
                                          model.SP_EXPENDABLE,
-                                         stream, 'imgdb:legacy',
-                                         'jpg', mime_type )
+                                         stream, 'jpg', mime_type )
                 t_stream.set_details( *details )
                 session.add( t_stream )
+
+                t_log = model.StreamLog( t_stream,
+                                         'imgdb:legacy_tb:%d' % ( exp, ),
+                                         stream, None )
+                session.add( t_log )
                 session.flush()
 
                 new_path = _get_dir_for_id( thumb_path, t_stream.stream_id )

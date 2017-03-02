@@ -54,12 +54,9 @@ if( __name__ == '__main__' ):
     parser.add_option( '-T', '--newtags',
         dest = 'taglist_new',
         help = 'Same as -t, but creates tags if they don\'t exist' )
-    parser.add_option( '-n', '--nosavename',
-        dest = 'save_name', action = 'store_false',
-        help = 'Don\'t save the original file name in the metadata' )
-    parser.add_option( '-N', '--savename',
-        dest = 'save_name', action = 'store_true', default = True,
-        help = 'Save the original file name in the metadata' )
+    parser.add_option( '-n', '--name-policy',
+        dest = 'name_policy',
+        help = 'Policy for persisting names ("noreg", "noset", "setundef", "setall")' )
 
     opts, files = parser.parse_args()
 
@@ -93,7 +90,17 @@ if( __name__ == '__main__' ):
     else:
         text_data = None
 
-    h.batch_add_files( files, tags, tags_new, opts.save_name,
+    name_policy = hdbfs.NAME_POLICY_SET_IF_UNDEF
+    if( opts.name_policy == "noreg" ):
+        name_policy = hdbfs.NAME_POLICY_DONT_REGISTER
+    elif( opts.name_policy == "noset" ):
+        name_policy = hdbfs.NAME_POLICY_DONT_SET
+    elif( opts.name_policy == "setundef" ):
+        name_policy = hdbfs.NAME_POLICY_SET_IF_UNDEF
+    elif( opts.name_policy == "setall" ):
+        name_policy = hdbfs.NAME_POLICY_SET_ALWAYS
+
+    h.batch_add_files( files, tags, tags_new, name_policy,
                        create_album, album_name, text_data )
 
 # vim:sts=4:et:sw=4

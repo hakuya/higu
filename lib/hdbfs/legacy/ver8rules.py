@@ -1,3 +1,6 @@
+import calendar
+import time
+
 import hdbfs.db
 
 TYPE_NILL       = 0
@@ -114,6 +117,7 @@ def upgrade_from_8_1_to_9( log, session ):
 def upgrade_from_9_to_10( log, session ):
 
     log.info( 'Database upgrade from VER 9 -> VER 10' )
+    now = calendar.timegm(time.gmtime())
 
     session.execute( 'CREATE TABLE objects (\n'
                        'object_id       INTEGER PRIMARY KEY,\n'
@@ -127,9 +131,7 @@ def upgrade_from_9_to_10( log, session ):
                        'object_id           INTEGER NOT NULL,\n'
                        'name                TEXT NOT NULL,\n'
                        'priority            INTEGER NOT NULL,\n'
-                       'create_ts           INTEGER NOT NULL,\n'
                        'origin_stream_id    INTEGER,\n'
-                       'origin_method       TEXT,\n'
                        'extension           TEXT,\n'
                        'mime_type           TEXT,\n'
                        'stream_length       INTEGER,\n'
@@ -170,6 +172,18 @@ def upgrade_from_9_to_10( log, session ):
                      'FOREIGN KEY ( parent_id ) '
                        'REFERENCES objects( object_id ) )\n' )
 
+    session.execute( 'CREATE TABLE stream_log(\n'
+                     'log_id            INTEGER PRIMARY KEY,\n'
+                     'stream_id         INTEGER NOT NULL,\n'
+                     'timestamp         INTEGER NOT NULL,\n'
+                     'origin_method     TEXT NOT NULL,\n'
+                     'origin_stream_id  INTEGER,\n'
+                     'origin_name       TEXT,\n'
+                     'FOREIGN KEY ( stream_id ) '
+                       'REFERENCES streams( stream_id ),\n'
+                     'FOREIGN KEY ( origin_stream_id ) '
+                       'REFERENCES streams( stream_id ) )\n' )
+
     # Copy objl
     session.execute( 'INSERT INTO objects ( object_id, '
                                            'object_type, '
@@ -197,15 +211,12 @@ def upgrade_from_9_to_10( log, session ):
                                             'object_id, '
                                             'name, '
                                             'priority, '
-                                            'create_ts, '
-                                            'origin_method, '
                                             'stream_length, '
                                             'hash_crc32, '
                                             'hash_md5, '
                                             'hash_sha1 ) '
-                     'SELECT f.id, f.id, ".", 2000, o.create_ts, '
-                            '"hdbfs:legacy", f.len, f.crc32, f.md5, '
-                            'f.sha1 '
+                     'SELECT f.id, f.id, ".", 2000, f.len, '
+                            'f.crc32, f.md5, f.sha1 '
                      'FROM fchk f '
                      'INNER JOIN objl o ON o.id = f.id '
                      'WHERE o.type != 1001' )
@@ -263,28 +274,15 @@ def upgrade_from_9_to_10( log, session ):
                                             'object_id, '
                                             'name, '
                                             'priority, '
-                                            'create_ts, '
-                                            'origin_method, '
                                             'stream_length, '
                                             'hash_crc32, '
                                             'hash_md5, '
                                             'hash_sha1 ) '
                      'SELECT o.id, o.dup, "dup:" || f.sha1, '
-                            '2000, o.create_ts, "hdbfs:legacy", '
-                            'f.len, f.crc32, f.md5, f.sha1 '
+                            '2000, f.len, f.crc32, f.md5, f.sha1 '
                      'FROM objl o '
                      'INNER JOIN fchk f ON f.id = o.id '
                      'WHERE o.type = 1001' )
-
-    # Copy altnames from duplicates
-    session.execute( 'INSERT INTO stream_metadata ( stream_id, '
-                                                   'key, '
-                                                   'value ) '
-                     'SELECT o.id, "names", o.name || ":" || m.value '
-                     'FROM objl o '
-                     'INNER JOIN mtda m ON m.id = o.id '
-                     'WHERE o.type = 1001 '
-                       'AND m.key = "altname"' )
 
     # Copy original-width/height from duplicates
     session.execute( 'INSERT INTO stream_metadata ( stream_id, '
@@ -317,37 +315,48 @@ def upgrade_from_9_to_10( log, session ):
                      'WHERE o.type = 1001 '
                        'AND m.key = "rotation"' )
 
-    # Copy names for streams
-    session.execute( 'INSERT INTO stream_metadata ( stream_id, '
-                                                   'key, '
-                                                   'value ) '
-                     'SELECT o.id, "names", '
-                            'CASE '
-                              'WHEN m.value IS NULL THEN o.name '
-                              'ELSE o.name || ":" || m.value '
-                              'END '
-                     'FROM objl o '
-                     'LEFT OUTER JOIN mtda m ON m.id = o.id '
-                                           'AND m.key = "altname"'
-                     'WHERE EXISTS (SELECT 1 FROM streams '
-                                   'WHERE stream_id = o.id) '
-                       'AND o.name IS NOT NULL' )
+    # Add the log entries for creation
+    session.execute( 'INSERT INTO stream_log ( stream_id, '
+                                              'timestamp, '
+                                              'origin_method ) '
+                     'SELECT f.id, o.create_ts, '
+                            '"hdbfs:legacy_create" '
+                     'FROM fchk f '
+                     'INNER JOIN objl o ON o.id = f.id' )
 
-    # Copy names for objects
-    session.execute( 'INSERT INTO object_metadata ( object_id, '
-                                                    'key, '
-                                                    'value ) '
-                     'SELECT o.id, "names", '
-                            'CASE '
-                              'WHEN m.value IS NULL THEN o.name '
-                              'ELSE o.name || ":" || m.value '
-                              'END '
-                     'FROM objl o '
-                     'LEFT OUTER JOIN mtda m ON m.id = o.id '
-                                           'AND m.key = "altname"'
-                     'WHERE EXISTS (SELECT 1 FROM objects '
-                                   'WHERE object_id = o.id) '
-                       'AND o.name IS NOT NULL' )
+    # We don't know what time the streams were named, so name them now
+    session.execute( 'INSERT INTO stream_log ( stream_id, '
+                                              'timestamp, '
+                                              'origin_method, '
+                                              'origin_name ) '
+                     'SELECT f.id, :now, '
+                            '"hdbfs:legacy_name", '
+                            'o.name '
+                     'FROM fchk f '
+                     'INNER JOIN objl o ON o.id = f.id '
+                     'WHERE o.name IS NOT NULL',
+                     { 'now' : now, } )
+
+    # Now add all the alt-names. This gets a bit dicey
+    for stream_id, altnames \
+     in session.execute( 'SELECT f.id, m.value '
+                         'FROM fchk f '
+                         'INNER JOIN mtda m ON m.id = f.id '
+                         'WHERE m.key = "altname"' ):
+
+        altnames = altnames.split( ':' )
+
+        for name in altnames:
+            session.execute( 'INSERT INTO stream_log ( stream_id, '
+                                                      'timestamp, '
+                                                      'origin_method, '
+                                                      'origin_name ) '
+                             'VALUES ( :stream_id, :now, '
+                                      '"hdbfs:legacy_altname", '
+                                      ':name )',
+                             { 'stream_id' : stream_id,
+                               'now' : now,
+                               'name' : name, } )
 
     # Assign root streams
     session.execute( 'UPDATE objects SET root_stream_id = object_id '
@@ -360,6 +369,8 @@ def upgrade_from_9_to_10( log, session ):
                      'ON object_metadata( object_id, key )' )
     session.execute( 'CREATE UNIQUE INDEX stream_metadata_stream_id_key_index '
                      'ON stream_metadata( stream_id, key )' )
+    session.execute( 'CREATE INDEX stream_log_stream_id_index '
+                     'ON stream_log ( stream_id )' )
 
     session.execute( 'DROP TABLE objl' )
     session.execute( 'DROP TABLE fchk' )

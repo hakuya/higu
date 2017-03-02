@@ -24,6 +24,11 @@ TYPE_GROUP      = model.TYPE_GROUP
 TYPE_ALBUM      = model.TYPE_ALBUM
 TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
 
+NAME_POLICY_DONT_REGISTER   = 0
+NAME_POLICY_DONT_SET        = 1
+NAME_POLICY_SET_IF_UNDEF    = 2
+NAME_POLICY_SET_ALWAYS      = 3
+
 _LIBRARY = None
 
 def check_tag_name( s ):
@@ -83,12 +88,16 @@ class Stream:
     def get_creation_time( self ):
 
         with self.db._access():
-            return datetime.datetime.fromtimestamp( self.stream.create_ts )
+            create_log = self.stream.log_entries \
+                            .order_by( model.StreamLog.timestamp ).first()
+            return datetime.datetime.fromtimestamp( create_log.timestamp )
 
     def get_creation_time_utc( self ):
 
         with self.db._access():
-            return datetime.datetime.utcfromtimestamp( self.stream.create_ts )
+            create_log = self.stream.log_entries \
+                            .order_by( model.StreamLog.timestamp ).first()
+            return datetime.datetime.utcfromtimestamp( create_log.timestamp )
 
     def get_origin_stream( self ):
 
@@ -101,7 +110,9 @@ class Stream:
     def get_origin_method( self ):
 
         with self.db._access():
-            return self.stream.origin_method
+            create_log = self.stream.log_entries \
+                            .order_by( model.StreamLog.timestamp ).first()
+            return create_log.origin_method
 
     def get_length( self ):
 
@@ -122,29 +133,6 @@ class Stream:
 
         with self.db._access():
             return self.stream.mime_type
-
-    def _clear_names( self ):
-
-        del self.stream['names']
-
-    def _set_names( self, names ):
-
-        if( len( names ) == 0 ):
-            self._clear_names()
-
-        self.stream['names'] = ':'.join( names )
-
-    def _add_name( self, name ):
-
-        try:
-            names = self.stream['names'].split( ':' )
-            if( name in names ):
-                return
-            names.append( name )
-        except:
-            names = [ name ]
-
-        self._set_names( names )
 
     def _read( self ):
 
@@ -301,62 +289,30 @@ class Obj:
         with self.db._access():
             return self.obj.name
 
-    def _clear_names( self ):
-
-        self.obj.name = None
-        del self.obj['names']
-
-    def _set_names( self, names ):
-
-        if( len( names ) == 0 ):
-            self._clear_names()
-
-        self.obj.name = names[0]
-        self.obj['names'] = ':'.join( names )
-
-    def _set_name( self, name ):
-
-        try:
-            names = self.obj['names'].split( ':' )
-            try:
-                names.remove( name )
-            except ValueError:
-                pass
-        except:
-            names = []
-
-        names.insert( name, 0 )
-
-        self._set_names( names )
-
-    def _add_name( self, name ):
-
-        try:
-            names = self.obj['names'].split( ':' )
-            if( name in names ):
-                return
-            names.append( name )
-        except:
-            names = [ name ]
-
-        self._set_names( names )
-
-    def set_name( self, name, saveold = False ):
+    def set_name( self, name ):
 
         with self.db._access( write = True ):
-            self._set_name( name, saveold )
+            self.obj.name = name
 
-    def add_name( self, name ):
+    def get_origin_names( self, all_streams = False ):
 
-        with self.db._access( write = True ):
-            self._add_name( name )
+        from sqlalchemy import and_
 
-    def get_names( self ):
-
-        try:
-            return self['names'].split( ':' )
-        except KeyError:
-            return []
+        with self.db._access():
+            if( all_streams ):
+                return [ log.origin_name for log in
+                    self.db.session.query( model.StreamLog.origin_name )
+                        .join( model.Stream,
+                               model.Stream.stream_id == model.StreamLog.stream_id )
+                        .filter( and_( model.Stream.object_id == self.obj.object_id,
+                                       model.StreamLog.origin_name != None ) )
+                        .distinct() ]
+            else:
+                return [ log.origin_name for log in
+                    self.db.session.query( model.StreamLog.origin_name )
+                        .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
+                                       model.StreamLog.origin_name != None ) )
+                        .distinct() ]
 
     def set_text( self, text ):
 
@@ -998,7 +954,7 @@ class Database:
         with self._access( write = True ):
             return self.__create_album( tags, name, text )
 
-    def __register_file( self, path, add_name ):
+    def __register_file( self, path, name_policy ):
 
         import mimetypes
 
@@ -1016,8 +972,7 @@ class Database:
             obj = model.Object( TYPE_FILE )
             self.session.add( obj )
             stream = model.Stream( obj, '.', model.SP_NORMAL,
-                                   None, 'hdbfs:register',
-                                   ext, mime_type )
+                                   None, ext, mime_type )
             stream.set_details( *details )
             self.session.add( stream )
             obj.root_stream = stream
@@ -1033,9 +988,20 @@ class Database:
 
             f = stream._get_file()
 
-        if( add_name ):
-            stream._add_name( name )
-            f._add_name( name )
+        if( name_policy == NAME_POLICY_DONT_REGISTER ):
+            log = model.StreamLog( stream.stream, 'hdbfs:register',
+                                   None, None )
+        else:
+            log = model.StreamLog( stream.stream, 'hdbfs:register',
+                                   None, name )
+
+        self.session.add( log )
+
+        if( name_policy == NAME_POLICY_SET_ALWAYS
+         or (name_policy == NAME_POLICY_SET_IF_UNDEF
+         and f.obj.name is None) ):
+
+            f.obj.name = name
 
         if( not stream._verify() ):
             self.imgdb.load_data( path, stream.stream.stream_id,
@@ -1044,10 +1010,10 @@ class Database:
 
         return f
 
-    def register_file( self, path, add_name = True ):
+    def register_file( self, path, name_policy = NAME_POLICY_SET_IF_UNDEF ):
 
         with self._access( write = True ):
-            return self.__register_file( path, add_name )
+            return self.__register_file( path, name_policy )
 
     def __register_thumb( self, path, obj, origin, name ):
 
@@ -1061,10 +1027,13 @@ class Database:
         mime_type = mimetypes.guess_type( path, strict=False )[0]
 
         stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE,
-                               origin.stream, 'imgdb:thumb',
-                               ext, mime_type )
+                               origin.stream, ext, mime_type )
         stream.set_details( *details )
         self.session.add( stream )
+
+        log = model.StreamLog( stream, 'imgdb:' + name,
+                               origin.stream, None )
+        self.session.add( log )
         self.session.flush()
 
         self.imgdb.load_data( path, stream.stream_id,
@@ -1078,7 +1047,8 @@ class Database:
         with self._access( write = True ):
             return self.__register_thumb( path, obj, origin, name )
 
-    def batch_add_files( self, files, tags = [], tags_new = [], save_name = False,
+    def batch_add_files( self, files, tags = [], tags_new = [],
+                         name_policy = NAME_POLICY_SET_IF_UNDEF,
                          create_album = False, album_name = None, album_text = None ):
 
         with self._access( write = True ):
@@ -1094,7 +1064,7 @@ class Database:
                 album = None
 
             for f in files:
-                x = self.__register_file( f, save_name )
+                x = self.__register_file( f, name_policy )
 
                 if( album is not None ):
                     x._assign( album, None )
