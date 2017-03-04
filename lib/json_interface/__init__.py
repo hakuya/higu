@@ -142,13 +142,23 @@ class JsonInterface:
                 tags = target.get_tags()
                 info['tags'] = map( lambda x: x.get_name(), tags )
             if( 'names' in items ):
-                info['names'] = target.get_names()
+                if( isinstance( target, hdbfs.File ) ):
+                    info['names'] = target.get_origin_names()
+                else:
+                    name = target.get_name()
+                    if( name is not None ):
+                        info['names'] = [ target.get_name(), ]
+                    else:
+                        info['names'] = []
             if( isinstance( target, hdbfs.File ) and 'variants' in items ):
                 variants = target.get_variants()
                 info['variants'] = map( make_obj_tuple, variants )
             if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
                 variants_of = target.get_variants_of()
                 info['variants_of'] = map( make_obj_tuple, variants )
+            if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
+                dups = target.get_duplicate_streams()
+                info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
             if( isinstance( target, hdbfs.File ) and 'albums' in items ):
                 albums = target.get_albums()
                 info['albums'] = map( make_obj_tuple, albums )
@@ -419,9 +429,6 @@ class JsonInterface:
         if( isinstance( obj, hdbfs.Album ) ):
             files = obj.get_files()
 
-        elif( isinstance( obj, hdbfs.File ) ):
-            files = obj.get_duplicates()
-
         else:
             assert False
 
@@ -460,31 +467,36 @@ class JsonInterface:
         db.copy_tag( tag, target )
         return json_ok()
 
-    def cmd_set_duplication( self, original,
-                             duplicates = [], variants = [] ):
+    def cmd_set_variant( self, original, variant ):
 
         db = self.__db
 
         original = db.get_object_by_id( original )
-        
-        dups = map( db.get_object_by_id, duplicates )
-        for dup in dups:
-            dup.set_duplicate_of( original )
+        variant = db.get_object_by_id( variant )
 
-        vars = map( db.get_object_by_id, variants )
-        for var in vars:
-            var.set_variant_of( original )
+        variant.set_variant_of( original )
 
         return json_ok()
 
-    def cmd_clear_duplication( self, targets ):
+    def cmd_clear_variant( self, original, variant ):
 
         db = self.__db
 
-        targets = map( db.get_object_by_id, targets )
+        original = db.get_object_by_id( original )
+        variant = db.get_object_by_id( variant )
 
-        for target in targets:
-            target.clear_duplication()
+        variant.clear_variant_of( original )
+
+        return json_ok()
+
+    def cmd_merge_duplicates( self, original, duplicate ):
+
+        db = self.__db
+
+        original = db.get_object_by_id( original )
+        duplicate = db.get_object_by_id( duplicate )
+
+        db.merge_objects( original, duplicate )
 
         return json_ok()
 

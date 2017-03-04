@@ -176,6 +176,11 @@ class Stream:
                               self.stream.priority,
                               self.stream.extension  )
 
+    def get_repr( self ):
+
+        return 's%016x.%s' % ( self.get_stream_id(),
+                               self.get_extension() )
+
     def __getitem__( self, key ):
 
         with self.db._access():
@@ -293,26 +298,6 @@ class Obj:
 
         with self.db._access( write = True ):
             self.obj.name = name
-
-    def get_origin_names( self, all_streams = False ):
-
-        from sqlalchemy import and_
-
-        with self.db._access():
-            if( all_streams ):
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .join( model.Stream,
-                               model.Stream.stream_id == model.StreamLog.stream_id )
-                        .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                       model.StreamLog.origin_name != None ) )
-                        .distinct() ]
-            else:
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
-                                       model.StreamLog.origin_name != None ) )
-                        .distinct() ]
 
     def set_text( self, text ):
 
@@ -449,7 +434,7 @@ class File( Obj ):
         with self.db._access():
             return self._get_variants_of()
 
-    def _get_duplicates( self ):
+    def _get_duplicate_streams( self ):
 
         from sqlalchemy import and_
 
@@ -459,10 +444,10 @@ class File( Obj ):
                                           model.Stream.name.like( 'dup:%' ) ) )
                            .order_by( model.Stream.stream_id ) ]
 
-    def get_duplicates( self ):
+    def get_duplicate_streams( self ):
 
         with self.db._access():
-            return self._get_duplicates()
+            return self._get_duplicate_streams()
 
     def _get_variants( self ):
 
@@ -485,15 +470,35 @@ class File( Obj ):
         with self.db._access( write = True ):
             self._set_variant_of( parent )
 
-    def _clear_duplication( self ):
+    def _clear_variant_of( self, parent ):
 
-        self.obj.type = TYPE_FILE
-        self.obj.similar_to = None
+        assert( isinstance( parent, File ) )
+        self._unassign( parent )
 
-    def clear_duplication( self ):
+    def clear_variant_of( self, parent ):
 
         with self.db._access( write = True ):
-            self._clear_duplication()
+            self._clear_variant_of( parent )
+
+    def get_origin_names( self, all_streams = False ):
+
+        from sqlalchemy import and_
+
+        with self.db._access():
+            if( all_streams ):
+                return [ log.origin_name for log in
+                    self.db.session.query( model.StreamLog.origin_name )
+                        .join( model.Stream,
+                               model.Stream.stream_id == model.StreamLog.stream_id )
+                        .filter( and_( model.Stream.object_id == self.obj.object_id,
+                                       model.StreamLog.origin_name != None ) )
+                        .distinct() ]
+            else:
+                return [ log.origin_name for log in
+                    self.db.session.query( model.StreamLog.origin_name )
+                        .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
+                                       model.StreamLog.origin_name != None ) )
+                        .distinct() ]
 
     def get_repr( self ):
 
@@ -546,7 +551,11 @@ class File( Obj ):
             s._drop_data()
 
             self.db.session.query( model.StreamMetadata ) \
-                .filter( model.StreamMetadata.stream_id != s.stream.stream_id ) \
+                .filter( model.StreamMetadata.stream_id == s.stream.stream_id ) \
+                .delete()
+
+            self.db.session.query( model.StreamLog ) \
+                .filter( model.StreamLog.stream_id == s.stream.stream_id ) \
                 .delete()
 
         self.db.session.query( model.Stream ) \
@@ -556,16 +565,22 @@ class File( Obj ):
     def _drop_expendable_streams( self ):
 
         for s in self.db.session.query( model.Stream ) \
+                     .filter( model.Stream.object_id == self.obj.object_id ) \
                      .filter( model.Stream.priority < model.SP_NORMAL ):
 
             stream = Stream( self.db, s )
             stream._drop_data()
 
             self.db.session.query( model.StreamMetadata ) \
-                .filter( model.StreamMetadata.stream_id != s.stream_id ) \
+                .filter( model.StreamMetadata.stream_id == s.stream_id ) \
+                .delete()
+
+            self.db.session.query( model.StreamLog ) \
+                .filter( model.StreamLog.stream_id == s.stream_id ) \
                 .delete()
 
         self.db.session.query( model.Stream ) \
+            .filter( model.Stream.object_id == self.obj.object_id ) \
             .filter( model.Stream.priority < model.SP_NORMAL ) \
             .delete()
 
@@ -778,6 +793,17 @@ class Database:
 
         with self._access():
             return self._get_object_by_id( object_id )
+
+    def get_stream_by_id( self, stream_id ):
+
+        with self._access():
+            stream = self.session.query( model.Stream ) \
+                         .filter( model.Stream.stream_id == stream_id ) \
+                         .first()
+            if( stream is None ):
+                return None
+
+            return Stream( self, stream )
 
     def all_albums_or_free_files( self ):
 

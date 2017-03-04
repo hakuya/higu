@@ -114,14 +114,10 @@ var DupDialog = function()
         if( tab.data( 'obj' ) ) {
             tab = tab.data( 'obj' );
 
-            if( result == 'orig_dup' ) {
-                tab.set_duplication( this.dropped, this.received, true );
-            } else if( result == 'orig_var' ) {
-                tab.set_duplication( this.dropped, this.received, false );
-            } else if( result == 'duplicate' ) {
-                tab.set_duplication( this.received, this.dropped, true );
+            if( result == 'duplicate' ) {
+                tab.merge_duplicates( this.received, this.dropped );
             } else if( result == 'variant' ) {
-                tab.set_duplication( this.received, this.dropped, false );
+                tab.set_variant( this.received, this.dropped );
             }
         }
     };

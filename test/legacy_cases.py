@@ -87,7 +87,7 @@ class LegacyCases( testutil.TestCase ):
 
         for f in files:
             streams.append( f.get_root_stream() )
-            streams.extend( f.get_duplicates() )
+            streams.extend( f.get_duplicate_streams() )
 
         self.assertEqual( len( streams ), 9,
                 'Unexpected number of streams in DB' )
@@ -179,7 +179,7 @@ class LegacyCases( testutil.TestCase ):
         self.assertTrue( white in grey.get_variants_of(),
                 'Grey should be variant of white' )
 
-        dup_list = grey.get_duplicates()
+        dup_list = grey.get_duplicate_streams()
         self.assertEqual( len( dup_list ), 1,
                 'Grey duplicate list len mismatch' )
         self.assertEqual( dup_list[0].get_hash(), self.black_hash,
@@ -330,8 +330,7 @@ class LegacyCases( testutil.TestCase ):
                     self.assertEqual( s.get_origin_method(),
                                       'hdbfs:legacy_create',
                                       'Unexpected origin method for root' )
-                    self.assertTrue( s.get_origin_stream()
-                                  is None,
+                    self.assertIsNone( s.get_origin_stream(),
                                      'Unexpected origin stream for root' )
                     self.assertEqual( s, f.get_root_stream(),
                                       'Unexpected mapping for root' )
@@ -343,8 +342,7 @@ class LegacyCases( testutil.TestCase ):
                     self.assertEqual( s.get_origin_method(),
                                       'hdbfs:legacy_create',
                                       'Unexpected origin method for dup' )
-                    self.assertTrue( s.get_origin_stream()
-                                  is None,
+                    self.assertIsNone( s.get_origin_stream(),
                                      'Unexpected origin stream for dup' )
                     self.assertEqual( s.get_extension(), 'png',
                                       'Unexpected extension for dup' )
