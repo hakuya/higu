@@ -354,7 +354,7 @@ DisplayableObject = function( obj_id, info )
                 [ this.obj_id ] } );
     };
 
-    DisplayableBase.prototype.set_variant = function(
+    DisplayableObject.prototype.set_variant = function(
             original, variant )
     {
         var request = {
@@ -367,7 +367,7 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
     };
 
-    DisplayableBase.prototype.clear_variant = function(
+    DisplayableObject.prototype.clear_variant = function(
             original, variant )
     {
         var request = {
@@ -378,6 +378,19 @@ DisplayableObject = function( obj_id, info )
 
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
+    };
+
+    DisplayableObject.prototype.merge_duplicates = function(
+            original, duplicate )
+    {
+        var request = {
+            action:     'merge_duplicates',
+            original:   original,
+            duplicate:  duplicate,
+        };
+
+        load_sync( request );
+        tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
     };
 
     DisplayableObject.prototype.rotate = function( rot )
@@ -534,12 +547,13 @@ DisplayableObject = function( obj_id, info )
                 + 'View Original</a><br/>' );
         div.append( vieworig );
 
-        if( this.info.duplicates && this.info.duplicates.length > 0 ) {
+        if( this.info.dup_streams && this.info.dup_streams.length > 0 ) {
+            alert( 'test' );
             div.append( 'Duplicates: ' );
 
-            for( i = 0; i < this.info.duplicates.length; i++ ) {
+            for( i = 0; i < this.info.dup_streams.length; i++ ) {
                 var viewdup = $( '<a href="/img?id=' + this.obj_id
-                               + '&stream=' + this.info.duplicates[i] + '">'
+                               + '&stream=' + this.info.dup_streams[i] + '">'
                                + (i + 1) + '</a> ' );
                 div.append( viewdup );
             }
@@ -1011,6 +1025,11 @@ Display = function( disp, view )
         this.disp.clear_variant( original, variant );
     };
 
+    Display.prototype.merge_duplicates = function( original, duplicate )
+    {
+        this.disp.merge_duplicates( original, duplicate );
+    }
+
     Display.prototype.reorder = function( obj_id, idx )
     {
         this.disp.reorder( obj_id, idx );
@@ -1083,8 +1102,9 @@ var public_make_object_display = function( obj_id )
         action:     'info',
         targets:    [ obj_id ],
         items:      [ 'type', 'repr', 'tags', 'names',
-            'variants', 'variants_of', 'albums', 'files',
-            'text', 'thumb_gen', 'width', 'height' ],
+            'variants', 'variants_of', 'dup_streams',
+            'albums', 'files', 'text', 'thumb_gen',
+            'width', 'height' ],
     };
     
     response = load_sync( request );

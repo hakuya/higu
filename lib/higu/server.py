@@ -159,36 +159,42 @@ class Server:
         return json.dumps( result )
 
     @cherrypy.expose
-    def img( self, id = None, exp = None, gen = None ):
+    def img( self, id = None, exp = None, gen = None, stream = None ):
 
         db = self.__get_session()[0]
 
         try:
-            # The thumb cache requires the ability to write to the database
-            db.enable_write_access()
-
-            if( id == None ):
-                raise cherrypy.HTTPError( 404 )
-
-            try:
-                id = int( id )
-                if( exp is not None ):
-                    exp = int( exp )
-            except:
-                raise cherrypy.HTTPError( 400 )
-
-            f = db.get_object_by_id( id )
-            if( exp is None ):
-                stream = f.get_root_stream()
+            if( stream is not None ):
+                stream = db.get_stream_by_id( stream )
+                rep = stream
             else:
-                stream = f.get_thumb_stream( exp )
+                # The thumb cache requires the ability to write to the database
+                db.enable_write_access()
 
-            if( stream is None ):
-                raise cherrypy.HTTPError( 404 )
+                if( id == None ):
+                    raise cherrypy.HTTPError( 404 )
+
+                try:
+                    id = int( id )
+                    if( exp is not None ):
+                        exp = int( exp )
+                except:
+                    raise cherrypy.HTTPError( 400 )
+
+                f = db.get_object_by_id( id )
+                if( exp is None ):
+                    stream = f.get_root_stream()
+                else:
+                    stream = f.get_thumb_stream( exp )
+
+                if( stream is None ):
+                    raise cherrypy.HTTPError( 404 )
+
+                rep = f
 
             p = stream.read()
             mime = stream.get_mime()
-            name = f.get_repr()
+            name = rep.get_repr()
         finally:
             db.close()
 

@@ -279,12 +279,19 @@ DisplayTab = function( title, provider )
         }
     };
 
-    DisplayTab.prototype.set_duplication = function( original, variant, is_duplicate )
+    DisplayTab.prototype.set_variant = function( original, variant )
     {
         if( this.display ) {
-            this.display.set_duplication( original, variant, is_duplicate );
+            this.display.set_variant( original, variant );
         }
-    };
+    }
+
+    DisplayTab.prototype.merge_duplicates = function( original, duplicate )
+    {
+        if( this.display ) {
+            this.display.merge_duplicates( original, duplicate );
+        }
+    }
 
     DisplayTab.prototype.drop = function( obj_id, repr, type )
     {

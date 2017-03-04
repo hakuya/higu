@@ -7,6 +7,8 @@ import datetime
 
 import hdbfs
 
+hdbfs.ark.MIN_THUMB_EXP = 4
+
 class HiguLibCases( testutil.TestCase ):
 
     def setUp( self ):
@@ -55,10 +57,8 @@ class HiguLibCases( testutil.TestCase ):
 
         img_fd = obj.get_root_stream().read()
         tb_fd = obj.get_thumb_stream( 4 ).read()
-        self.assertFalse( img_fd is None,
-                'Invalid image returned' )
-        self.assertFalse( tb_fd is None,
-                'Invalid thumb returned' )
+        self.assertIsNotNone( img_fd, 'Invalid image returned' )
+        self.assertIsNotNone( tb_fd, 'Invalid thumb returned' )
 
         img_fd.close()
         tb_fd.close()
@@ -79,12 +79,83 @@ class HiguLibCases( testutil.TestCase ):
                           'Object returned by id after delete' )
 
         img_fd = h.imgdb.read( s_id, s_prio, s_ext )
-        self.assertTrue( img_fd is None,
-                'Image returned after delete' )
+        self.assertIsNone( img_fd, 'Image returned after delete' )
 
         tb_fd = h.imgdb.read( t_id, t_prio, t_ext )
-        self.assertTrue( tb_fd is None,
-                'Thumb returned after delete' )
+        self.assertIsNone( tb_fd, 'Thumb returned after delete' )
+
+    def test_drop_streams( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        red = h.register_file( red )
+        yellow = h.register_file( yellow )
+
+        self.assertIsNotNone( red.get_root_stream(),
+                'Red: No root stream' )
+        self.assertIsNotNone( yellow.get_root_stream(),
+                'Yellow: No root stream' )
+
+        red.get_root_stream()['test_meta'] = 5
+        yellow.get_root_stream()['test_meta'] = 5
+
+        yellow.drop_expendable_streams()
+        h.delete_object( yellow )
+
+        self.assertIsNotNone( red.get_root_stream(),
+                'Red: No root stream' )
+        self.assertEqual( red.get_root_stream()['test_meta'], 5,
+                'Red: test_meta lost' )
+
+    def test_drop_expendible( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        red = h.register_file( red )
+        yellow = h.register_file( yellow )
+
+        self.assertIsNotNone( red.get_root_stream(),
+                'Red: No root stream' )
+        self.assertIsNotNone( yellow.get_root_stream(),
+                'Yellow: No root stream' )
+        self.assertIsNone( red.get_stream( 'tb:4' ),
+                'Red: Thumb exists before created' )
+        self.assertIsNone( yellow.get_stream( 'tb:4' ),
+                'Yellow: Thumb exists before created' )
+
+        self.assertIsNotNone( red.get_thumb_stream( 4 ),
+                'Red: Thumb not created' )
+        self.assertIsNotNone( yellow.get_thumb_stream( 4 ),
+                'Yellow: Thumb not created' )
+
+        red.get_thumb_stream( 4 )['test_meta'] = 5
+        yellow.get_thumb_stream( 4 )['test_meta'] = 5
+
+        self.assertEqual( red.get_thumb_stream( 4 )['test_meta'], 5,
+                'Red: Thumb test_meta not set' )
+        self.assertEqual( yellow.get_thumb_stream( 4 )['test_meta'], 5,
+                'Yellow: Thumb test_meta not set' )
+
+        yellow.drop_expendable_streams()
+
+        self.assertIsNotNone( red.get_root_stream(),
+                'Red: No root stream' )
+        self.assertIsNotNone( yellow.get_root_stream(),
+                'Yellow: No root stream' )
+        self.assertIsNotNone( red.get_stream( 'tb:4' ),
+                'Red: Thumb was lost' )
+        self.assertIsNone( yellow.get_stream( 'tb:4' ),
+                'Yellow: Thumb was not dropped' )
+        self.assertEqual( red.get_thumb_stream( 4 )['test_meta'], 5,
+                'Red: Thumb test_meta lost' )
 
     def test_timestamp( self ):
 
@@ -120,8 +191,7 @@ class HiguLibCases( testutil.TestCase ):
                 'Old image was not removed' )
 
         img_fd = obj.get_root_stream().read()
-        self.assertFalse( img_fd is None,
-                'Failed opening image' )
+        self.assertIsNotNone( img_fd, 'Failed opening image' )
         img_fd.close()
 
         green = self._load_data( self.green )
@@ -135,8 +205,7 @@ class HiguLibCases( testutil.TestCase ):
                 'Double image was removed' )
 
         img_fd = obj.get_root_stream().read()
-        self.assertFalse( img_fd is None,
-                'Invalid image returned after double-add' )
+        self.assertIsNotNone( img_fd, 'Invalid image returned after double-add' )
         img_fd.close()
 
     def test_recover_missing( self ):
@@ -149,8 +218,7 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( cyan, False )
         
         img_fd = obj.get_root_stream().read()
-        self.assertFalse( img_fd is None,
-                'Failed opening image' )
+        self.assertIsNotNone( img_fd, 'Failed opening image' )
         img_fd.close()
 
         s = obj.get_root_stream()
@@ -160,8 +228,7 @@ class HiguLibCases( testutil.TestCase ):
         h.imgdb.commit()
 
         img_fd = obj.get_root_stream().read()
-        self.assertFalse( img_fd is not None,
-                'Remove failed' )
+        self.assertIsNone( img_fd, 'Remove failed' )
 
         cyan = self._load_data( self.cyan )
 
@@ -184,8 +251,7 @@ class HiguLibCases( testutil.TestCase ):
         obj = h.register_file( magenta, False )
         
         img_fd = obj.get_root_stream().read()
-        self.assertFalse( img_fd is None,
-                'Failed opening image' )
+        self.assertIsNotNone( img_fd, 'Failed opening image' )
         img_fd.close()
 
         s = obj.get_root_stream()
@@ -341,7 +407,7 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_REGISTER )
 
-        self.assertTrue( obj.get_name() is None,
+        self.assertIsNone( obj.get_name(),
                 'Name set when it shouldn\'t have been' )
         self.assertEqual( len( obj.get_origin_names() ), 0,
                 'Name registered when it shouldn\'t have been' )
@@ -353,7 +419,7 @@ class HiguLibCases( testutil.TestCase ):
 
         obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
 
-        self.assertTrue( obj.get_name() is None,
+        self.assertIsNone( obj.get_name(),
                 'Name set when it shouldn\'t have been' )
         self.assertEqual( len( obj.get_origin_names() ), 1,
                 'Name not registered when it should\'ve been' )
@@ -511,7 +577,7 @@ class HiguLibCases( testutil.TestCase ):
         obj_id = h.create_album().get_id()
 
         album = h.get_object_by_id( obj_id )
-        self.assertTrue( album is not None,
+        self.assertIsNotNone( album,
                 'Unable to get album after creation' )
         self.assertTrue( isinstance( album, hdbfs.Group ),
                 'Created album is not a group' )
@@ -653,7 +719,7 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( wo, ko, 'White and black are not duplicates' )
         self.assertEqual( h.get_object_by_id( ko_id ), None, 'Blacks ID still exists' )
 
-        dups = wo.get_duplicates()
+        dups = wo.get_duplicate_streams()
         self.assertEqual( len( dups ), 1, 'Unexpected number of dups on white' )
         self.assertEqual( dups[0].get_hash(),
                           ko_hash, 'Black not in duplicate list of white' )
@@ -681,8 +747,10 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( go, bo, 'Blue not equal to green' )
         self.assertTrue( go in ro.get_variants(), 'Green not variant of red' )
 
-        self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
-        self.assertEqual( len( go.get_duplicates() ), 1, 'Green duplicate list mismatch' )
+        self.assertEqual( len( ro.get_duplicate_streams() ),
+                          1, 'Red duplicate list mismatch' )
+        self.assertEqual( len( go.get_duplicate_streams() ),
+                          1, 'Green duplicate list mismatch' )
 
         self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
         self.assertEqual( len( go.get_variants_of() ), 1, 'Green is not a variant' )
@@ -724,7 +792,7 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( h.get_object_by_id( go_id ), None, 'Green was not removed' )
         self.assertEqual( h.get_object_by_id( bo_id ), None, 'Blue was not removed' )
 
-        dups = map( lambda x: x.get_stream_id(), ro.get_duplicates() )
+        dups = map( lambda x: x.get_stream_id(), ro.get_duplicate_streams() )
         self.assertFalse( ro_s_id in dups, 'Red in dup list' )
         self.assertTrue( yo_s_id in dups, 'Yellow not in dup list' )
         self.assertTrue( go_s_id in dups, 'Green not in dup list' )
@@ -753,7 +821,7 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( len( yo.get_variants_of() ), 1, 'Yellow is not a variant' )
         self.assertEqual( len( bo.get_variants_of() ), 1, 'Blue is not a variant' )
 
-        self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
+        self.assertEqual( len( ro.get_duplicate_streams() ), 1, 'Red duplicate list mismatch' )
         self.assertEqual( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
 
         variants = ro.get_variants()

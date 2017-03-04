@@ -402,7 +402,13 @@ class ImageInfo:
 
         if( self.img is None ):
             root_stream = self.get_root_stream()
+            if( root_stream is None ):
+                return None
+
             f = root_stream.read()
+            if( f is None ):
+                return None
+
             self.img = Image.open( f )
 
         return self.img
@@ -438,9 +444,12 @@ class ImageInfo:
 
             try:
                 self.img = self.get_img()
+                if( self.img is None ):
+                    return None, None
+
                 self.w, self.h = self.img.size
             except IOError:
-                return None
+                return None, None
 
             root_stream['width'] = self.w
             root_stream['height'] = self.h
@@ -527,6 +536,9 @@ class ThumbCache:
         # At this point, we need to create a thumb, open the file
         try:
             img = imginfo.get_img()
+            if( img is None ):
+                return None
+
             w, h = imginfo.get_dims()
             rot = imginfo.get_rot()
 
