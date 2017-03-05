@@ -598,6 +598,10 @@ class File( Obj ):
         with self.db._access():
             return self._get_root_stream()
 
+    def get_dimensions( self ):
+
+        return self.db.tbcache.get_dimensions( self )
+
     def rotate( self, rot ):
 
         with self.db._access( write = True ):
