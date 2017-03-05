@@ -59,7 +59,10 @@ TagslistTab = function()
             url:            '/taglist',
             type:           'GET',
             contentType:    'text/html',
-            success:        this.on_content_ready,
+            thiz:           this,
+            success:        function( response ) {
+                this.thiz.on_content_ready( response );
+            },
             error:          function( xhr ) {
                 dialogs.show_error_dialog( xhr.responseText );
             }

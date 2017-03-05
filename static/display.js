@@ -59,7 +59,7 @@ function private_make_link( repr, target, extra, action )
     label = $( '<a href="#">' + repr + '</a>' );
     label.data( 'repr', repr );
     label.data( 'target', target );
-    if( extra != null ) {
+    if( extra !== null ) {
         label.data( 'extra', extra );
     }
 
@@ -86,7 +86,7 @@ function public_make_link( repr, target, ext_actions )
                                         target,
                                         ext_actions[0].extra,
                                         ext_actions[0].action ) );
-        for( i = 1; i < list.length; i++ ) {
+        for( i = 1; i < ext_actions.length; i++ ) {
             span.append( ', ' );
             span.append( private_make_link( ext_actions[i].label,
                                             target,
@@ -390,7 +390,8 @@ DisplayableObject = function( obj_id, info )
         };
 
         load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
+        tabs.on_event( { type: 'info_changed', affected: [ original ] } );
+        tabs.on_event( { type: 'removed', affected: [ duplicate ] } );
     };
 
     DisplayableObject.prototype.rotate = function( rot )
@@ -428,8 +429,9 @@ DisplayableObject = function( obj_id, info )
             action:     'info',
             targets:    [ this.obj_id ],
             items:      [ 'type', 'repr', 'tags', 'names',
-                'variants', 'variants_of', 'albums', 'files',
-                'text', 'thumb_gen', 'width', 'height' ],
+                'variants', 'variants_of', 'dup_streams',
+                'albums', 'files', 'text', 'thumb_gen',
+                'width', 'height' ],
         };
         
         response = load_sync( request );
@@ -500,11 +502,11 @@ DisplayableObject = function( obj_id, info )
                 extra.obj.clear_variant( target, extra.obj.obj_id );
             }
 
-            actions = [ { label: 'Rem',
-                          extra: { obj: obj, },
+            actions = [ { label: 'del',
+                          extra: { obj: this, },
                           action: rem_variant_of_action, } ]
 
-            div.append( 'Variants of: ' );
+            div.append( 'Variant of: ' );
             div.append( util.make_link_list( this.info.variants_of, actions ) );
             div.append( '<br/>' );
         }
@@ -516,8 +518,8 @@ DisplayableObject = function( obj_id, info )
                 extra.obj.clear_variant( extra.obj.obj_id, target );
             }
 
-            actions = [ { label: 'Rem',
-                          extra: { obj: obj, },
+            actions = [ { label: 'del',
+                          extra: { obj: this, },
                           action: rem_variant_action, } ]
 
             div.append( 'Variants: ' );
@@ -548,7 +550,6 @@ DisplayableObject = function( obj_id, info )
         div.append( vieworig );
 
         if( this.info.dup_streams && this.info.dup_streams.length > 0 ) {
-            alert( 'test' );
             div.append( 'Duplicates: ' );
 
             for( i = 0; i < this.info.dup_streams.length; i++ ) {

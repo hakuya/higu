@@ -389,6 +389,9 @@ class ImageInfo:
         self.rot = None
         self.img = None
 
+        self.obj_w = None
+        self.obj_h = None
+
     def get_root_stream( self ):
 
         if( self.root_stream is None ):
@@ -456,6 +459,36 @@ class ImageInfo:
 
         return self.w, self.h
 
+    def get_obj_dims( self ):
+
+        if( self.obj_w is None or self.obj_h is None ):
+
+            try:
+                self.obj_w = self.obj['width']
+            except:
+                pass
+
+            try:
+                self.obj_h = self.obj['height']
+            except:
+                pass
+
+        if( self.obj_w is None or self.obj_h is None ):
+
+            w, h = self.get_dims()
+            rot = self.get_rot()
+
+            if( rot == 1 or rot == 3 ):
+                w, h = h, w
+
+            self.obj_w = w
+            self.obj_h = h
+
+            self.obj['width'] = w
+            self.obj['height'] = h
+
+        return self.obj_w, self.obj_h
+
     def get_tb_info( self, bump_gen = False ):
 
         if( self.tb_gen is None
@@ -506,6 +539,11 @@ class ThumbCache:
         self.fsdb = fsdb
         self.imgdb = imgdb
 
+    def get_dimensions( self, obj ):
+
+        imginfo = ImageInfo( self.imgdb, obj )
+        return imginfo.get_obj_dims()
+
     def make_thumb( self, obj, exp ):
 
         from PIL import Image
@@ -539,20 +577,8 @@ class ThumbCache:
             if( img is None ):
                 return None
 
-            w, h = imginfo.get_dims()
+            w, h = imginfo.get_obj_dims()
             rot = imginfo.get_rot()
-
-            if( rot == 1 or rot == 3 ):
-                w, h = h, w
-
-            try:
-                update_size = obj['width'] != w or obj['height'] != h
-            except:
-                update_size = True
-
-            if( update_size ):
-                obj['width'] = w
-                obj['height'] = h
 
             # Always operate in RGB
             img = img.convert( 'RGB' )

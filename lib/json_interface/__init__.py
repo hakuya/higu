@@ -155,7 +155,7 @@ class JsonInterface:
                 info['variants'] = map( make_obj_tuple, variants )
             if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
                 variants_of = target.get_variants_of()
-                info['variants_of'] = map( make_obj_tuple, variants )
+                info['variants_of'] = map( make_obj_tuple, variants_of )
             if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
                 dups = target.get_duplicate_streams()
                 info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
@@ -170,16 +170,15 @@ class JsonInterface:
                     info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
                 except:
                     info['thumb_gen'] = 0
-            if( isinstance( target, hdbfs.File ) and 'width' in items ):
+            if( isinstance( target, hdbfs.File )
+            and ('width' in items or 'height' in items) ):
                 try:
-                    info['width'] = target['width']
+                    w, h = target.get_dimensions()
                 except:
-                    info['width'] = 0
-            if( isinstance( target, hdbfs.File ) and 'height' in items ):
-                try:
-                    info['height'] = target['height']
-                except:
-                    info['height'] = 0
+                    w = 0
+                    h = 0
+                info['width'] = w
+                info['height'] = h
 
             return info
 
