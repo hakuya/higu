@@ -162,7 +162,7 @@ class Object( Base ):
         if( row is None ):
             raise KeyError
 
-        self.metadata.remove( row )
+        self.metadata.filter( ObjectMetadata.key == key ).delete()
 
     def __repr__( self ):
 

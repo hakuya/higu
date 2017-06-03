@@ -193,6 +193,13 @@ def upgrade_from_9_to_10( log, session ):
                      'FROM objl ' 
                      'WHERE type != 1001' )
 
+    # Bugs in earlier versions of hdbfs can lead to duplicate rows in the rel2
+    # table. Delete the duplicate rows now
+    session.execute( 'DELETE FROM rel2 '
+                     'WHERE rowid NOT IN ( '
+                       'SELECT MIN( rowid ) '
+                       'FROM rel2 GROUP BY parent, child )' )
+
     # Copy rel2
     session.execute( 'INSERT INTO relations '
                      'SELECT r.child, r.parent, r.sort '

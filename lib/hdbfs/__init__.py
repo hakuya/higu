@@ -228,9 +228,16 @@ class Obj:
 
     def get_tags( self ):
 
+        from sqlalchemy import and_
+
         with self.db._access():
-            tag_objs = [ obj for obj in self.obj.parents
-                                     if obj.object_type == TYPE_CLASSIFIER ]
+            tag_objs = [
+                obj for obj in
+                self.db.session.query( model.Object )
+                    .filter(
+                        and_( model.Object.object_type == TYPE_CLASSIFIER,
+                              model.Object.children.contains( self.obj ) ) )
+                             .order_by( model.Object.name ) ]
             return map( lambda x: Tag( self.db, x ), tag_objs )
 
     def _assign( self, group, order ):
@@ -621,6 +628,10 @@ class File( Obj ):
 
             self.obj.root_stream['rotation'] = rotation
 
+            # We need to purge the size
+            del self.obj['width']
+            del self.obj['height']
+
         self.db.tbcache.purge_thumbs( self )
 
     def get_thumb_stream( self, exp ):
@@ -906,8 +917,8 @@ class Database:
             try:
                 d = self.get_tag( target ).obj
                 self.session.query( model.Relation ) \
-                    .filter( model.Relation.parent_id == c.id ) \
-                    .update( { 'parent' : d.id } )
+                    .filter( model.Relation.parent_id == c.object_id ) \
+                    .update( { 'parent_id' : d.object_id } )
                 self.session.delete( c )
 
             except KeyError:
