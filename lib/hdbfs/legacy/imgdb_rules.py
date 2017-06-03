@@ -116,7 +116,10 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                     
                     exp = e
                 else:
-                    exp = int( exp )
+                    try:
+                        exp = int( exp )
+                    except ValueError:
+                        continue
 
                 details = calculate_details( t )
                 mime_type = mimetypes.guess_type( t, strict=False )[0]
