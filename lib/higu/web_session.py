@@ -9,6 +9,13 @@ WEB_SESSION_DB_NAME = 'websdb.dat'
 
 DEFAULT_EXPIRY_SECS = 60 * 60
 
+def ensure_string( s ):
+
+    if( isinstance( s, unicode ) ):
+        return s.encode( 'utf-8' )
+    else:
+        return str( s )
+
 class WebSessionAccess:
 
     def __init__( self ):
@@ -98,7 +105,10 @@ class WebSessionAccess:
                 self.__db_session.commit()
                 return False
 
-            if( bcrypt.hashpw( password, user_info.password_hash ) == user_info.password_hash ):
+            password = ensure_string( password )
+            password_hash = ensure_string( user_info.password_hash )
+
+            if( bcrypt.hashpw( password, password_hash ) == password_hash ):
                 session.user_id = user_info.user_id
                 session.access_level = user_info.access_level
                 session.expires_time = expires
@@ -148,6 +158,8 @@ class WebSessionAccess:
             if( user_info is not None ):
                 self.__db_session.commit()
                 return False
+
+            password = ensure_string( password )
 
             password_hash = bcrypt.hashpw( password, bcrypt.gensalt( 14 ) )
             user_info = model.User( user_name, password_hash )
@@ -199,6 +211,8 @@ class WebSessionAccess:
             if( user_info is None ):
                 self.__db_session.commit()
                 return False
+
+            password = ensure_string( password )
 
             user_info.password_hash = bcrypt.hashpw( password, bcrypt.gensalt( 14 ) )
 
