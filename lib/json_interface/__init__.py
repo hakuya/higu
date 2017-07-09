@@ -224,7 +224,7 @@ class JsonInterface:
         db = self.__db
 
         target = db.get_object_by_id( target )
-        target.set_name( name, saveold )
+        target.set_name( name )
 
         return json_ok()
 
