@@ -629,8 +629,15 @@ class File( Obj ):
             self.obj.root_stream['rotation'] = rotation
 
             # We need to purge the size
-            del self.obj['width']
-            del self.obj['height']
+            try:
+                del self.obj['width']
+            except KeyError:
+                pass
+
+            try:
+                del self.obj['height']
+            except KeyError:
+                pass
 
         self.db.tbcache.purge_thumbs( self )
 
