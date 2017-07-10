@@ -1,8 +1,11 @@
+import calendar
+import datetime
+import mimetypes
 import os
 import shutil
 import tempfile
 import zipfile
-import mimetypes
+
 import model
 
 IMGDB_DATA_PATH = 'imgdat'
@@ -373,42 +376,25 @@ class StreamDatabase:
         v = self.__get_vol_for_id( id )
         return v._debug_write( id, priority, extension )
 
-class ImageInfo:
+class StreamInfo:
 
-    def __init__( self, imgdb, obj ):
+    def __init__( self, imgdb, stream ):
 
         self.imgdb = imgdb
-        self.obj = obj
-        self.root_stream = None
+        self.stream = stream
 
-        self.tb_gen = None
-        self.max_e = None
-        self.use_root = None
         self.w = None
         self.h = None
         self.rot = None
         self.img = None
-
-        self.obj_w = None
-        self.obj_h = None
-
-    def get_root_stream( self ):
-
-        if( self.root_stream is None ):
-            self.root_stream = self.obj.get_root_stream()
-
-        return self.root_stream
+        self.creation_time = None
 
     def get_img( self ):
 
         from PIL import Image
 
         if( self.img is None ):
-            root_stream = self.get_root_stream()
-            if( root_stream is None ):
-                return None
-
-            f = root_stream.read()
+            f = self.stream.read()
             if( f is None ):
                 return None
 
@@ -420,7 +406,7 @@ class ImageInfo:
 
         if( self.rot is None ):
             try:
-                self.rot = self.root_stream['rotation']
+                self.rot = self.stream['rotation']
             except:
                 self.rot = 0
 
@@ -429,24 +415,20 @@ class ImageInfo:
     def get_dims( self ):
 
         if( self.w is None or self.h is None ):
-            root_stream = self.get_root_stream()
-
             try:
-                self.w = root_stream['width']
+                self.w = self.stream['width']
             except:
                 pass
 
             try:
-                self.h = root_stream['height']
+                self.h = self.stream['height']
             except:
                 pass
 
         # Image info is not present, we need to read it from the file
         if( self.w is None or self.h is None ):
-            root_stream = self.get_root_stream()
-
             try:
-                self.img = self.get_img()
+                self.get_img()
                 if( self.img is None ):
                     return None, None
 
@@ -454,10 +436,111 @@ class ImageInfo:
             except IOError:
                 return None, None
 
-            root_stream['width'] = self.w
-            root_stream['height'] = self.h
+            self.stream['width'] = self.w
+            self.stream['height'] = self.h
 
         return self.w, self.h
+
+    def get_creation_time( self ):
+
+        if( self.creation_time is None ):
+            try:
+                self.creation_time = self.stream['creation_time']
+            except:
+                pass
+
+        if( self.creation_time is None ):
+            self.get_img()
+            if( 'exif' in self.img.info ):
+                ORIGINAL_DATE = 36867
+
+                exif = self.img._getexif()
+                if( ORIGINAL_DATE in exif ):
+                    dt = datetime.datetime.strptime(
+                                exif[ORIGINAL_DATE],
+                                '%Y:%m:%d %H:%M:%S' )
+                    self.creation_time = calendar.timegm( dt.timetuple() )
+
+            if( self.creation_time is not None ):
+                self.stream['creation_time'] = self.creation_time
+
+        return self.creation_time
+
+class ImageInfo:
+
+    def __init__( self, imgdb, obj ):
+
+        self.imgdb = imgdb
+        self.obj = obj
+        self.root_si = None
+
+        self.tb_gen = None
+        self.max_e = None
+        self.use_root = None
+
+        self.obj_w = None
+        self.obj_h = None
+
+        self.creation_time = None
+
+    def get_root_stream_info( self ):
+
+        if( self.root_si is None ):
+            root_s = self.obj.get_root_stream()
+            if( root_s is not None ):
+                self.root_si = StreamInfo( self.imgdb, root_s )
+
+        return self.root_si
+
+    def get_root_stream( self ):
+
+        root_si = self.get_root_stream_info()
+        if( root_si is not None ):
+            return root_si.stream
+        else:
+            return None
+
+    def get_img( self ):
+
+        root_si = self.get_root_stream_info()
+        if( root_si is not None ):
+            return root_si.get_img()
+        else:
+            return None
+
+    def get_rot( self ):
+
+        root_si = self.get_root_stream_info()
+        if( root_si is not None ):
+            return root_si.get_rot()
+        else:
+            return 0
+
+    def get_dims( self ):
+
+        root_si = self.get_root_stream_info()
+        if( root_si is not None ):
+            return root_si.get_dims()
+        else:
+            return None, None
+
+    def get_creation_time( self ):
+
+        if( self.creation_time is None ):
+            try:
+                self.creation_time = self.obj['creation_time']
+            except:
+                pass
+
+        if( self.creation_time is None ):
+            root_si = self.get_root_stream_info()
+            if( root_si is not None ):
+                self.creation_time = root_si.get_creation_time()
+
+            if( self.creation_time is not None ):
+                self.obj['creation_time'] = self.creation_time
+
+        return self.creation_time
 
     def get_obj_dims( self ):
 
@@ -543,6 +626,21 @@ class ThumbCache:
 
         imginfo = ImageInfo( self.imgdb, obj )
         return imginfo.get_obj_dims()
+
+    def get_creation_time( self, obj ):
+
+        imginfo = ImageInfo( self.imgdb, obj )
+        return imginfo.get_creation_time()
+
+    def init_metadata( self, obj, stream ):
+
+        streaminfo = StreamInfo( self.imgdb, stream )
+        streaminfo.get_creation_date()
+        streaminfo.get_dims()
+
+        imginfo = ImageInfo( self.imgdb, obj )
+        imginfo.get_creation_time()
+        imginfo.get_dims()
 
     def make_thumb( self, obj, exp ):
 

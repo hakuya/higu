@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import re
 import sys
@@ -9,6 +10,7 @@ from hash import calculate_details
 import ark
 import model
 import query
+import triggers
 
 VERSION = 1
 REVISION = 0
@@ -28,6 +30,8 @@ NAME_POLICY_DONT_REGISTER   = 0
 NAME_POLICY_DONT_SET        = 1
 NAME_POLICY_SET_IF_UNDEF    = 2
 NAME_POLICY_SET_ALWAYS      = 3
+
+LOG = logging.getLogger( __name__ )
 
 _LIBRARY = None
 
@@ -609,6 +613,10 @@ class File( Obj ):
 
         return self.db.tbcache.get_dimensions( self )
 
+    def get_creation_time( self ):
+
+        return self.db.tbcache.get_creation_time( self )
+
     def rotate( self, rot ):
 
         with self.db._access( write = True ):
@@ -1002,6 +1010,17 @@ class Database:
         with self._access( write = True ):
             return self.__create_album( tags, name, text )
 
+    def load_metadata( self, obj, stream = None ):
+
+        if( stream is None ):
+            stream = obj.get_root_stream()
+
+        try:
+            self.tbcache.init_metadata( obj, stream )
+        except:
+            LOG.warning( 'Failed loading metadata for "%s": %s',
+                         stream.get_repr(), str( sys.exc_info()[0] ) )
+
     def __register_file( self, path, name_policy ):
 
         import mimetypes
@@ -1015,6 +1034,7 @@ class Database:
 
         mime_type = mimetypes.guess_type( path, strict=False )[0]
         streams = self.lookup_streams_by_details( *details )
+        new_stream = False
 
         if( len( streams ) == 0 ):
             obj = model.Object( TYPE_FILE )
@@ -1027,6 +1047,7 @@ class Database:
 
             f = File( self, obj )
             stream = Stream( self, stream )
+            new_stream = True
 
             self.session.flush()
         else:
@@ -1056,12 +1077,17 @@ class Database:
                                         stream.stream.priority,
                                         stream.stream.extension )
 
-        return f
+        return f, stream, new_stream
 
     def register_file( self, path, name_policy = NAME_POLICY_SET_IF_UNDEF ):
 
         with self._access( write = True ):
-            return self.__register_file( path, name_policy )
+            f, stream, is_new = self.__register_file( path, name_policy )
+
+        if( is_new ):
+            self.load_metadata( f, stream )
+
+        return f
 
     def __register_thumb( self, path, obj, origin, name ):
 
@@ -1099,6 +1125,8 @@ class Database:
                          name_policy = NAME_POLICY_SET_IF_UNDEF,
                          create_album = False, album_name = None, album_text = None ):
 
+        streams = []
+
         with self._access( write = True ):
 
             # Load tags
@@ -1112,13 +1140,19 @@ class Database:
                 album = None
 
             for f in files:
-                x = self.__register_file( f, name_policy )
+                x, stream, is_new = self.__register_file( f, name_policy )
 
                 if( album is not None ):
                     x._assign( album, None )
                 else:
                     for t in taglist:
                         x._assign( t, None )
+
+                if( is_new ):
+                    streams.append( ( x, stream, ) )
+
+        for f, stream in streams:
+            self.load_metadata( f, stream )
 
     def _merge_objects( self, primary_obj, merge_obj ):
 

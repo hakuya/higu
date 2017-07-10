@@ -1,3 +1,4 @@
+import datetime
 import inspect
 import sys
 
@@ -179,6 +180,14 @@ class JsonInterface:
                     h = 0
                 info['width'] = w
                 info['height'] = h
+            if( isinstance( target, hdbfs.File ) and 'creation_time' in items ):
+                creation_ts = target.get_creation_time()
+                if( creation_ts is not None ):
+                    info['creation_time'] = datetime.datetime\
+                                                .utcfromtimestamp( creation_ts )\
+                                                .strftime( '%Y/%m/%d %H:%M:%S' )
+                else:
+                    info['creation_time'] = None
 
             return info
 
