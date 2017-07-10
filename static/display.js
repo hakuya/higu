@@ -431,7 +431,7 @@ DisplayableObject = function( obj_id, info )
             items:      [ 'type', 'repr', 'tags', 'names',
                 'variants', 'variants_of', 'dup_streams',
                 'albums', 'files', 'text', 'thumb_gen',
-                'width', 'height' ],
+                'width', 'height', 'creation_time' ],
         };
         
         response = load_sync( request );
@@ -488,6 +488,9 @@ DisplayableObject = function( obj_id, info )
     DisplayableObject.prototype.display_file_info = function( div )
     {
         div.append( 'Size: ' + this.info.width + 'x' + this.info.height + '<br/>' );
+        if( this.info.creation_time !== null ) {
+            div.append( 'Created: ' + this.info.creation_time + '<br/>' );
+        }
 
         if( this.info.albums && this.info.albums.length > 0 ) {
             div.append( 'Albums: ' );
@@ -1105,7 +1108,7 @@ var public_make_object_display = function( obj_id )
         items:      [ 'type', 'repr', 'tags', 'names',
             'variants', 'variants_of', 'dup_streams',
             'albums', 'files', 'text', 'thumb_gen',
-            'width', 'height' ],
+            'width', 'height', 'creation_time' ],
     };
     
     response = load_sync( request );
