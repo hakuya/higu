@@ -10,7 +10,6 @@ from hash import calculate_details
 import ark
 import model
 import query
-import triggers
 
 VERSION = 1
 REVISION = 0
@@ -418,6 +417,17 @@ class Album( OrderedGroup ):
     def __init__( self, db, obj ):
 
         OrderedGroup.__init__( self, db, obj )
+
+    def set_creation_time( self, creation_time ):
+
+        self['creation_time'] = creation_time
+
+    def get_creation_time( self ):
+
+        try:
+            return self['creation_time']
+        except:
+            return None
 
 class File( Obj ):
 
