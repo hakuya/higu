@@ -323,6 +323,19 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'info_changed', affected: affected } );
     };
 
+    DisplayableObject.prototype.set_creation = function()
+    {
+        var request = {
+            action:     'set_creation',
+            target:     this.obj_id,
+        };
+
+        load_sync( request );
+        affected = [ this.obj_id ];
+
+        tabs.on_event( { type: 'info_changed', affected: affected } );
+    };
+
     DisplayableObject.prototype.reorder = function( obj_id, idx )
     {
         src_idx = this.find_item( obj_id )
@@ -478,6 +491,10 @@ DisplayableObject = function( obj_id, info )
             ls.append( li );
         }
 
+        if( this.info.creation_time !== null ) {
+            div.append( 'Created: ' + this.info.creation_time + '<br/>' );
+        }
+
         if( this.info.type == 'file') {
             this.display_file_info( div );
         } else {
@@ -488,10 +505,6 @@ DisplayableObject = function( obj_id, info )
     DisplayableObject.prototype.display_file_info = function( div )
     {
         div.append( 'Size: ' + this.info.width + 'x' + this.info.height + '<br/>' );
-        if( this.info.creation_time !== null ) {
-            div.append( 'Created: ' + this.info.creation_time + '<br/>' );
-        }
-
         if( this.info.albums && this.info.albums.length > 0 ) {
             div.append( 'Albums: ' );
             div.append( util.make_link_list( this.info.albums ) );
@@ -586,8 +599,15 @@ DisplayableObject = function( obj_id, info )
             obj = $( this ).data( 'obj' );
             obj.gather_tags();
         });
-
         div.append( gather );
+
+        var creat = $( '<a href="#">Set Creation</a><br/>' );
+        creat.data( 'obj', this );
+        creat.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.set_creation();
+        });
+        div.append( creat );
 
         activate_links( div );
     };

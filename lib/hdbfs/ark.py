@@ -455,7 +455,12 @@ class StreamInfo:
                 ORIGINAL_DATE = 36867
 
                 exif = self.img._getexif()
-                if( ORIGINAL_DATE in exif ):
+                if( ORIGINAL_DATE in exif \
+                and exif[ORIGINAL_DATE] != '' ):
+
+                    original_date = exif[ORIGINAL_DATE]
+                    original_date = original_date.replace( '\x00', '' )
+
                     dt = datetime.datetime.strptime(
                                 exif[ORIGINAL_DATE],
                                 '%Y:%m:%d %H:%M:%S' )

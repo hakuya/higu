@@ -189,6 +189,15 @@ class Query:
             else:
                 query = query.order_by( model.Object.name.desc(),
                                         model.Object.object_id.desc() )
+        elif( self.__order_by == 'creation' ):
+            query = query.join( model.ObjectMetadata )\
+                         .filter( model.ObjectMetadata.key == 'creation_time' )
+            if( not self.__order_desc ):
+                query = query.order_by( model.ObjectMetadata.numeric,
+                                        model.Object.object_id )
+            else:
+                query = query.order_by( model.ObjectMetadata.numeric.desc(),
+                                        model.Object.object_id.desc() )
 
         return hdbfs.ModelObjToHiguObjIterator( db, query ) 
 
