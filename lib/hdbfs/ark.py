@@ -640,7 +640,7 @@ class ThumbCache:
     def init_metadata( self, obj, stream ):
 
         streaminfo = StreamInfo( self.imgdb, stream )
-        streaminfo.get_creation_date()
+        streaminfo.get_creation_time()
         streaminfo.get_dims()
 
         imginfo = ImageInfo( self.imgdb, obj )
