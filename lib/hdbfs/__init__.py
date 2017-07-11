@@ -1029,7 +1029,7 @@ class Database:
             self.tbcache.init_metadata( obj, stream )
         except:
             LOG.warning( 'Failed loading metadata for "%s": %s',
-                         stream.get_repr(), str( sys.exc_info()[0] ) )
+                         stream.get_repr(), str( sys.exc_info()[1] ) )
 
     def __register_file( self, path, name_policy ):
 
