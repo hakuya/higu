@@ -533,12 +533,39 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rotate( self, target, rot ):
+    def cmd_auto_orientation( self, target ):
 
         db = self.__db
 
         target = db.get_object_by_id( target )
-        target.rotate( rot )
+        target.auto_orientation()
+
+        return json_ok()
+
+    def cmd_rotate_cw( self, target ):
+
+        db = self.__db
+
+        target = db.get_object_by_id( target )
+        target.rotate_cw()
+
+        return json_ok()
+
+    def cmd_rotate_ccw( self, target ):
+
+        db = self.__db
+
+        target = db.get_object_by_id( target )
+        target.rotate_ccw()
+
+        return json_ok()
+
+    def cmd_mirror( self, target ):
+
+        db = self.__db
+
+        target = db.get_object_by_id( target )
+        target.mirror()
 
         return json_ok()
 

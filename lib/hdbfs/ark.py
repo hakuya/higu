@@ -385,7 +385,7 @@ class StreamInfo:
 
         self.w = None
         self.h = None
-        self.rot = None
+        self.orientation = None
         self.img = None
         self.creation_time = None
 
@@ -402,15 +402,47 @@ class StreamInfo:
 
         return self.img
 
-    def get_rot( self ):
+    def get_orientation( self ):
 
-        if( self.rot is None ):
+        if( self.orientation is None ):
             try:
-                self.rot = self.stream['rotation']
+                self.orientation = self.stream['orientation']
             except:
-                self.rot = 0
+                pass
 
-        return self.rot
+        if( self.orientation is None ):
+            try:
+                rot = self.stream['rotation']
+                if( rot == 0 ):
+                    self.orientation = 1
+                elif( rot == 1 ):
+                    self.orientation = 8
+                elif( rot == 2 ):
+                    self.orientation = 3
+                elif( rot == 3 ):
+                    self.orientation = 6
+                del self.stream['rotation']
+            except:
+                pass
+
+        if( self.orientation is None ):
+            self.get_img()
+            if( 'exif' in self.img.info ):
+                ORIENTATION = 274
+
+                exif = self.img._getexif()
+                if( ORIENTATION in exif \
+                and exif[ORIENTATION] != '' ):
+
+                    self.orientation = int( exif[ORIENTATION] )
+                    if( self.orientation < 1 or self.orientation > 8 ):
+                        self.orientation = 1
+
+            if( self.orientation is None ):
+                self.orientation = 1
+            self.stream['orientation'] = self.orientation
+
+        return self.orientation
 
     def get_dims( self ):
 
@@ -513,13 +545,13 @@ class ImageInfo:
         else:
             return None
 
-    def get_rot( self ):
+    def get_orientation( self ):
 
         root_si = self.get_root_stream_info()
         if( root_si is not None ):
-            return root_si.get_rot()
+            return root_si.get_orientation()
         else:
-            return 0
+            return 1
 
     def get_dims( self ):
 
@@ -564,9 +596,9 @@ class ImageInfo:
         if( self.obj_w is None or self.obj_h is None ):
 
             w, h = self.get_dims()
-            rot = self.get_rot()
+            orientation = self.get_orientation()
 
-            if( rot == 1 or rot == 3 ):
+            if( orientation > 4 ):
                 w, h = h, w
 
             self.obj_w = w
@@ -599,7 +631,7 @@ class ImageInfo:
          or self.use_root is None ):
 
             w, h = self.get_dims()
-            rot = self.get_rot()
+            orientation = self.get_orientation()
 
             if( self.tb_gen is not None ):
                 self.tb_gen += 1
@@ -607,7 +639,7 @@ class ImageInfo:
                 self.tb_gen = 0
 
             self.max_e = 0
-            if( rot == 0 ):
+            if( orientation == 1 ):
                 self.use_root = 1
             else:
                 self.use_root = 0
@@ -642,6 +674,7 @@ class ThumbCache:
         streaminfo = StreamInfo( self.imgdb, stream )
         streaminfo.get_creation_time()
         streaminfo.get_dims()
+        streaminfo.get_orientation()
 
         imginfo = ImageInfo( self.imgdb, obj )
         imginfo.get_creation_time()
@@ -681,18 +714,28 @@ class ThumbCache:
                 return None
 
             w, h = imginfo.get_obj_dims()
-            rot = imginfo.get_rot()
+            orientation = imginfo.get_orientation()
 
             # Always operate in RGB
             img = img.convert( 'RGB' )
 
             # Do the rotate
-            if( rot == 1 ):
-                img = img.transpose( Image.ROTATE_270 )
-            elif( rot == 2 ):
+            if( orientation == 2 ):
+                img = img.transpose( Image.FLIP_LEFT_RIGHT )
+            elif( orientation == 3 ):
                 img = img.transpose( Image.ROTATE_180 )
-            elif( rot == 3 ):
+            elif( orientation == 4 ):
+                img = img.transpose( Image.FLIP_TOP_BOTTOM )
+            elif( orientation == 5 ):
+                img = img.transpose( Image.FLIP_LEFT_RIGHT )
                 img = img.transpose( Image.ROTATE_90 )
+            elif( orientation == 6 ):
+                img = img.transpose( Image.ROTATE_90 )
+            elif( orientation == 7 ):
+                img = img.transpose( Image.FLIP_LEFT_RIGHT )
+                img = img.transpose( Image.ROTATE_270 )
+            elif( orientation == 8 ):
+                img = img.transpose( Image.ROTATE_270 )
 
             # Do the resize
             if( w > s or h > s ):

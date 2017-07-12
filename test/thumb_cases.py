@@ -71,7 +71,7 @@ class ThumbCases( testutil.TestCase ):
 
         obj = h.register_file( blue, False )
 
-        obj.rotate( 1 )
+        obj.rotate_cw()
 
         root_stream = obj.get_root_stream()
         thumb_stream = obj.get_thumb_stream( 10 )

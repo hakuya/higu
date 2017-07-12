@@ -157,7 +157,7 @@ DisplayableBase = function()
             original, variant ) {}
     DisplayableBase.prototype.merge_duplicates = function(
             original, duplicate ) {}
-    DisplayableBase.prototype.rotate = function( rot ) {};
+    DisplayableBase.prototype.transform = function( xform ) {};
     DisplayableBase.prototype.reorder = function( obj_id, idx ) {};
     DisplayableBase.prototype.on_event = function( e ) { return null; };
     DisplayableBase.prototype.refresh_info = function( e ) {};
@@ -407,16 +407,16 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'removed', affected: [ duplicate ] } );
     };
 
-    DisplayableObject.prototype.rotate = function( rot )
+    DisplayableObject.prototype.transform = function( xform )
     {
+        alert( xform );
         if( this.info.type != 'file') {
             return;
         }
 
         var request = {
-            action:     'rotate',
+            action:     xform,
             target:     this.obj_id,
-            rot:        rot,
         };
         load_sync( request );
         tabs.on_event( { type: 'files_changed', affected:
@@ -543,12 +543,20 @@ DisplayableObject = function( obj_id, info )
             div.append( '<br/>' );
         }
 
-        div.append( 'Rotate: ' );
+        div.append( 'Transform: ' );
+        var xform_auto = $( '<a href="#">auto</a>' );
+        xform_auto.data( 'obj', this );
+        xform_auto.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.transform( 'auto_orientation' );
+        });
+        div.append( xform_auto );
+        div.append( ', ' );
         var rotate_ccw = $( '<a href="#">ccw</a>' );
         rotate_ccw.data( 'obj', this );
         rotate_ccw.click( function( e ) {
             obj = $( this ).data( 'obj' );
-            obj.rotate( -1 );
+            obj.transform( 'rotate_ccw' );
         });
         div.append( rotate_ccw );
         div.append( ', ' );
@@ -556,9 +564,17 @@ DisplayableObject = function( obj_id, info )
         rotate_cw.data( 'obj', this );
         rotate_cw.click( function( e ) {
             obj = $( this ).data( 'obj' );
-            obj.rotate( 1 );
+            obj.transform( 'rotate_cw' );
         });
         div.append( rotate_cw );
+        div.append( ', ' );
+        var mirror = $( '<a href="#">mirror</a>' );
+        mirror.data( 'obj', this );
+        mirror.click( function( e ) {
+            obj = $( this ).data( 'obj' );
+            obj.transform( 'mirror' );
+        });
+        div.append( mirror );
         div.append( '<br/>' );
 
         var vieworig = $( '<a href="/img?id=' + this.obj_id +'">'

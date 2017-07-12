@@ -300,7 +300,10 @@ class ObjectMetadata( Base ):
     value = Column( Text )
     numeric = Column( Integer )
 
-    obj = relation( 'Object', backref = backref( 'metadata', lazy = 'dynamic' ) )
+    obj = relation( 'Object',
+                    backref = backref( 'metadata',
+                                       lazy = 'dynamic',
+                                       cascade = 'all, delete-orphan' ) )
 
     def __init__( self, key, value, numeric ):
 
@@ -327,7 +330,10 @@ class StreamMetadata( Base ):
     value = Column( Text )
     numeric = Column( Integer )
 
-    stream = relation( 'Stream', backref = backref( 'metadata', lazy = 'dynamic' ) )
+    stream = relation( 'Stream',
+                       backref = backref( 'metadata',
+                                          lazy = 'dynamic',
+                                          cascade = 'all, delete-orphan' ) )
 
     def __init__( self, key, value, numeric ):
 
