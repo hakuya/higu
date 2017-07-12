@@ -434,7 +434,7 @@ class StreamInfo:
 
         if( self.orientation is None ):
             self.get_img()
-            if( 'exif' in self.img.info ):
+            if( self.img is not None and 'exif' in self.img.info ):
                 ORIENTATION = 274
 
                 exif = self.img._getexif()
@@ -490,7 +490,7 @@ class StreamInfo:
 
         if( self.creation_time is None ):
             self.get_img()
-            if( 'exif' in self.img.info ):
+            if( self.img is not None and 'exif' in self.img.info ):
                 ORIGINAL_DATE = 36867
 
                 exif = self.img._getexif()
