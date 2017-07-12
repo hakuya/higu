@@ -409,7 +409,6 @@ DisplayableObject = function( obj_id, info )
 
     DisplayableObject.prototype.transform = function( xform )
     {
-        alert( xform );
         if( this.info.type != 'file') {
             return;
         }

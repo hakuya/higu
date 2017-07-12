@@ -656,12 +656,12 @@ class File( Obj ):
 
     def rotate_cw( self ):
 
-        CW_REMAP = [ 8, 7, 6, 5, 2, 1, 4, 3 ]
+        CW_REMAP = [ 6, 5, 8, 7, 4, 3, 2, 1 ]
         self.__reorient( CW_REMAP )
 
     def rotate_ccw( self ):
 
-        CCW_REMAP = [ 6, 5, 8, 7, 4, 3, 2, 1 ]
+        CCW_REMAP = [ 8, 7, 6, 5, 2, 1, 4, 3 ]
         self.__reorient( CCW_REMAP )
 
     def mirror( self ):
