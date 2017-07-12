@@ -405,7 +405,7 @@ class StreamInfo:
             except IOError:
                 hdbfs.LOG.warning(
                         'Failed opening image for "%s": %s',
-                        stream.get_repr(), str( sys.exc_info()[1] ) )
+                        self.stream.get_repr(), str( sys.exc_info()[1] ) )
 
         return self.img
 
