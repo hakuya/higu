@@ -3,9 +3,11 @@ import datetime
 import mimetypes
 import os
 import shutil
+import sys
 import tempfile
 import zipfile
 
+import hdbfs
 import model
 
 IMGDB_DATA_PATH = 'imgdat'
@@ -398,7 +400,12 @@ class StreamInfo:
             if( f is None ):
                 return None
 
-            self.img = Image.open( f )
+            try:
+                self.img = Image.open( f )
+            except IOError:
+                hdbfs.LOG.warning(
+                        'Failed opening image for "%s": %s',
+                        stream.get_repr(), str( sys.exc_info()[1] ) )
 
         return self.img
 
