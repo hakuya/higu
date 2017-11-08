@@ -58,6 +58,93 @@ def json_err( err, emsg = None ):
             'msg'    : emsg,
         }
 
+def fetch_info( items, target, stream = None ):
+
+    if( target is None ):
+        return { 'type' : 'invalid' }
+
+    info = {}
+    target.check_metadata()
+    if( stream is not None ):
+        stream.check_metadata()
+
+    if( 'type' in items ):
+        info['type'] = get_type_str( target )
+    if( 'text' in items ):
+        info['text'] = target.get_text()
+    if( 'repr' in items ):
+        info['repr'] = target.get_repr()
+    if( 'tags' in items ):
+        tags = target.get_tags()
+        info['tags'] = map( lambda x: x.get_name(), tags )
+    if( 'names' in items ):
+        if( isinstance( target, hdbfs.File ) ):
+            info['names'] = target.get_origin_names()
+        else:
+            name = target.get_name()
+            if( name is not None ):
+                info['names'] = [ target.get_name(), ]
+            else:
+                info['names'] = []
+    if( isinstance( target, hdbfs.File ) and 'variants' in items ):
+        variants = target.get_variants()
+        info['variants'] = map( make_obj_tuple, variants )
+    if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
+        variants_of = target.get_variants_of()
+        info['variants_of'] = map( make_obj_tuple, variants_of )
+    if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
+        dups = target.get_duplicate_streams()
+        info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
+    if( isinstance( target, hdbfs.File ) and 'albums' in items ):
+        albums = target.get_albums()
+        info['albums'] = map( make_obj_tuple, albums )
+    if( isinstance( target, hdbfs.Album ) and 'files' in items ):
+        files = target.get_files()
+        info['files'] = map( make_obj_tuple, files )
+    if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
+        try:
+            info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
+        except:
+            info['thumb_gen'] = 0
+    if( 'width' in items or 'height' in items ):
+        if( stream is not None ):
+            if( isinstance( stream, hdbfs.ImageStream ) ):
+                try:
+                    w, h = stream.get_dimensions()
+                except:
+                    w = None
+                    h = None
+                info['width'] = w
+                info['height'] = h
+        elif( isinstance( target, hdbfs.ImageFile ) ):
+            try:
+                w, h = target.get_dimensions()
+            except:
+                w = None
+                h = None
+            info['width'] = w
+            info['height'] = h
+    if( 'origin_time' in items ):
+        if( stream is not None ):
+            origin_ts = stream.get_origin_time()
+        else:
+            origin_ts = target.get_origin_time()
+        if( origin_ts is not None ):
+            info['origin_time'] = origin_ts.strftime( '%Y/%m/%d %H:%M:%S' )
+        else:
+            info['origin_time'] = None
+    if( 'creation_time' in items ):
+        if( stream is not None ):
+            creation_ts = stream.get_creation_time()
+        else:
+            creation_ts = target.get_creation_time()
+        if( creation_ts is not None ):
+            info['creation_time'] = creation_ts.strftime( '%Y/%m/%d %H:%M:%S' )
+        else:
+            info['creation_time'] = None
+
+    return info
+
 class JsonInterface:
 
     def __init__( self, db, session_id ):
@@ -89,7 +176,7 @@ class JsonInterface:
 
                 args = {}
                 for arg in req_args:
-                    assert data.has_key( arg )
+                    assert data.has_key( arg ), "%s not provided" % ( arg, )
                     args[arg] = data[arg]
                 for arg in opt_args:
                     if( data.has_key( arg ) ):
@@ -124,75 +211,22 @@ class JsonInterface:
 
         db = self.__db
 
+        def fetch_info_fn( target ):
+            return fetch_info( items, target )
+
         targets = map( db.get_object_by_id, targets )
+        results = map( fetch_info_fn, targets )
 
-        def fetch_info( target ):
+        return json_ok( info = results )
 
-            if( target is None ):
-                return { 'type' : 'invalid' }
+    def cmd_stream_info( self, target, stream, items ):
 
-            info = {}
+        db = self.__db
+        target = db.get_object_by_id( target )
+        if( stream is not None ):
+            stream = db.get_stream_by_id( stream )
 
-            if( 'type' in items ):
-                info['type'] = get_type_str( target )
-            if( 'text' in items ):
-                info['text'] = target.get_text()
-            if( 'repr' in items ):
-                info['repr'] = target.get_repr()
-            if( 'tags' in items ):
-                tags = target.get_tags()
-                info['tags'] = map( lambda x: x.get_name(), tags )
-            if( 'names' in items ):
-                if( isinstance( target, hdbfs.File ) ):
-                    info['names'] = target.get_origin_names()
-                else:
-                    name = target.get_name()
-                    if( name is not None ):
-                        info['names'] = [ target.get_name(), ]
-                    else:
-                        info['names'] = []
-            if( isinstance( target, hdbfs.File ) and 'variants' in items ):
-                variants = target.get_variants()
-                info['variants'] = map( make_obj_tuple, variants )
-            if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
-                variants_of = target.get_variants_of()
-                info['variants_of'] = map( make_obj_tuple, variants_of )
-            if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
-                dups = target.get_duplicate_streams()
-                info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
-            if( isinstance( target, hdbfs.File ) and 'albums' in items ):
-                albums = target.get_albums()
-                info['albums'] = map( make_obj_tuple, albums )
-            if( isinstance( target, hdbfs.Album ) and 'files' in items ):
-                files = target.get_files()
-                info['files'] = map( make_obj_tuple, files )
-            if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
-                try:
-                    info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
-                except:
-                    info['thumb_gen'] = 0
-            if( isinstance( target, hdbfs.File )
-            and ('width' in items or 'height' in items) ):
-                try:
-                    w, h = target.get_dimensions()
-                except:
-                    w = 0
-                    h = 0
-                info['width'] = w
-                info['height'] = h
-            if( 'creation_time' in items ):
-                creation_ts = target.get_creation_time()
-                if( creation_ts is not None ):
-                    info['creation_time'] = datetime.datetime\
-                                                .utcfromtimestamp( creation_ts )\
-                                                .strftime( '%Y/%m/%d %H:%M:%S' )
-                else:
-                    info['creation_time'] = None
-
-            return info
-
-        results = map( fetch_info, targets )
-
+        results = fetch_info( items, target, stream )
         return json_ok( info = results )
 
     def cmd_tag( self, targets, **args ):
@@ -285,10 +319,11 @@ class JsonInterface:
 
         else:
             if( data.has_key( 'query' ) ):
-                try:
+                #try:
+                if( 1 ):
                     query = hdbfs.query.build_query( data['query'] )
-                except ( KeyError, ValueError, ), e:
-                    return json_err( e )
+                #except ( KeyError, ValueError, ), e:
+                #    return json_err( e )
 
             else:
                 query = hdbfs.query.Query()
@@ -530,6 +565,17 @@ class JsonInterface:
         duplicate = db.get_object_by_id( duplicate )
 
         db.merge_objects( original, duplicate )
+
+        return json_ok()
+
+    def cmd_set_root_stream( self, target, stream ):
+
+        db = self.__db
+
+        target = db.get_object_by_id( target )
+        stream = db.get_stream_by_id( stream )
+
+        target.set_root_stream( stream )
 
         return json_ok()
 

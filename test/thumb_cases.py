@@ -9,7 +9,7 @@ import hdbfs
 import hdbfs.ark
 import hdbfs.model
 
-hdbfs.ark.MIN_THUMB_EXP = 4
+hdbfs.imgdb.MIN_THUMB_EXP = 4
 
 class ThumbCases( testutil.TestCase ):
 

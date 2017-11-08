@@ -7,7 +7,7 @@ import datetime
 
 import hdbfs
 
-hdbfs.ark.MIN_THUMB_EXP = 4
+hdbfs.imgdb.MIN_THUMB_EXP = 4
 
 class HiguLibCases( testutil.TestCase ):
 
@@ -135,6 +135,11 @@ class HiguLibCases( testutil.TestCase ):
                 'Red: Thumb not created' )
         self.assertIsNotNone( yellow.get_thumb_stream( 4 ),
                 'Yellow: Thumb not created' )
+
+        self.assertIsNotNone( red.get_stream( 'tb:4' ),
+                'Red: Thumb name lookup fail' )
+        self.assertIsNotNone( yellow.get_stream( 'tb:4' ),
+                'Yellow: Thumb name lookup fail' )
 
         red.get_thumb_stream( 4 )['test_meta'] = 5
         yellow.get_thumb_stream( 4 )['test_meta'] = 5
@@ -723,6 +728,74 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( len( dups ), 1, 'Unexpected number of dups on white' )
         self.assertEqual( dups[0].get_hash(),
                           ko_hash, 'Black not in duplicate list of white' )
+
+    def test_set_root( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+        black = self._load_data( self.black )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red, False )
+        yo = h.register_file( yellow, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+        ko = h.register_file( black, False )
+
+        ro_hash = ro.get_root_stream().get_hash()
+        yo_hash = yo.get_root_stream().get_hash()
+        go_hash = go.get_root_stream().get_hash()
+        bo_hash = bo.get_root_stream().get_hash()
+
+        h.merge_objects( ro, yo )
+        h.merge_objects( ro, go )
+        h.merge_objects( ro, bo )
+
+        dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
+        self.assertEqual( len( dups ), 3, 'Unexpected number of dups on red' )
+        self.assertEqual( ro.get_root_stream().get_hash(),
+                          ro_hash, 'Red not primary stream after merge' )
+        self.assertTrue( yo_hash in dups,
+                         'Yellow not in duplicate list of red' )
+        self.assertTrue( go_hash in dups,
+                         'Green not in duplicate list of red' )
+        self.assertTrue( bo_hash in dups,
+                         'Blue not in duplicate list of red' )
+
+        try:
+            ro.set_root_stream( wo.get_root_stream() )
+            self.fail( 'Attempt to set white as root stream succeeded' )
+        except:
+            pass
+
+        try:
+            ro.set_root_stream( ro.get_root_stream() )
+            self.fail( 'Attempt to set root to root succeeded' )
+        except:
+            pass
+
+        ro.set_root_stream( ro.get_stream( 'dup:' + go_hash ) )
+
+        dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
+        self.assertEqual( len( dups ), 3, 'Unexpected number of dups on red after set' )
+        self.assertEqual( ro.get_root_stream().get_hash(),
+                          go_hash, 'Green not primary stream after set' )
+        self.assertTrue( ro_hash in dups,
+                         'Red not in duplicate list of red after set' )
+        self.assertTrue( yo_hash in dups,
+                         'Yellow not in duplicate list of red after set' )
+        self.assertTrue( bo_hash in dups,
+                         'Blue not in duplicate list of red after set' )
+
+        dups = map( lambda x: x.get_name(), ro.get_duplicate_streams() )
+        self.assertEqual( ro.get_root_stream().get_name(),
+                          '.', 'Incorrect name for primary stream after set' )
+        self.assertFalse( '.' in dups,
+                          'Root name in duplicate list after set' )
 
     def test_set_duplicate_of_variant( self ):
 

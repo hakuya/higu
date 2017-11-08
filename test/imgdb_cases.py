@@ -4,6 +4,7 @@ import shutil
 import os
 
 import hdbfs.ark
+import hdbfs.imgdb
 
 PRI_THUMB = 1000
 PRI_DATA = 2000
@@ -14,7 +15,7 @@ class ImgDbCases( testutil.TestCase ):
 
         self.init_env()
 
-        data_config = hdbfs.ark.ImageDbDataConfig( self.db_path )
+        data_config = hdbfs.imgdb.ImageDbDataConfig( self.db_path )
         self.idb = hdbfs.ark.StreamDatabase( data_config )
 
     def tearDown( self ):

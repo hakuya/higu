@@ -1,3 +1,6 @@
+import calendar
+import datetime
+
 import hdbfs
 
 import model
@@ -59,9 +62,112 @@ class UnboundConstraint:
         c = StringConstraint( self.__s )
         return c.to_db_constraint( db )
 
+def QueryInt( v, ceil = False ):
+
+    try:
+        # Try as int
+        return int( v )
+
+    except ValueError:
+
+        # Try as date
+        if( '_' in v ):
+            date_str, time_str = v.split( '_' )
+        else:
+            date_str = v
+            time_str = None
+
+        date_str = v.split( '/' )
+        year = int( date_str[0] )
+        dmon = int( date_str[1] ) if( len( date_str ) >= 2 ) else 1
+        dday = int( date_str[2] ) if( len( date_str ) >= 3 ) else 1
+
+        if( len( date_str ) >= 4 ):
+            raise ValueError
+
+        if( time_str is not None and len( date_str ) >= 3 ):
+            time_str = time_str.split( ':' )
+            hour = int( time_str[0] ) if( len( time_str ) >= 1 ) else 0
+            tmin = int( time_str[1] ) if( len( time_str ) >= 2 ) else 0
+            tsec = int( time_str[2] ) if( len( time_str ) >= 3 ) else 0
+
+            if( len( time_str ) >= 4 ):
+                raise ValueError
+        else:
+            hour = 0
+            tmin = 0
+            tsec = 0
+
+        if( ceil ):
+            if( len( date_str ) == 1 ):
+                year += 1
+            elif( len( date_str ) == 2 ):
+                dmon += 1
+            elif( len( date_str ) == 3 ):
+                if( time_str is None or len( time_str ) == 0 ):
+                    dday += 1
+                elif( len( time_str ) == 1 ):
+                    hour += 1
+                elif( len( time_str ) == 2 ):
+                    tmin += 1
+                elif( len( time_str ) == 3 ):
+                    tsec += 1
+
+        dt = datetime.datetime( year, dmon, dday, hour, tmin, tsec )
+        dt = calendar.timegm( dt.timetuple() )
+
+        if( ceil ):
+            dt -= 1
+
+        return dt
+
+class ObjIdConstraint:
+
+    def __init__( self, op, value ):
+
+        from sqlalchemy import and_
+
+        if( op == '=' ):
+            self.__constraint = (model.Object.object_id == int( value ))
+        elif( op == '!=' ):
+            self.__constraint = (model.Object.object_id != int( value ))
+        elif( op == '>' ):
+            self.__constraint = (model.Object.object_id > int( value ))
+        elif( op == '>=' ):
+            self.__constraint = (model.Object.object_id >= int( value ))
+        elif( op == '<' ):
+            self.__constraint = (model.Object.object_id < int( value ))
+        elif( op == '<=' ):
+            self.__constraint = (model.Object.object_id <= int( value ))
+        elif( op == '~' ):
+            if( '-' in value ):
+                lower, upper = map( int, value.split( '-' ) )
+            elif( '|' in value ):
+                value, vrange = map( int, value.split( '|' ) )
+                lower = value - vrange
+                upper = value + vrange
+            else:
+                lower = int( value )
+                upper = lower
+        
+            if( lower != upper ):
+                self.__constraint = and_( model.Object.object_id >= lower,
+                                          model.Object.object_id <= upper )
+            else:
+                self.__constraint = (model.Object.object_id == lower)
+        else:
+            assert False
+
+    def to_db_constraint( self, db ):
+
+        return db.session.query( model.Object.object_id ) \
+                         .filter( self.__constraint )
+
 class ParameterConstraint:
 
     def __init__( self, key, op, value ):
+
+        from sqlalchemy import and_
 
         self.__key = key
 
@@ -70,13 +176,29 @@ class ParameterConstraint:
         elif( op == '!=' ):
             self.__constraint = (model.ObjectMetadata.value != str( value ))
         elif( op == '>' ):
-            self.__constraint = (model.ObjectMetadata.numeric > int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric > QueryInt( value ))
         elif( op == '>=' ):
-            self.__constraint = (model.ObjectMetadata.numeric >= int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric >= QueryInt( value ))
         elif( op == '<' ):
-            self.__constraint = (model.ObjectMetadata.numeric < int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric < QueryInt( value ))
         elif( op == '<=' ):
-            self.__constraint = (model.ObjectMetadata.numeric <= int( value ))
+            self.__constraint = (model.ObjectMetadata.numeric <= QueryInt( value ))
+        elif( op == '~' ):
+            if( '-' in value ):
+                lower, upper = map( QueryInt, value.split( '-' ) )
+            elif( '|' in value ):
+                value, vrange = value.split( '|' )
+                lower = QueryInt( value, False ) - int( vrange )
+                upper = QueryInt( value, True ) + int( vrange )
+            else:
+                lower = QueryInt( value, False )
+                upper = QueryInt( value, True )
+        
+            if( lower != upper ):
+                self.__constraint = and_( model.ObjectMetadata.numeric >= lower,
+                                          model.ObjectMetadata.numeric <= upper )
+            else:
+                self.__constraint = (model.ObjectMetadata.numeric == lower)
         else:
             assert False
 
@@ -189,9 +311,9 @@ class Query:
             else:
                 query = query.order_by( model.Object.name.desc(),
                                         model.Object.object_id.desc() )
-        elif( self.__order_by == 'creation' ):
+        elif( self.__order_by == 'origin' ):
             query = query.join( model.ObjectMetadata )\
-                         .filter( model.ObjectMetadata.key == 'creation_time' )
+                         .filter( model.ObjectMetadata.key == 'origin_time' )
             if( not self.__order_desc ):
                 query = query.order_by( model.ObjectMetadata.numeric,
                                         model.Object.object_id )
@@ -208,7 +330,7 @@ def create_constraint( s ):
     elif( s.startswith( '#' ) ):
         return TagConstraint( s[1:] )
     elif( s.startswith( '&' ) ):
-        ops = [ '>=', '<=', '>', '<', '!=', '=' ]
+        ops = [ '>=', '<=', '>', '<', '!=', '=', '~' ]
         s = s[1:]
 
         for i in ops:
@@ -218,8 +340,11 @@ def create_constraint( s ):
                 op = i
                 value = s[idx+len(i[0]):]
 
-                return ParameterConstraint( key, op, value )
-            except:
+                if( key == 'id' ):
+                    return ObjIdConstraint( op, value )
+                else:
+                    return ParameterConstraint( key, op, value )
+            except ValueError:
                 pass
         else:
             raise ValueError, 'Bad Parameter Constraint'

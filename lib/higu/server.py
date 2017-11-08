@@ -142,6 +142,27 @@ class Server:
         return stream.render( 'html', doctype = 'html' )    
 
     @cherrypy.expose
+    def info( self, id ):
+
+        db = self.__get_session()[0]
+        obj = db.get_object_by_id( id )
+
+        info = {
+            'id'    : id,
+            'repr'  : obj.get_repr(),
+            'type'  : obj.get_type(),
+            'tags'  : map( lambda x: x.get_name(),
+                           obj.get_tags() ),
+        }
+
+        if( isinstance( obj, hdbfs.File ) ):
+            info['names'] = obj.get_origin_names()
+
+        tmpl = loader.load( 'tabs/display/info.html' )
+        stream = tmpl.generate( hdbfs = hdbfs, info = info )
+        return stream.render( 'html', doctype = 'html' )    
+
+    @cherrypy.expose
     def callback_new( self ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
