@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 import re
 import sys
@@ -8,29 +7,15 @@ import time
 from hash import calculate_details
 
 import ark
+import imgdb
 import model
 import query
 
-VERSION = 1
-REVISION = 0
-
-DB_VERSION  = model.VERSION
-DB_REVISION = model.REVISION
-
-DEFAULT_LIBRARY = os.path.join( os.environ['HOME'], '.higu' )
-HIGURASHI_DB_NAME = 'hfdb.dat'
-
-TYPE_FILE       = model.TYPE_FILE
-TYPE_GROUP      = model.TYPE_GROUP
-TYPE_ALBUM      = model.TYPE_ALBUM
-TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
-
-NAME_POLICY_DONT_REGISTER   = 0
-NAME_POLICY_DONT_SET        = 1
-NAME_POLICY_SET_IF_UNDEF    = 2
-NAME_POLICY_SET_ALWAYS      = 3
-
-LOG = logging.getLogger( __name__ )
+from basic_objs import *
+from defs import *
+from imgdb import ImageStream, ImageFile, Album
+from hooks import *
+from obj_factory import *
 
 _LIBRARY = None
 
@@ -45,673 +30,6 @@ def make_unicode( s ):
         return unicode( s, 'utf-8' )
     else:
         return s
-
-def model_obj_to_higu_obj( db, obj ):
-
-    if( obj.object_type == TYPE_FILE ):
-        return File( db, obj )
-    elif( obj.object_type == TYPE_ALBUM ):
-        return Album( db, obj )
-    elif( obj.object_type == TYPE_CLASSIFIER ):
-        return Tag( db, obj )
-    else:
-        assert False
-
-class Stream:
-
-    def __init__( self, db, stream ):
-
-        self.db = db
-        self.stream = stream
-
-    def _get_file( self ):
-
-        return File( self.db, self.stream.obj )
-
-    def get_file( self ):
-
-        with self.db._access():
-            return self.get_file()
-
-    def get_stream_id( self ):
-
-        with self.db._access():
-            return self.stream.stream_id
-
-    def get_name( self ):
-
-        with self.db._access():
-            return self.stream.name
-
-    def get_priority( self ):
-
-        with self.db._access():
-            return self.stream.priority
-
-    def get_creation_time( self ):
-
-        with self.db._access():
-            create_log = self.stream.log_entries \
-                            .order_by( model.StreamLog.timestamp ).first()
-            return datetime.datetime.fromtimestamp( create_log.timestamp )
-
-    def get_creation_time_utc( self ):
-
-        with self.db._access():
-            create_log = self.stream.log_entries \
-                            .order_by( model.StreamLog.timestamp ).first()
-            return datetime.datetime.utcfromtimestamp( create_log.timestamp )
-
-    def get_origin_stream( self ):
-
-        with self.db._access():
-            if( self.stream.origin_stream is not None ):
-                return Stream( self.db, self.stream.origin_stream )
-            else:
-                return None
-
-    def get_origin_method( self ):
-
-        with self.db._access():
-            create_log = self.stream.log_entries \
-                            .order_by( model.StreamLog.timestamp ).first()
-            return create_log.origin_method
-
-    def get_length( self ):
-
-        with self.db._access():
-            return self.stream.stream_length
-
-    def get_hash( self ):
-
-        with self.db._access():
-            return self.stream.hash_sha1
-
-    def get_extension( self ):
-
-        with self.db._access():
-            return self.stream.extension
-
-    def get_mime( self ):
-
-        with self.db._access():
-            return self.stream.mime_type
-
-    def _read( self ):
-
-        return self.db.imgdb.read( self.stream.stream_id,
-                                   self.stream.priority,
-                                   self.stream.extension  )
-
-    def read( self ):
-
-        with self.db._access():
-            return self._read()
-
-    def _verify( self ):
-
-        fd = self._read()
-
-        if( fd is None ):
-            return False
-
-        details = calculate_details( fd )
-
-        if( details[0] != self.stream.stream_length ):
-            return False
-        if( details[1] != self.stream.hash_crc32 ):
-            return False
-        if( details[2] != self.stream.hash_md5 ):
-            return False
-        if( details[3] != self.stream.hash_sha1 ):
-            return False
-
-        return True
-
-    def verify( self ):
-
-        with self._access():
-            return self._verify()
-
-    def _drop_data( self ):
-
-        self.db.imgdb.delete( self.stream.stream_id,
-                              self.stream.priority,
-                              self.stream.extension  )
-
-    def get_repr( self ):
-
-        return 's%016x.%s' % ( self.get_stream_id(),
-                               self.get_extension() )
-
-    def __getitem__( self, key ):
-
-        with self.db._access():
-            return self.stream[key]
-
-    def __setitem__( self, key, value ):
-
-        with self.db._access( write = True ):
-            self.stream[key] = value
-
-    def __eq__( self, o ):
-
-        if( o == None ):
-            return False
-        if( not isinstance( o, self.__class__ ) ):
-            return False
-        return self.db == o.db and self.stream == o.stream
-
-class Obj:
-
-    def __init__( self, db, obj ):
-
-        self.db = db
-        self.obj = obj
-
-    def get_id( self ):
-
-        with self.db._access():
-            return self.obj.object_id
-
-    def get_type( self ):
-
-        with self.db._access():
-            return self.obj.object_type
-
-    def get_creation_time( self ):
-
-        with self.db._access():
-            return datetime.datetime.fromtimestamp( self.obj.create_ts )
-
-    def get_creation_time_utc( self ):
-
-        with self.db._access():
-            return datetime.datetime.utcfromtimestamp( self.obj.create_ts )
-
-    def get_tags( self ):
-
-        from sqlalchemy import and_
-
-        with self.db._access():
-            tag_objs = [
-                obj for obj in
-                self.db.session.query( model.Object )
-                    .filter(
-                        and_( model.Object.object_type == TYPE_CLASSIFIER,
-                              model.Object.children.contains( self.obj ) ) )
-                             .order_by( model.Object.name ) ]
-            return map( lambda x: Tag( self.db, x ), tag_objs )
-
-    def _assign( self, group, order ):
-    
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ).first()
-        if( rel is not None ):
-            rel.sort = order
-            return
-        rel = model.Relation( order )
-        rel.parent_obj = group.obj
-        rel.child_obj = self.obj
-
-    def assign( self, group, order = None ):
-
-        with self.db._access( write = True ):
-            self._assign( group, order )
-
-    def _unassign( self, group ):
-
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ).first()
-
-        if( rel is not None ):
-            self.db.session.delete( rel )
-
-    def unassign( self, group ):
-
-        with self.db._access( write = True ):
-            self._unassign( group )
-
-    def _reorder( self, group, order ):
-
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ) \
-                .first()
-        if( rel is None ):
-            raise ValueError, str( self ) + ' is not in ' + str( group )
-        rel.sort = order
-
-    def reorder( self, group, order = None ):
-
-        with self.db._access( write = True ):
-            self._reorder( group, order )
-
-    def get_order( self, group ):
-
-        with self.db._access():
-            rel = self.db.session.query( model.Relation ) \
-                    .filter( model.Relation.parent_id == group.obj.id ) \
-                    .filter( model.Relation.child_id == self.obj.id ).first()
-            if( rel is None ):
-                raise ValueError, str( self ) + ' is not in ' + str( group )
-            return rel.sort
-        
-    def get_name( self ):
-
-        with self.db._access():
-            return self.obj.name
-
-    def set_name( self, name ):
-
-        with self.db._access( write = True ):
-            self.obj.name = name
-
-    def set_text( self, text ):
-
-        self['text'] = text
-
-    def get_text( self ):
-
-        try:
-            return self['text']
-        except KeyError:
-            return None
-
-    def get_repr( self ):
-
-        name = self.get_name()
-        if( name is not None ):
-            return name
-        else:
-            return '%016x' % ( self.get_id() )
-
-    def __getitem__( self, key ):
-
-        with self.db._access():
-            return self.obj[key]
-
-    def __setitem__( self, key, value ):
-
-        with self.db._access( write = True ):
-            self.obj[key] = value
-
-    def __hash__( self ):
-
-        return self.get_id()
-
-    def __eq__( self, o ):
-
-        if( o == None ):
-            return False
-        if( not isinstance( o, self.__class__ ) ):
-            return False
-        return self.db == o.db and self.obj == o.obj
-
-class Group( Obj ):
-
-    def __init__( self, db, obj ):
-
-        Obj.__init__( self, db, obj )
-
-    def is_ordered( self ):
-
-        return False
-
-    def _get_files( self ):
-
-        objs = [ obj for obj in self.obj.children
-                             if obj.object_type == TYPE_FILE ]
-        return map( lambda x: File( self.db, x ), objs )
-
-    def get_files( self ):
-
-        with self.db._access():
-            return self._get_files()
-
-class OrderedGroup( Group ):
-
-    def __init__( self, db, obj ):
-
-        Group.__init__( self, db, obj )
-
-    def is_ordered( self ):
-
-        #TODO: check if ordered
-        return True
-
-    def clear_order( self ):
-
-        all_objs = self.get_files()
-
-        for child in all_objs:
-            child.reorder( self )
-
-    def set_order( self, children ):
-
-        with self.db._access( write = True ):
-
-            all_objs = self._get_files()
-            
-            for child in enumerate( children ):
-                assert( child[1] in all_objs )
-                all_objs.remove( child[1] )
-                
-                child[1]._reorder( self, child[0] )
-
-            offset = len( children )
-
-            for child in enumerate( all_objs ):
-                child[1]._reorder( self, offset + child[0] )
-
-class Tag( Group ):
-
-    def __init__( self, db, obj ):
-
-        Group.__init__( self, db, obj )
-
-class Album( OrderedGroup ):
-
-    def __init__( self, db, obj ):
-
-        OrderedGroup.__init__( self, db, obj )
-
-    def set_creation_time( self, creation_time ):
-
-        self['creation_time'] = creation_time
-
-    def get_creation_time( self ):
-
-        try:
-            return self['creation_time']
-        except:
-            return None
-
-class File( Obj ):
-
-    def __init__( self, db, obj ):
-
-        Obj.__init__( self, db, obj )
-
-    def _get_albums( self ):
-
-        objs = [ obj for obj in self.obj.parents if obj.object_type == TYPE_ALBUM ]
-        return map( lambda x: Album( self.db, x ), objs )
-
-    def get_albums( self ):
-
-        with self.db._access():
-            return self._get_albums()
-
-    def _get_variants_of( self ):
-
-        objs = [ obj for obj in self.obj.parents if obj.object_type == TYPE_FILE ]
-        return map( lambda x: File( self.db, x ), objs )
-
-    def get_variants_of( self ):
-
-        with self.db._access():
-            return self._get_variants_of()
-
-    def _get_duplicate_streams( self ):
-
-        from sqlalchemy import and_
-
-        return [ Stream( self.db, s ) for s in
-            self.db.session.query( model.Stream )
-                           .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                          model.Stream.name.like( 'dup:%' ) ) )
-                           .order_by( model.Stream.stream_id ) ]
-
-    def get_duplicate_streams( self ):
-
-        with self.db._access():
-            return self._get_duplicate_streams()
-
-    def _get_variants( self ):
-
-        return [ File( self.db, o ) for o in self.obj.children ]
-
-    def get_variants( self ):
-
-        with self.db._access():
-            return self._get_variants()
-
-    def _set_variant_of( self, parent ):
-
-        assert( isinstance( parent, File ) )
-        assert( parent.obj != self.obj )
-
-        self._assign( parent, None )
-
-    def set_variant_of( self, parent ):
-
-        with self.db._access( write = True ):
-            self._set_variant_of( parent )
-
-    def _clear_variant_of( self, parent ):
-
-        assert( isinstance( parent, File ) )
-        self._unassign( parent )
-
-    def clear_variant_of( self, parent ):
-
-        with self.db._access( write = True ):
-            self._clear_variant_of( parent )
-
-    def get_origin_names( self, all_streams = False ):
-
-        from sqlalchemy import and_
-
-        with self.db._access():
-            if( all_streams ):
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .join( model.Stream,
-                               model.Stream.stream_id == model.StreamLog.stream_id )
-                        .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                       model.StreamLog.origin_name != None ) )
-                        .distinct() ]
-            else:
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
-                                       model.StreamLog.origin_name != None ) )
-                        .distinct() ]
-
-    def get_repr( self ):
-
-        name = self.get_name()
-        if( name is not None ):
-            return name
-        else:
-            with self.db._access():
-                obj_id = self.obj.object_id
-                stream_id = self.obj.root_stream.stream_id
-                priority = self.obj.root_stream.priority
-                extension = self.obj.root_stream.extension
-
-            if( extension == None ):
-                return '%016x' % ( obj_id, )
-            else:
-                return '%016x.%s' % ( obj_id, extension, )
-
-    def _get_stream( self, name ):
-
-        s = self.obj.streams \
-                .filter( model.Stream.name == name ) \
-                .first()
-
-        if( s is not None ):
-            return Stream( self.db, s )
-        else:
-            return None
-
-    def get_stream( self, name ):
-
-        with self.db._access():
-            return self._get_stream( name )
-    
-    def _get_streams( self ):
-
-        return [ Stream( self.db, s ) for s in
-            self.db.session.query( model.Stream )
-                .filter( model.Stream.object_id == self.obj.object_id )
-                .order_by( model.Stream.stream_id ) ]
-
-    def get_streams( self ):
-
-        with self.db._access():
-            return self._get_streams()
-
-    def _drop_streams( self ):
-
-        for s in self._get_streams():
-            s._drop_data()
-
-            self.db.session.query( model.StreamMetadata ) \
-                .filter( model.StreamMetadata.stream_id == s.stream.stream_id ) \
-                .delete()
-
-            self.db.session.query( model.StreamLog ) \
-                .filter( model.StreamLog.stream_id == s.stream.stream_id ) \
-                .delete()
-
-        self.db.session.query( model.Stream ) \
-            .filter( model.Stream.object_id == self.obj.object_id ) \
-            .delete()
-
-    def _drop_expendable_streams( self ):
-
-        for s in self.db.session.query( model.Stream ) \
-                     .filter( model.Stream.object_id == self.obj.object_id ) \
-                     .filter( model.Stream.priority < model.SP_NORMAL ):
-
-            stream = Stream( self.db, s )
-            stream._drop_data()
-
-            self.db.session.query( model.StreamMetadata ) \
-                .filter( model.StreamMetadata.stream_id == s.stream_id ) \
-                .delete()
-
-            self.db.session.query( model.StreamLog ) \
-                .filter( model.StreamLog.stream_id == s.stream_id ) \
-                .delete()
-
-        self.db.session.query( model.Stream ) \
-            .filter( model.Stream.object_id == self.obj.object_id ) \
-            .filter( model.Stream.priority < model.SP_NORMAL ) \
-            .delete()
-
-    def drop_expendable_streams( self ):
-
-        with self.db._access( write = True ):
-            self._drop_expendable_streams()
-
-    def _get_root_stream( self ):
-
-        return Stream( self.db, self.obj.root_stream )
-
-    def get_root_stream( self ):
-
-        with self.db._access():
-            return self._get_root_stream()
-
-    def get_dimensions( self ):
-
-        return self.db.tbcache.get_dimensions( self )
-
-    def get_creation_time( self ):
-
-        return self.db.tbcache.get_creation_time( self )
-
-    def __reorient( self, remap ):
-
-        with self.db._access( write = True ):
-            if( self.obj.root_stream is None ):
-                return
-
-            try:
-                orientation = self.obj.root_stream['orientation']
-            except:
-                orientation = 1
-
-            orientation = remap[orientation-1]
-            self.obj.root_stream['orientation'] = orientation
-
-            # We need to purge the size
-            try:
-                del self.obj['width']
-            except KeyError:
-                pass
-
-            try:
-                del self.obj['height']
-            except KeyError:
-                pass
-
-        self.db.tbcache.purge_thumbs( self )
-
-    def rotate_cw( self ):
-
-        CW_REMAP = [ 6, 5, 8, 7, 4, 3, 2, 1 ]
-        self.__reorient( CW_REMAP )
-
-    def rotate_ccw( self ):
-
-        CCW_REMAP = [ 8, 7, 6, 5, 2, 1, 4, 3 ]
-        self.__reorient( CCW_REMAP )
-
-    def mirror( self ):
-
-        MIRROR_REMAP = [ 2, 1, 4, 3, 8, 7, 6, 5 ]
-        self.__reorient( MIRROR_REMAP )
-
-    def auto_orientation( self ):
-
-        with self.db._access( write = True ):
-            try:
-                del self.obj.root_stream['orientation']
-            except KeyError:
-                pass
-
-            try:
-                del self.obj['width']
-            except KeyError:
-                pass
-
-            try:
-                del self.obj['height']
-            except KeyError:
-                pass
-
-        self.db.tbcache.purge_thumbs( self )
-
-    def get_thumb_stream( self, exp ):
-
-        return self.db.tbcache.make_thumb( self, exp )
-
-    def _verify( self ):
-
-        for s in self._get_streams():
-            s._verify()
-
-class ModelObjToHiguObjIterator:
-
-    def __init__( self, db, iterable ):
-
-        self.db = db
-        self.it = iterable.__iter__()
-
-    def __iter__( self ):
-
-        return ModelObjToHiguObjIterator( self.db, self.it )
-
-    def next( self ):
-
-        return model_obj_to_higu_obj( self.db, self.it.next() )
 
 class _AccessContext:
 
@@ -795,9 +113,9 @@ class Database:
 
         self.session = model.Session()
 
-        imgdat_config = ark.ImageDbDataConfig( _LIBRARY )
+        imgdat_config = imgdb.ImageDbDataConfig( _LIBRARY )
         self.imgdb = ark.StreamDatabase( imgdat_config )
-        self.tbcache = ark.ThumbCache( self, self.imgdb )
+        self.tbcache = imgdb.ThumbCache( self, self.imgdb )
 
         self._access = AccessManager( self )
         self._trans_write = False
@@ -830,6 +148,7 @@ class Database:
 
         self.obj_del_list = []
         self._trans_write = False
+        trigger_post_commit_hooks( self, False )
 
     def _rollback( self ):
 
@@ -839,6 +158,7 @@ class Database:
         self.imgdb.rollback()
         self.session.rollback()
         self._trans_write = False
+        trigger_post_commit_hooks( self, True )
 
     def close( self ):
 
@@ -873,7 +193,7 @@ class Database:
             if( stream is None ):
                 return None
 
-            return Stream( self, stream )
+            return model_stream_to_higu_stream( self, stream )
 
     def all_albums_or_free_files( self ):
 
@@ -918,7 +238,7 @@ class Database:
         if( hash_sha1 is not None ):
             q = q.filter( model.Stream.hash_sha1 == hash_sha1 )
 
-        return [ Stream( self, s ) for s in q ]
+        return [ model_stream_to_higu_stream( self, s ) for s in q ]
 
     def lookup_untagged_files( self ):
 
@@ -964,6 +284,8 @@ class Database:
 
     def move_tag( self, tag, target ):
 
+        from sqlalchemy import and_
+
         with self._access( write = True ):
 
             check_tag_name( target )
@@ -971,6 +293,16 @@ class Database:
 
             try:
                 d = self.get_tag( target ).obj
+
+                # Remove tag where it would be a duplicate
+                dups = self.session.query( model.Relation.child_id ) \
+                    .filter( model.Relation.parent_id == d.object_id ) \
+                    .subquery()
+                self.session.query( model.Relation ) \
+                    .filter( and_( model.Relation.parent_id == c.object_id,
+                                   model.Relation.child_id.in_( dups ) ) ) \
+                    .delete( synchronize_session = 'fetch' )
+                self.session.flush()
                 self.session.query( model.Relation ) \
                     .filter( model.Relation.parent_id == c.object_id ) \
                     .update( { 'parent_id' : d.object_id } )
@@ -1050,17 +382,6 @@ class Database:
         with self._access( write = True ):
             return self.__create_album( tags, name, text )
 
-    def load_metadata( self, obj, stream = None ):
-
-        if( stream is None ):
-            stream = obj.get_root_stream()
-
-        try:
-            self.tbcache.init_metadata( obj, stream )
-        except:
-            LOG.warning( 'Failed loading metadata for "%s": %s',
-                         stream.get_repr(), str( sys.exc_info()[1] ) )
-
     def __register_file( self, path, name_policy ):
 
         import mimetypes
@@ -1085,11 +406,12 @@ class Database:
             self.session.add( stream )
             obj.root_stream = stream
 
-            f = File( self, obj )
-            stream = Stream( self, stream )
+            f = model_obj_to_higu_obj( self, obj )
+            stream = model_stream_to_higu_stream( self, stream )
             new_stream = True
 
             self.session.flush()
+            f._on_created( stream )
         else:
             stream = streams[0]
             if( stream.stream.mime_type is None ):
@@ -1124,9 +446,6 @@ class Database:
         with self._access( write = True ):
             f, stream, is_new = self.__register_file( path, name_policy )
 
-        if( is_new ):
-            self.load_metadata( f, stream )
-
         return f
 
     def __register_thumb( self, path, obj, origin, name ):
@@ -1154,7 +473,7 @@ class Database:
                                     stream.priority,
                                     stream.extension )
 
-        return Stream( self, stream )
+        return model_stream_to_higu_stream( self, stream )
 
     def register_thumb( self, path, obj, origin, name ):
 
@@ -1164,8 +483,6 @@ class Database:
     def batch_add_files( self, files, tags = [], tags_new = [],
                          name_policy = NAME_POLICY_SET_IF_UNDEF,
                          create_album = False, album_name = None, album_text = None ):
-
-        streams = []
 
         with self._access( write = True ):
 
@@ -1187,12 +504,6 @@ class Database:
                 else:
                     for t in taglist:
                         x._assign( t, None )
-
-                if( is_new ):
-                    streams.append( ( x, stream, ) )
-
-        for f, stream in streams:
-            self.load_metadata( f, stream )
 
     def _merge_objects( self, primary_obj, merge_obj ):
 
@@ -1352,5 +663,7 @@ def compare_details( a, b ):
        and str( a[1] ) == str( b[1] ) \
        and str( a[2] ) == str( b[2] ) \
        and str( a[3] ) == str( b[3] )
+
+imgdb.init_module()
 
 # vim:sts=4:sw=4:et

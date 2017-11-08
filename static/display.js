@@ -159,6 +159,8 @@ DisplayableBase = function()
             original, duplicate ) {}
     DisplayableBase.prototype.transform = function( xform ) {};
     DisplayableBase.prototype.reorder = function( obj_id, idx ) {};
+    DisplayableBase.prototype.show_stream = function( stream_id ) {};
+    DisplayableBase.prototype.set_as_main_stream = function() {};
     DisplayableBase.prototype.on_event = function( e ) { return null; };
     DisplayableBase.prototype.refresh_info = function( e ) {};
 
@@ -192,6 +194,7 @@ DisplayableObject = function( obj_id, info )
         DisplayableBase.call( this );
 
         this.obj_id = obj_id;
+        this.stream_id = null;
         this.info = info;
     };
 
@@ -323,19 +326,6 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'info_changed', affected: affected } );
     };
 
-    DisplayableObject.prototype.set_creation = function()
-    {
-        var request = {
-            action:     'set_creation',
-            target:     this.obj_id,
-        };
-
-        load_sync( request );
-        affected = [ this.obj_id ];
-
-        tabs.on_event( { type: 'info_changed', affected: affected } );
-    };
-
     DisplayableObject.prototype.reorder = function( obj_id, idx )
     {
         src_idx = this.find_item( obj_id )
@@ -422,6 +412,27 @@ DisplayableObject = function( obj_id, info )
                 [ this.obj_id ] } );
     };
 
+    DisplayableObject.prototype.show_stream = function( stream_id )
+    {
+        this.stream_id = stream_id;
+        this.refresh_info( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+    };
+
+    DisplayableBase.prototype.set_as_main_stream = function()
+    {
+        var request = {
+            action: 'set_root_stream',
+            target: this.obj_id,
+            stream: this.stream_id,
+        };
+        load_sync( request );
+
+        this.stream_id = null;
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+    };
+
     DisplayableObject.prototype.on_event = function( e )
     {
         if( e.affected && e.affected.indexOf( this.obj_id ) == -1 ) {
@@ -438,16 +449,17 @@ DisplayableObject = function( obj_id, info )
     DisplayableObject.prototype.refresh_info = function( e )
     {
         var request = {
-            action:     'info',
-            targets:    [ this.obj_id ],
+            action:     'stream_info',
+            target:     this.obj_id,
+            stream:     this.stream_id,
             items:      [ 'type', 'repr', 'tags', 'names',
                 'variants', 'variants_of', 'dup_streams',
                 'albums', 'files', 'text', 'thumb_gen',
-                'width', 'height', 'creation_time' ],
+                'width', 'height', 'origin_time', 'creation_time' ],
         };
         
         response = load_sync( request );
-        this.info = response.info[0];
+        this.info = response.info;
 
         this.notify_change( e );
     };
@@ -490,8 +502,11 @@ DisplayableObject = function( obj_id, info )
             ls.append( li );
         }
 
+        if( this.info.origin_time !== null ) {
+            div.append( 'Created: ' + this.info.origin_time + '<br/>' );
+        }
         if( this.info.creation_time !== null ) {
-            div.append( 'Created: ' + this.info.creation_time + '<br/>' );
+            div.append( 'Added: ' + this.info.creation_time + '<br/>' );
         }
 
         if( this.info.type == 'file') {
@@ -576,17 +591,47 @@ DisplayableObject = function( obj_id, info )
         div.append( mirror );
         div.append( '<br/>' );
 
-        var vieworig = $( '<a href="/img?id=' + this.obj_id +'">'
-                + 'View Original</a><br/>' );
-        div.append( vieworig );
+        if( this.stream_id === null ) {
+            var vieworig = $( '<a href="/img?id=' + this.obj_id +'"'
+                            + ' target="_blank">View Fullsize</a><br/>' );
+            div.append( vieworig );
+        } else {
+            var vieworig = $( '<a href="/img?id=' + this.obj_id
+                            + '&stream=' + this.stream_id + '"'
+                            + ' target="_blank">View Fullsize</a><br/>' );
+            div.append( vieworig );
+        }
 
         if( this.info.dup_streams && this.info.dup_streams.length > 0 ) {
+            div.append( '<h1>Alternates</h1>' );
+            if( this.stream_id !== null ) {
+                var setmain = $( '<a href="#">Set as Main</a><br/>' );
+                setmain.click(
+                    { "obj" : this, },
+                    function( e ) {
+                        e.data.obj.set_as_main_stream( null );
+                    });
+                div.append( setmain );
+                var viewmain = $( '<a href="#">View Main</a><br/>' );
+                viewmain.click(
+                    { "obj" : this, },
+                    function( e ) {
+                        e.data.obj.show_stream( null );
+                    });
+                div.append( viewmain );
+            }
+
             div.append( 'Duplicates: ' );
 
             for( i = 0; i < this.info.dup_streams.length; i++ ) {
-                var viewdup = $( '<a href="/img?id=' + this.obj_id
-                               + '&stream=' + this.info.dup_streams[i] + '">'
-                               + (i + 1) + '</a> ' );
+                var viewdup = $( '<a href="#">' + (i + 1) + '</a> ' );
+                viewdup.click(
+                    {
+                        "obj" : this,
+                        "stream_id" : this.info.dup_streams[i],
+                    }, function( e ) {
+                        e.data.obj.show_stream( e.data.stream_id );
+                    });
                 div.append( viewdup );
             }
             div.append( '<br/>' );
@@ -615,14 +660,6 @@ DisplayableObject = function( obj_id, info )
             obj.gather_tags();
         });
         div.append( gather );
-
-        var creat = $( '<a href="#">Set Creation</a><br/>' );
-        creat.data( 'obj', this );
-        creat.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.set_creation();
-        });
-        div.append( creat );
 
         activate_links( div );
     };
@@ -896,7 +933,8 @@ ImageView = function()
 //        }
 
         this.viewer = attach_image(
-            div, disp.obj_id, disp.info.thumb_gen, disp.info.repr, disp.info.type );
+            div, disp.obj_id, disp.stream_id, disp.info.thumb_gen,
+            disp.info.repr, disp.info.type );
 
         div.append( '<br/>' );
     };
@@ -1138,16 +1176,17 @@ var public_make_dummy_display = function( msg )
 var public_make_object_display = function( obj_id )
 {
     var request = {
-        action:     'info',
-        targets:    [ obj_id ],
+        action:     'stream_info',
+        target:     obj_id,
+        stream:     null,
         items:      [ 'type', 'repr', 'tags', 'names',
             'variants', 'variants_of', 'dup_streams',
             'albums', 'files', 'text', 'thumb_gen',
-            'width', 'height', 'creation_time' ],
+            'width', 'height', 'origin_time', 'creation_time' ],
     };
     
     response = load_sync( request );
-    info = response.info[0];
+    info = response.info;
 
     if( info.type == 'file' ) {
         return make_file_display( obj_id, info );
