@@ -172,6 +172,10 @@ $( 'a[href="#admin"]' ).click( function() {
     tabs.show_admin_tab();
 });
 
+$( 'a[href="#taglist"]' ).click( function() {
+    tabs.show_tagslist_tab();
+});
+
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
 

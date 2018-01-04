@@ -81,14 +81,8 @@ class Server:
 
         db, username, is_admin, session_id = self.__get_session()
 
-        if( db is not None ):
-            all_tags = db.all_tags()
-        else:
-            all_tags = None
-
         tmpl = loader.load( 'index.html' )
-        stream = tmpl.generate( taglist = all_tags,
-                                username = username,
+        stream = tmpl.generate( username = username,
                                 is_admin = is_admin )
         return stream.render( 'html', doctype = 'html' )    
 

@@ -11,6 +11,7 @@ var tabs_counter = 1;
 
 var login_tab = null;
 var admin_tab = null;
+var tagslist_tab = null;
 
 /**
  * create_tab( title ) - creates a tab with the given title
@@ -38,10 +39,10 @@ TagslistTab = function()
 
     // Constructor
     {
-        this.elem = $( '#taglist-tab' );
+        this.elem = create_tab( "Taglist" );
         this.elem.data( 'obj', this );
 
-        this.on_content_ready( null );
+        this.load_content();
     };
 
     TagslistTab.prototype.on_content_ready = function( response )
@@ -67,6 +68,12 @@ TagslistTab = function()
                 dialogs.show_error_dialog( xhr.responseText );
             }
         } );
+    };
+
+    TagslistTab.prototype.on_close = function()
+    {
+        tagslist_tab = null;
+        tabs.remove( this.elem );
     };
 
     TagslistTab.prototype.on_event = function( e )
@@ -375,9 +382,6 @@ var public_init = function()
             tab.on_close();
         }
     });
-
-    // Init basic tabs
-    new TagslistTab();
 };
 
 /**
@@ -464,6 +468,19 @@ public_show_admin_tab = function()
     }
 
     admin_tab = new AdminTab();
+}
+
+/**
+ * show_taglist_tab() - shows the taglist tab
+ */
+public_show_tagslist_tab = function()
+{
+    if( tagslist_tab != null ) {
+        public_select( tagslist_tab );
+        return;
+    }
+
+    tagslist_tab = new TagslistTab();
 }
 
 /**
@@ -699,6 +716,7 @@ return {
     create_display_tab: public_create_display_tab,
     show_login_tab: public_show_login_tab,
     show_admin_tab: public_show_admin_tab,
+    show_tagslist_tab: public_show_tagslist_tab,
     remove: public_remove,
     Provider: public_Provider,
     SelectionProvider: public_SelectionProvider,
