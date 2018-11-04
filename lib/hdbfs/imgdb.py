@@ -183,9 +183,14 @@ class StreamInfo:
                         continue
 
                     try:
-                        dt = datetime.datetime.strptime(
-                                    original_date,
-                                    '%Y:%m:%d %H:%M:%S' )
+                        try:
+                            dt = datetime.datetime.strptime(
+                                        original_date,
+                                        '%Y:%m:%d %H:%M:%S' )
+                        except:
+                            dt = datetime.datetime.strptime(
+                                        original_date,
+                                        '%Y:%m:%dT%H:%M:%S' )
                         self.origin_time = calendar.timegm( dt.timetuple() )
                     except:
                         raise ValueError, 'Bad date <%r>: %r' % ( original_date, sys.exc_info()[1] )

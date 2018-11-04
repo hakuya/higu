@@ -287,6 +287,17 @@ class Query:
             query = query.filter( model.Object.object_id.in_( q ) )
         elif( add_q is not None ):
             query = query.filter( model.Object.object_id.in_( add_q ) )
+        else:
+            files = db.session.query( model.Object.object_id ) \
+                    .filter( model.Object.object_type == hdbfs.TYPE_FILE )
+            albums = db.session.query( model.Object.object_id ) \
+                    .filter( model.Object.object_type == hdbfs.TYPE_ALBUM )
+            all_children = db.session.query( model.Relation.child_id ) \
+                    .filter( model.Relation.parent_id.in_( albums ) )
+            free_files = files.filter( ~model.Object.object_id.in_( all_children ) )
+
+            select_ids = free_files.union( albums )
+            query = query.filter( model.Object.object_id.in_( select_ids ) )
 
         if( sub_q is not None ):
             query = query.filter( ~model.Object.object_id.in_( sub_q ) )
