@@ -37,6 +37,12 @@ function load_async( request, obj, callback, data )
         processData:    false,
         dataType:       'json',
         success:        function( response ) {
+            if( response.result == 'err' && response.except == 'nosession' ) {
+                alert( 'Your session has expired' );
+                document.location.href = '/';
+                return null;
+            }
+
             eval( 'obj.' + callback + '( data, response )' );
         },
         error:          function( xhr ) {
@@ -64,6 +70,12 @@ function load_sync( request )
             dialogs.show_error_dialog( xhr.responseText );
         }
     } );
+
+    if( result.result == 'err' && result.except == 'nosession' ) {
+        alert( 'Your session has expired' );
+        document.location.href = '/';
+        return null;
+    }
 
     return result;
 }

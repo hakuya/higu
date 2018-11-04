@@ -159,6 +159,9 @@ class JsonInterface:
 
     def execute( self, data ):
 
+        if( self.__db is None or self.__session_id is None ):
+            return json_err( 'nosession' )
+
         try:
             fn = getattr( self, 'cmd_' + data['action'] )
             argspec = inspect.getargspec( fn )
