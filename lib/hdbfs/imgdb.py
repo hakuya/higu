@@ -107,7 +107,10 @@ class StreamInfo:
             if( self.img is not None and 'exif' in self.img.info ):
                 ORIENTATION = 274
 
-                exif = self.img._getexif()
+                try:
+                    exif = self.img._getexif()
+                except:
+                    exif = []
                 if( ORIENTATION in exif \
                 and exif[ORIENTATION] != '' ):
 
@@ -166,7 +169,10 @@ class StreamInfo:
 
                 TAGS = [ ORIGINAL_DATE, DATE_TIME, ]
 
-                exif = self.img._getexif()
+                try:
+                    exif = self.img._getexif()
+                except:
+                    exif = []
                 for tag in TAGS:
                     if( tag not in exif
                      or exif[tag] == '' ):
