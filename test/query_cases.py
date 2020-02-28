@@ -266,5 +266,22 @@ class HiguQueryCases( testutil.TestCase ):
         self.assertTrue( self.green_obj in rs, 'Green not in result' )
         self.assertTrue( len( rs ) == 2, 'Result size mismatch' )
 
+    def test_query_id_sorted( self ):
+
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.ObjIdConstraint( '>=', 0 ) )
+
+        rs = [ r for r in query.execute( self.h ) ]
+
+        self.assertEqual( rs[0], self.red_obj )
+        self.assertEqual( rs[1], self.yellow_obj )
+        self.assertEqual( rs[2], self.green_obj )
+        self.assertEqual( rs[3], self.cyan_obj )
+        self.assertEqual( rs[4], self.blue_obj )
+        self.assertEqual( rs[5], self.magenta_obj )
+        self.assertEqual( rs[6], self.white_obj )
+        self.assertEqual( rs[7], self.grey_obj )
+        self.assertEqual( rs[8], self.black_obj )
+
 if( __name__ == '__main__' ):
     unittest.main()

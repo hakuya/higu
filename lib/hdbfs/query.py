@@ -11,6 +11,10 @@ class TagConstraint:
 
         self.__tag = tag
 
+    def get_preferred_order( self ):
+
+        return None
+
     def to_db_constraint( self, db ):
 
         if( isinstance( self.__tag, hdbfs.Obj ) ):
@@ -27,6 +31,10 @@ class StringConstraint:
     def __init__( self, s ):
 
         self.__s = s
+
+    def get_preferred_order( self ):
+
+        return 'name'
 
     def to_db_constraint( self, db ):
 
@@ -48,6 +56,10 @@ class UnboundConstraint:
     def __init__( self, s ):
 
         self.__s = s
+
+    def get_preferred_order( self ):
+
+        return None
 
     def to_db_constraint( self, db ):
 
@@ -158,6 +170,10 @@ class ObjIdConstraint:
         else:
             assert False
 
+    def get_preferred_order( self ):
+
+        return ( 'add', False, )
+
     def to_db_constraint( self, db ):
 
         return db.session.query( model.Object.object_id ) \
@@ -202,6 +218,10 @@ class ParameterConstraint:
         else:
             assert False
 
+    def get_preferred_order( self ):
+
+        return None
+
     def to_db_constraint( self, db ):
 
         from sqlalchemy import and_
@@ -215,8 +235,7 @@ class Query:
     def __init__( self ):
 
         self.__obj_type = None
-        self.__order_by = 'rand'
-        self.__order_desc = False
+        self.__order_by = None
         self.__strict = False
 
         self.__req_constraints = []
@@ -233,8 +252,7 @@ class Query:
 
     def set_order( self, prop, desc = False ):
 
-        self.__order_by = prop
-        self.__order_desc = desc
+        self.__order_by = ( prop, desc )
 
     def add_require_constraint( self, constraint ):
 
@@ -257,6 +275,7 @@ class Query:
     def execute( self, db ):
 
         to_db_c = lambda c: c.to_db_constraint( db )
+        q_order = None
 
         if( len( self.__or_constraints ) > 0 ):
             add_q = map( to_db_c, self.__or_constraints )
@@ -275,6 +294,15 @@ class Query:
             req_q = req_q[0].intersect( *req_q[1:] )
         else:
             req_q = None
+
+        if( len( self.__req_constraints ) == 1 and len( self.__or_constraints ) == 0 ):
+            q_order = self.__req_constraints[0].get_preferred_order()
+
+        if( self.__order_by is not None ):
+            q_order = self.__order_by
+
+        if( q_order is None ):
+            q_order = ( 'rand', False, )
 
         query = db.session.query( model.Object )
 
@@ -308,24 +336,24 @@ class Query:
             query = query.filter( model.Object.object_type.in_( [
                 hdbfs.TYPE_FILE, hdbfs.TYPE_ALBUM ] ) )
 
-        if( self.__order_by == 'rand' ):
+        if( q_order[0] == 'rand' ):
             query = query.order_by( 'RANDOM()' )
-        elif( self.__order_by == 'add' ):
-            if( not self.__order_desc ):
+        elif( q_order[0] == 'add' ):
+            if( not q_order[1] ):
                 query = query.order_by( model.Object.object_id )
             else:
                 query = query.order_by( model.Object.object_id.desc() )
-        elif( self.__order_by == 'name' ):
-            if( not self.__order_desc ):
+        elif( q_order[0] == 'name' ):
+            if( not q_order[1] ):
                 query = query.order_by( model.Object.name,
                                         model.Object.object_id )
             else:
                 query = query.order_by( model.Object.name.desc(),
                                         model.Object.object_id.desc() )
-        elif( self.__order_by == 'origin' ):
+        elif( q_order[0] == 'origin' ):
             query = query.join( model.ObjectMetadata )\
                          .filter( model.ObjectMetadata.key == 'origin_time' )
-            if( not self.__order_desc ):
+            if( not q_order[1] ):
                 query = query.order_by( model.ObjectMetadata.numeric,
                                         model.Object.object_id )
             else:
