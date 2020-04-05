@@ -380,26 +380,48 @@ DisplayableObject = function( obj_id, info )
 
     DisplayableObject.prototype.reorder = function( drop_data, idx )
     {
-        var obj_id = drop_data.get_object()
+        var files = drop_data.get_files()
 
-        src_idx = this.find_item( obj_id )
-        if( src_idx == -1 ) {
-            alert( obj_id + ' not in album' );
-            return;
-        } else if( src_idx == idx ) {
-            // Do nothing
-            return;
+        var src_idxs = []
+        var src_objs = []
+
+        for( var i = 0; i < files.length; i++ ) {
+            var src_idx = this.find_item( files[i][0] );
+            if( src_idx == -1 ) {
+                alert( files[i][1] + ' not in album' );
+                return;
+            }
+
+            src_idxs.push( src_idx );
         }
 
-        obj = this.info.files[src_idx];
-
-        this.info.files.splice( src_idx, 1 );
-        if( idx < src_idx ) {
-            this.info.files.splice( idx, 0, obj );
-        } else {
-            this.info.files.splice( idx - 1, 0, obj );
+        src_idxs.sort();
+        for( var i = 0; i < src_idxs.length; i++ ) {
+            src_objs.push( this.info.files[src_idxs[i]] )
         }
 
+        output = []
+        for( var i = 0; i < this.info.files.length; i++ ) {
+            if( i == idx ) {
+                for( var j = 0; j < src_objs.length; j++ ) {
+                    output.push( src_objs[j] );
+                }
+            }
+
+            if( src_idxs.indexOf( i ) >= 0 ) continue;
+            output.push( this.info.files[i] );
+        }
+
+        var changed = false;
+        for( var i = 0; i < this.info.files.length; i++ ) {
+            if( this.info.files[i][0] != output[i][0] ) {
+                changed = true;
+                break;
+            }
+        }
+        if( !changed ) return;
+
+        this.info.files = output;
         obj_ids = this.obj_id_list();
         var request = {
             action:     'group_reorder',
@@ -865,26 +887,48 @@ DisplayableSelection = function()
 
     DisplayableSelection.prototype.reorder = function( drop_data, idx )
     {
-        var obj_id = drop_data.get_object()
+        var files = drop_data.get_files()
 
-        src_idx = this.find_item( obj_id )
-        if( src_idx == -1 ) {
-            alert( obj_id + ' not in selection' );
-            return;
-        } else if( src_idx == idx ) {
-            // Do nothing
-            return;
+        var src_idxs = []
+        var src_objs = []
+
+        for( var i = 0; i < files.length; i++ ) {
+            var src_idx = this.find_item( files[i][0] );
+            if( src_idx == -1 ) {
+                alert( files[i][1] + ' not in selection' );
+                return;
+            }
+
+            src_idxs.push( src_idx );
         }
 
-        obj = this.objs[src_idx];
-
-        this.objs.splice( src_idx, 1 );
-        if( idx < src_idx ) {
-            this.objs.splice( idx, 0, obj );
-        } else {
-            this.objs.splice( idx - 1, 0, obj );
+        src_idxs.sort();
+        for( var i = 0; i < src_idxs.length; i++ ) {
+            src_objs.push( this.objs[src_idxs[i]] )
         }
 
+        output = []
+        for( var i = 0; i < this.objs.length; i++ ) {
+            if( i == idx ) {
+                for( var j = 0; j < src_objs.length; j++ ) {
+                    output.push( src_objs[j] );
+                }
+            }
+
+            if( src_idxs.indexOf( i ) >= 0 ) continue;
+            output.push( this.objs[i] );
+        }
+
+        var changed = false;
+        for( var i = 0; i < this.objs.length; i++ ) {
+            if( this.objs[i][0] != output[i][0] ) {
+                changed = true;
+                break;
+            }
+        }
+        if( !changed ) return;
+
+        this.objs = output;
         this.notify_change( null );
     };
 
@@ -1053,11 +1097,13 @@ ThumbView = function()
         exp_i = exp_w + factor_i;
 
         GROUPLINK_TEMPLATE =
-            '<a class="albumlink objitem sortable" href="#">'
+            '<div class="albumlink objitem sortable">'
           + '  <img src="/img?id=#{obj}&exp='
             + exp_i + '" style="max-width: 100%; max-height: 100%"/>'
-          + '</a>';
+          + '</div>';
         GROUPLINK_LI_SIZE = (1 << exp_w);
+
+        this.selection = [];
     };
 
     // extends ViewBase
@@ -1088,16 +1134,39 @@ ThumbView = function()
             var img = $( GROUPLINK_TEMPLATE
                     .replace( /#\{obj\}/g, files[i][0] ) );
 
-            util.make_draggable( img, util.make_basic_drop_data(
-                    files[i][0], files[i][1], files[i][2] ) );
+            util.make_draggable( img, {
+                view:   this,
+
+                obj_id: files[i][0],
+                repr:   files[i][1],
+                type:   files[i][2],
+
+                get_object: function() { return this.obj_id; },
+                get_repr:   function() { return this.repr; },
+                get_type:   function() { return this.type; },
+
+                get_files: function() {
+                    if( this.view.find_in_selection( this.obj_id ) >= 0 ) {
+                        return this.view.selection;
+                    } else {
+                        return [ [ this.obj_id, this.repr, this.type ] ];
+                    }
+                },
+            } );
+
             util.make_sortable( disp, li, i );
 
+            if( this.find_in_selection( files[i][0] ) >= 0 ) {
+                img.addClass( 'selected' );
+            }
+
             // obj_id and repr copied to obj by make_draggable
+            img.data( 'tb_view', this );
             img.data( 'grp_id', group_id );
             img.data( 'grp_idx', i );
 
             img.click( function( e ) {
-                var provider = null;
+                e.preventDefault();
 
                 var drop_data = $( this ).data( 'drop_data' );
                 var obj_id = drop_data.get_object();
@@ -1106,21 +1175,34 @@ ThumbView = function()
                 var grp_id = $( this ).data( 'grp_id' );
                 var grp_idx = $( this ).data( 'grp_idx' );
 
-                if( grp_id == null ) {
-                    provider = new tabs.SingleProvider( obj_id );
+                if( e.metaKey ) {
+                    view = $( this ).data( 'tb_view' );
+                    view.toggle_selection( drop_data );
+
+                    if( view.find_in_selection( obj_id ) == -1 ) {
+                        $( this ).removeClass( 'selected' );
+                    } else {
+                        $( this ).addClass( 'selected' );
+                    }
                 } else {
-                    provider = new tabs.SearchProvider( {
-                        mode:   'album',
-                        album:  grp_id,
-                        index:  grp_idx,
-                    });
+                    var provider = null;
+
+                    if( grp_id == null ) {
+                        provider = new tabs.SingleProvider( obj_id );
+                    } else {
+                        provider = new tabs.SearchProvider( {
+                            mode:   'album',
+                            album:  grp_id,
+                            index:  grp_idx,
+                        });
+                    }
+                    tabs.create_display_tab( repr, provider );
                 }
-                tabs.create_display_tab( repr, provider );
             });
 
+            img.width( GROUPLINK_LI_SIZE );
+            img.height( GROUPLINK_LI_SIZE );
             li.append( img );
-            li.width( GROUPLINK_LI_SIZE );
-            li.height( GROUPLINK_LI_SIZE );
             ls.append( li );
         }
 
@@ -1134,6 +1216,29 @@ ThumbView = function()
     {
         if( e.type == 'files_changed' ) {
             return true;
+        }
+    };
+
+    ThumbView.prototype.find_in_selection = function( obj_id )
+    {
+        for( var i = 0; i < this.selection.length; i++ ) {
+            if( this.selection[i][0] == obj_id ) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    ThumbView.prototype.toggle_selection = function( drop_data )
+    {
+        idx = this.find_in_selection( drop_data.get_object() );
+
+        if( idx == -1 ) {
+            this.selection.push( [ drop_data.get_object(),
+                                   drop_data.get_repr(),
+                                   drop_data.get_type() ] );
+        } else {
+            this.selection.splice( idx, 1 );
         }
     };
 

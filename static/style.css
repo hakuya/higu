@@ -70,6 +70,10 @@ html body {
     padding: 5px;
 }
 
+.thumbslist .selected {
+    background-color: #ddddff;
+}
+
 .thumbslist .hover {
     background-color:#dddddd;
 }
