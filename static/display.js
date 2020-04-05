@@ -1,11 +1,38 @@
 // module
 var util = (function() {
 
-function public_make_draggable( elem, obj_id, repr, type )
+function public_make_basic_drop_data( obj_id, repr, type )
 {
-    elem.data( 'obj_id', obj_id );
-    elem.data( 'repr', repr );
-    elem.data( 'type', type );
+    return {
+        obj_id: obj_id,
+        repr:   repr,
+        type:   type,
+
+        get_object: function() { return this.obj_id; },
+        get_files: function() { return [ [ this.obj_id, this.repr, this.type ] ]; },
+        get_repr:   function() { return this.repr; },
+        get_type:   function() { return this.type; }
+    };
+}
+
+function public_make_group_drop_data( obj_id, files, repr, type )
+{
+    return {
+        obj_id: obj_id,
+        files:  files,
+        repr:   repr,
+        type:   type,
+
+        get_object: function() { return this.obj_id; },
+        get_files: function() { return this.files; },
+        get_repr:   function() { return this.repr; },
+        get_type:   function() { return this.type; }
+    };
+}
+
+function public_make_draggable( elem, drop_data )
+{
+    elem.data( 'drop_data', drop_data );
 
     elem.draggable( {
         helper:     function() {
@@ -45,9 +72,9 @@ function public_make_sortable( disp, elem, index )
 
             display = slot.data( 'display' );
             index = slot.data( 'index' );
-            obj_id = item.data( 'obj_id' );
+            drop_data = item.data( 'drop_data' );
 
-            display.reorder( obj_id, index );
+            display.reorder( drop_data, index );
         },
     });
     elem.data( 'display', disp );
@@ -86,7 +113,7 @@ function public_make_link( repr, target, ext_actions )
                                         target,
                                         ext_actions[0].extra,
                                         ext_actions[0].action ) );
-        for( i = 1; i < ext_actions.length; i++ ) {
+        for( var i = 1; i < ext_actions.length; i++ ) {
             span.append( ', ' );
             span.append( private_make_link( ext_actions[i].label,
                                             target,
@@ -113,7 +140,7 @@ function public_make_link_list( list, ext_actions )
     span = $( '<span></span>' );
     span.append( public_make_link2( list[0], ext_actions ) );
 
-    for( i = 1; i < list.length; i++ ) {
+    for( var i = 1; i < list.length; i++ ) {
         span.append( ', ' );
         span.append( public_make_link2( list[i], ext_actions ) );
     }
@@ -122,6 +149,8 @@ function public_make_link_list( list, ext_actions )
 };
 
 return {
+    make_basic_drop_data: public_make_basic_drop_data,
+    make_group_drop_data: public_make_group_drop_data,
     make_draggable: public_make_draggable,
     make_sortable: public_make_sortable,
     make_link: public_make_link,
@@ -149,8 +178,8 @@ DisplayableBase = function()
     };
 
     DisplayableBase.prototype.rename = function( name, saveold ) {};
-    DisplayableBase.prototype.drop = function( obj_id, repr, type ) {};
-    DisplayableBase.prototype.rm = function( obj_id, repr, type ) {};
+    DisplayableBase.prototype.drop = function( drop_data ) {};
+    DisplayableBase.prototype.rm = function( drop_data ) {};
     DisplayableBase.prototype.set_variant = function(
             original, variant ) {}
     DisplayableBase.prototype.clear_variant = function(
@@ -158,7 +187,7 @@ DisplayableBase = function()
     DisplayableBase.prototype.merge_duplicates = function(
             original, duplicate ) {}
     DisplayableBase.prototype.transform = function( xform ) {};
-    DisplayableBase.prototype.reorder = function( obj_id, idx ) {};
+    DisplayableBase.prototype.reorder = function( drop_data, idx ) {};
     DisplayableBase.prototype.show_stream = function( stream_id ) {};
     DisplayableBase.prototype.set_as_main_stream = function() {};
     DisplayableBase.prototype.on_event = function( e ) { return null; };
@@ -234,8 +263,12 @@ DisplayableObject = function( obj_id, info )
         }
     };
 
-    DisplayableObject.prototype.drop = function( obj_id, repr, type )
+    DisplayableObject.prototype.drop = function( drop_data )
     {
+        var obj_id = drop_data.get_object()
+        var repr = drop_data.get_repr()
+        var type = drop_data.get_type()
+
         if( this.info.type == 'file') {
             if( obj_id == this.obj_id ) {
                 alert( 'Cannot drop file on itself' );
@@ -247,16 +280,31 @@ DisplayableObject = function( obj_id, info )
 
             dialogs.show_dup_dialog( obj_id, this.obj_id );
         } else {
-            if( this.find_item( obj_id ) != -1 ) {
-                alert( repr + ' already in album' );
-            } else if( type != 'file' ) {
+            if( type != 'file' && type != 'selection' ) {
                 alert( 'Only files may be added to albums' );
+                return;
+            }
+
+            var to_append = []
+            var files = drop_data.get_files()
+
+            var changed = false;
+            for( var i = 0; i < files.length; i++ ) {
+                var obj_id = files[i][0];
+
+                if( this.find_item( obj_id ) != -1 ) continue;
+                to_append.push( obj_id );
+                changed = true;
+            }
+            if( !changed ) {
+                alert( 'Already in album' );
+                return;
             }
 
             var request = {
                 action:     'group_append',
                 group:      this.obj_id,
-                targets:    [ obj_id ],
+                targets:    to_append,
             };
 
             load_sync( request );
@@ -267,8 +315,12 @@ DisplayableObject = function( obj_id, info )
         }
     };
 
-    DisplayableObject.prototype.rm = function( obj_id, repr, type )
+    DisplayableObject.prototype.rm = function( drop_data )
     {
+        var obj_id = drop_data.get_object()
+        var repr = drop_data.get_repr()
+        var type = drop_data.get_type()
+
         if( this.info.type == 'file') {
             alert( 'delete ' + repr );
         } else {
@@ -326,8 +378,10 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'info_changed', affected: affected } );
     };
 
-    DisplayableObject.prototype.reorder = function( obj_id, idx )
+    DisplayableObject.prototype.reorder = function( drop_data, idx )
     {
+        var obj_id = drop_data.get_object()
+
         src_idx = this.find_item( obj_id )
         if( src_idx == -1 ) {
             alert( obj_id + ' not in album' );
@@ -470,7 +524,14 @@ DisplayableObject = function( obj_id, info )
 
         var label = $( '<div class="objlabel objitem"></div>' );
         label.append( util.make_link( this.info.repr, this.obj_id ) );
-        util.make_draggable( label, this.obj_id, this.info.repr, this.info.type );
+
+        if( this.info.type == 'file') {
+            util.make_draggable( label, util.make_basic_drop_data(
+                this.obj_id, this.info.repr, this.info.type ) );
+        } else {
+            util.make_draggable( label, util.make_group_drop_data(
+                this.obj_id, this.info.files, this.info.repr, this.info.type ) );
+        }
 
         div.append( label );
         div.append( '<br/>' );
@@ -488,7 +549,7 @@ DisplayableObject = function( obj_id, info )
         div.append( "<ul class='infotaglist'></ul>" );
         var ls = div.find( '.infotaglist' );
 
-        for( i = 0; i < this.info.tags.length; i++ ) {
+        for( var i = 0; i < this.info.tags.length; i++ ) {
             var li = TAGLINK_TEMPLATE.replace( /#\{tag\}/g, this.info.tags[i]);
             ls.append( li );
         }
@@ -497,7 +558,7 @@ DisplayableObject = function( obj_id, info )
         div.append( "<ul class='infonamlist'></ul>" );
         ls = div.find( '.infonamlist' );
 
-        for( i = 0; i < this.info.names.length; i++ ) {
+        for( var i = 0; i < this.info.names.length; i++ ) {
             var li = '<li>' + this.info.names[i] + '</li>'
             ls.append( li );
         }
@@ -623,7 +684,7 @@ DisplayableObject = function( obj_id, info )
 
             div.append( 'Duplicates: ' );
 
-            for( i = 0; i < this.info.dup_streams.length; i++ ) {
+            for( var i = 0; i < this.info.dup_streams.length; i++ ) {
                 var viewdup = $( '<a href="#">' + (i + 1) + '</a> ' );
                 viewdup.click(
                     {
@@ -666,7 +727,7 @@ DisplayableObject = function( obj_id, info )
 
     DisplayableObject.prototype.find_item = function( obj_id )
     {
-        for( i = 0; i < this.info.files.length; i++ ) {
+        for( var i = 0; i < this.info.files.length; i++ ) {
             if( this.info.files[i][0] == obj_id ) {
                 return i;
             }
@@ -678,7 +739,7 @@ DisplayableObject = function( obj_id, info )
     {
         var obj_ids = [];
 
-        for( i = 0; i < this.info.files.length; i++ ) {
+        for( var i = 0; i < this.info.files.length; i++ ) {
             obj_ids.push( this.info.files[i][0] );
         }
 
@@ -734,17 +795,30 @@ DisplayableSelection = function()
         alert( 'Selections cannot be renamed' );
     };
 
-    DisplayableSelection.prototype.drop = function( obj_id, repr, type )
+    DisplayableSelection.prototype.drop = function( drop_data )
     {
-        if( this.find_item( obj_id ) != -1 ) return;
+        var files = drop_data.get_files()
+        var repr = drop_data.get_repr()
+        var type = drop_data.get_type()
 
-        this.objs.push( [ obj_id, repr, type ] );
+        var changed = false;
+        for( var i = 0; i < files.length; i++ ) {
+            if( this.find_item( files[i][0] ) != -1 ) continue;
+            this.objs.push( files[i] );
+            changed = true;
+        }
+        if( !changed ) return;
+
         this.notify_change( null );
         alert( 'dropped ' + type + ' ' + repr + ' on selection' );
     };
 
-    DisplayableSelection.prototype.rm = function( obj_id, repr, type )
+    DisplayableSelection.prototype.rm = function( drop_data )
     {
+        var obj_id = drop_data.get_object()
+        var repr = drop_data.get_repr()
+        var type = drop_data.get_type()
+
         index = this.find_item( obj_id );
         if( index == -1 ) return;
 
@@ -789,8 +863,10 @@ DisplayableSelection = function()
         this.notify_change( null );
     };
 
-    DisplayableSelection.prototype.reorder = function( obj_id, idx )
+    DisplayableSelection.prototype.reorder = function( drop_data, idx )
     {
+        var obj_id = drop_data.get_object()
+
         src_idx = this.find_item( obj_id )
         if( src_idx == -1 ) {
             alert( obj_id + ' not in selection' );
@@ -816,8 +892,17 @@ DisplayableSelection = function()
     {
         div.html( '' );
 
-        div.append( 'Selection' );
+        var label = $( '<div class="objlabel objitem">Selection</div>' );
+        util.make_draggable( label, {
+            selection: this,
 
+            get_object: function() { return null; },
+            get_files:  function() { return this.selection.get_files(); },
+            get_repr:   function() { return 'Selection'; },
+            get_type:   function() { return 'selection'; },
+        });
+
+        div.append( label );
         div.append( '<h1>Options</h1>' );
 
         var ul = $( document.createElement( 'ul' ) ); div.append( ul );
@@ -853,7 +938,7 @@ DisplayableSelection = function()
 
     DisplayableSelection.prototype.find_item = function( obj_id )
     {
-        for( i = 0; i < this.objs.length; i++ ) {
+        for( var i = 0; i < this.objs.length; i++ ) {
             if( this.objs[i][0] == obj_id ) {
                 return i;
             }
@@ -865,7 +950,7 @@ DisplayableSelection = function()
     {
         var obj_ids = [];
 
-        for( i = 0; i < this.objs.length; i++ ) {
+        for( var i = 0; i < this.objs.length; i++ ) {
             obj_ids.push( this.objs[i][0] );
         }
 
@@ -998,13 +1083,13 @@ ThumbView = function()
         group_id = disp.get_obj_id();
         files = disp.get_files();
 
-        for( i = 0; i < files.length; i++ ) {
+        for( var i = 0; i < files.length; i++ ) {
             var li = $( '<li></li>' );
             var img = $( GROUPLINK_TEMPLATE
                     .replace( /#\{obj\}/g, files[i][0] ) );
 
-            util.make_draggable( img, files[i][0],
-                    files[i][1], files[i][2] );
+            util.make_draggable( img, util.make_basic_drop_data(
+                    files[i][0], files[i][1], files[i][2] ) );
             util.make_sortable( disp, li, i );
 
             // obj_id and repr copied to obj by make_draggable
@@ -1014,8 +1099,10 @@ ThumbView = function()
             img.click( function( e ) {
                 var provider = null;
 
-                var obj_id = $( this ).data( 'obj_id' );
-                var repr = $( this ).data( 'repr' );
+                var drop_data = $( this ).data( 'drop_data' );
+                var obj_id = drop_data.get_object();
+                var repr = drop_data.get_repr();
+
                 var grp_id = $( this ).data( 'grp_id' );
                 var grp_idx = $( this ).data( 'grp_idx' );
 
@@ -1080,14 +1167,14 @@ Display = function( disp, view )
         this.disp.rename( name, saveold );
     };
 
-    Display.prototype.drop = function( obj_id, repr, type )
+    Display.prototype.drop = function( drop_data )
     {
-        this.disp.drop( obj_id, repr, type );
+        this.disp.drop( drop_data )
     };
 
-    Display.prototype.rm = function( obj_id, repr, type )
+    Display.prototype.rm = function( drop_data )
     {
-        this.disp.rm( obj_id, repr, type );
+        this.disp.rm( drop_data )
     };
 
     Display.prototype.set_variant = function(
@@ -1107,9 +1194,9 @@ Display = function( disp, view )
         this.disp.merge_duplicates( original, duplicate );
     }
 
-    Display.prototype.reorder = function( obj_id, idx )
+    Display.prototype.reorder = function( drop_data, idx )
     {
-        this.disp.reorder( obj_id, idx );
+        this.disp.reorder( drop_data, idx );
     };
 
     Display.prototype.on_event = function( e )

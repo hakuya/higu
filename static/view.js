@@ -252,8 +252,7 @@ DisplayTab = function( title, provider )
                 item = $( ui.draggable );
                 item.draggable( 'option', 'revert', false );
 
-                tab.drop( item.data( 'obj_id' ), item.data( 'repr' ),
-                        item.data( 'type' ) );
+                tab.drop( item.data( 'drop_data' ) );
             },
         });
 
@@ -303,17 +302,17 @@ DisplayTab = function( title, provider )
         }
     }
 
-    DisplayTab.prototype.drop = function( obj_id, repr, type )
+    DisplayTab.prototype.drop = function( drop_data )
     {
         if( this.display ) {
-            this.display.drop( obj_id, repr, type );
+            this.display.drop( drop_data )
         }
     };
 
-    DisplayTab.prototype.rm = function( obj_id, repr, type )
+    DisplayTab.prototype.rm = function( drop_data )
     {
         if( this.display ) {
-            this.display.rm( obj_id, repr, type );
+            this.display.rm( drop_data )
         }
     };
 

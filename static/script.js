@@ -207,8 +207,7 @@ $( '#trash' ).droppable({
         
         tab = tab.data( 'obj' );
         if( tab && tab.rm ) {
-            tab.rm( item.data( 'obj_id' ), item.data( 'repr' ),
-                    item.data( 'type' ) );
+            tab.rm( item.data( 'drop_data' ) );
         }
     },
 });

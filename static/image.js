@@ -122,7 +122,7 @@ ImageViewer = function( pane, obj_id, stream_id, gen, repr, type )
                 + 'onload="on_image_loaded( this )"/>' );
     }
 
-    util.make_draggable( img_tag, obj_id, repr, type );
+    util.make_draggable( img_tag, util.make_basic_drop_data( obj_id, repr, type ) );
     pane.append( img_tag );
 
     pane.data( 'viewer', this );
