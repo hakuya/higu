@@ -519,6 +519,17 @@ DisplayableObject = function( obj_id, info )
             this.refresh_info( e );
         } else if( e.type == 'files_changed' ) {
             this.refresh_info( e );
+        } else if( e.type == 'push_selection' ) {
+            selection = displib.get_selection( e.selection );
+            if( selection == null ) return;
+
+            if( this.info.type == 'file') {
+                selection.drop( util.make_basic_drop_data(
+                    this.obj_id, this.info.repr, this.info.type ) );
+            } else {
+                selection.drop( util.make_group_drop_data(
+                    this.obj_id, this.info.files, this.info.repr, this.info.type ) );
+            }
         }
     };
 
@@ -1400,10 +1411,46 @@ var public_make_selection_display = function()
     return new Display( disp, view );
 };
 
+var public_register_selection = function( selection )
+{
+    var i = 0;
+    for( var i = 0; i < this.selection_map.length; i++ ) {
+        if( this.selection_map[i] == null ) {
+            this.selection_map[i] = selection;
+            return i;
+        }
+    }
+
+    this.selection_map.push( selection );
+    return i;
+};
+
+var public_unregister_selection = function( selection )
+{
+    for( var i = 0; i < this.selection_map.length; i++ ) {
+        if( this.selection_map[i] === selection ) {
+            this.selection_map[i] = null;
+        }
+    }
+};
+
+var public_get_selection = function( idx )
+{
+    if( this.selection_map.length > idx ) {
+        return this.selection_map[idx];
+    } else {
+        return null;
+    }
+}
+
 return {
+    selection_map: [],
     make_dummy_display: public_make_dummy_display,
     make_object_display: public_make_object_display,
     make_selection_display: public_make_selection_display,
+    register_selection: public_register_selection,
+    unregister_selection: public_unregister_selection,
+    get_selection: public_get_selection,
 };
 
 })(); // module displib

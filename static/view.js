@@ -512,6 +512,7 @@ public_SelectionProvider = function()
     // Constructor
     {
         this.selection = displib.make_selection_display();
+        this.selection_id = displib.register_selection( this.selection );
     };
 
     // extends Provider
@@ -522,6 +523,11 @@ public_SelectionProvider = function()
     public_SelectionProvider.prototype.init = function( obj, callback )
     {
         eval( 'obj.' + callback + '( this.selection )' );
+    };
+
+    public_SelectionProvider.prototype.close = function()
+    {
+        displib.unregister_selection( this.selection );
     };
 
     public_SelectionProvider.prototype.repr = function()

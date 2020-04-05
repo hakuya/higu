@@ -161,6 +161,23 @@ $(document).keypress( function( e ) {
             case 107: // k
                 obj.up();
                 break;
+
+            case 49: // 1-9
+            case 50:
+            case 51:
+            case 52:
+            case 53:
+            case 54:
+            case 55:
+            case 56:
+            case 57:
+            case 58:
+                obj.on_event( { type: 'push_selection', selection: e.charCode - 49 } )
+                break;
+
+            case 48: // 0
+                obj.on_event( { type: 'push_selection', selection: 10 } )
+
             default:
         }
     }
@@ -190,6 +207,7 @@ $( 'a[href="#taglist"]' ).click( function() {
 
 $( '#tagsearch' ).submit( function() {
     tags = $( this ).children( 'input' ).val();
+    $( this ).children( 'input' ).val( '' );
 
     provider = new tabs.SearchProvider( { query: tags } );
     tabs.create_display_tab( tags, provider );
@@ -214,7 +232,7 @@ $( '#trash' ).droppable({
 
 $( 'a[href="#newsel"]' ).click( function() {
     provider = new tabs.SelectionProvider();
-    tabs.create_display_tab( 'Selection', provider );
+    tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
 });
 
 
