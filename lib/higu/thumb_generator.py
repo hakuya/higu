@@ -13,6 +13,7 @@ class ThumbGenerator:
 
     def __pop_object( self, db ):
 
+        from sqlalchemy.sql.expression import func
         from sqlalchemy import or_
 
         if( len( self.__objects ) == 0 ):
@@ -22,7 +23,7 @@ class ThumbGenerator:
                     db.session.query( hdbfs.model.Object.object_id ) \
                     .filter( or_( hdbfs.model.Object.object_type == hdbfs.TYPE_FILE,
                                   hdbfs.model.Object.object_type == hdbfs.TYPE_GROUP ) ) \
-                    .order_by( 'RANDOM()' ).limit( 500 ) ]
+                    .order_by( func.random() ).limit( 500 ) ]
 
         if( len( self.__objects ) == 0 ):
             return None

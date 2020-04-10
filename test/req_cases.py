@@ -29,9 +29,7 @@ class RequirementCases( unittest.TestCase ):
 
         ver = map( lambda x: int( x ), cherrypy.__version__.split( '.' ) )
 
-        self.assertEqual( ver[0], 3,
-                'Only CherryPy 3.x series is supported' )
-        self.assertTrue( ver[1] >= 1,
+        self.assertTrue( ver[0] > 3 or (ver[0] == 3 and ver[1] >= 1),
                 'CherryPy must be at least version 3.1' )
 
     def test_sqlalchemy( self ):
@@ -45,6 +43,13 @@ class RequirementCases( unittest.TestCase ):
 
         self.assertTrue( ver[0] > 0 or ver[1] >= 5,
                 'SqlAlchemy must be at least version 0.5' )
+
+    def test_genshi( self ):
+
+        try:
+            import genshi.template
+        except ImportError:
+            self.fail( 'genshi is not installed' )
 
     def test_pil( self ):
 

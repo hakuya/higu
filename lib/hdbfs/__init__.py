@@ -197,6 +197,8 @@ class Database:
 
     def all_albums_or_free_files( self ):
 
+        from sqlalchemy.sql.expression import func
+
         files = self.session.query( model.Object.object_id ) \
                 .filter( model.Object.object_type == TYPE_FILE )
         albums = self.session.query( model.Object.object_id ) \
@@ -210,10 +212,11 @@ class Database:
         return ModelObjToHiguObjIterator( self, 
                 self.session.query( model.Object )
                     .filter( model.Object.object_id.in_( select_ids ) )
-                    .order_by( 'RANDOM()' ) )
+                    .order_by( func.random() ) )
 
     def unowned_files( self ):
 
+        from sqlalchemy.sql.expression import func
         from sqlalchemy import or_
 
         all_children = self.session.query( model.Relation.child_id )
@@ -221,7 +224,7 @@ class Database:
                 self.session.query( model.Object )
                     .filter( model.Object.object_type.in_( [ TYPE_FILE, TYPE_ALBUM ] ) )
                     .filter( ~model.Object.object_id.in_( all_children ) )
-                    .order_by( 'RANDOM()' ) )
+                    .order_by( func.random() ) )
 
     def lookup_streams_by_details( self, file_length = None,
                                          hash_crc32 = None,

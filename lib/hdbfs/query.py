@@ -274,6 +274,8 @@ class Query:
 
     def execute( self, db ):
 
+        from sqlalchemy.sql.expression import func
+
         to_db_c = lambda c: c.to_db_constraint( db )
         q_order = None
 
@@ -315,17 +317,6 @@ class Query:
             query = query.filter( model.Object.object_id.in_( q ) )
         elif( add_q is not None ):
             query = query.filter( model.Object.object_id.in_( add_q ) )
-        else:
-            files = db.session.query( model.Object.object_id ) \
-                    .filter( model.Object.object_type == hdbfs.TYPE_FILE )
-            albums = db.session.query( model.Object.object_id ) \
-                    .filter( model.Object.object_type == hdbfs.TYPE_ALBUM )
-            all_children = db.session.query( model.Relation.child_id ) \
-                    .filter( model.Relation.parent_id.in_( albums ) )
-            free_files = files.filter( ~model.Object.object_id.in_( all_children ) )
-
-            select_ids = free_files.union( albums )
-            query = query.filter( model.Object.object_id.in_( select_ids ) )
 
         if( sub_q is not None ):
             query = query.filter( ~model.Object.object_id.in_( sub_q ) )
@@ -333,11 +324,26 @@ class Query:
         if( self.__obj_type is not None ):
             query = query.filter( model.Object.object_type == self.__obj_type )
         else:
+            if( req_q is None and add_q is None ):
+                # Extra filter applied in this case if there are otherwise no
+                # other filters. We don't want to show files which will already
+                # be presented in an album
+                files = db.session.query( model.Object.object_id ) \
+                        .filter( model.Object.object_type == hdbfs.TYPE_FILE )
+                albums = db.session.query( model.Object.object_id ) \
+                        .filter( model.Object.object_type == hdbfs.TYPE_ALBUM )
+                all_children = db.session.query( model.Relation.child_id ) \
+                        .filter( model.Relation.parent_id.in_( albums ) )
+                free_files = files.filter( ~model.Object.object_id.in_( all_children ) )
+
+                select_ids = free_files.union( albums )
+                query = query.filter( model.Object.object_id.in_( select_ids ) )
+
             query = query.filter( model.Object.object_type.in_( [
                 hdbfs.TYPE_FILE, hdbfs.TYPE_ALBUM ] ) )
 
         if( q_order[0] == 'rand' ):
-            query = query.order_by( 'RANDOM()' )
+            query = query.order_by( func.random() )
         elif( q_order[0] == 'add' ):
             if( not q_order[1] ):
                 query = query.order_by( model.Object.object_id )

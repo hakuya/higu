@@ -121,7 +121,7 @@ class LegacyCases( testutil.TestCase ):
         now = datetime.datetime.utcnow()
         for f in files:
             self.assertTrue( now - f.get_creation_time_utc()
-                           < datetime.timedelta( minutes = 5 ),
+                           < datetime.timedelta( minutes = 10 ),
                     'Unexpected timestamp in file, %r' % (
                         f.get_creation_time_utc(), ) )
 
