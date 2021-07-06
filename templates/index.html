@@ -7,10 +7,15 @@
 
 <body>
 
+<!-- Load React -->
+<script src="/static/libs/react.js"></script>
+<script src="/static/libs/react-dom.js"></script>
+<script src="/static/libs/browser.js"></script>
+
 <!-- Load jQuery -->
-<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
-<script src="http://code.jquery.com/jquery-1.10.2.js"></script>
-<script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+<link rel="stylesheet" href="static/libs/jquery-ui.css" />
+<script src="static/libs/jquery.js"></script>
+<script src="static/libs/jquery-ui.js"></script>
 
 <script src="static/image.js" type="text/javascript"></script>
 <script src="static/view.js" type="text/javascript"></script>
@@ -19,21 +24,26 @@
 <script src="static/script.js" type="text/javascript"></script>
 <link rel="stylesheet" href="static/style.css" type="text/css"/>
 
-<div id='page'>
-<xi:include href="header.html"/>
-<div id='trash'>Trash</div>
+<py:if test='username is not None'>
+<py:if test='not is_admin'>
+<script type="text/javascript">
+    document.username = "user";
+</script>
+</py:if>
+<py:if test='is_admin'>
+    <script type="text/javascript">
+        document.username = "admin";
+    </script>
+</py:if>
+</py:if>
+<py:if test='username is None'>
+    <script type="text/javascript">
+        document.username = null;
+    </script>
+</py:if>
 
-<div id='main'>
-
-<div id='tabs'>
-    <ul>
-        <li><a href='#welcome-tab'>Begin</a></li>
-    </ul>
-    <div class='tab' id='welcome-tab'><xi:include href="tabs/begin.html"/></div>
-</div>
-
-</div>
-</div>
+<div id="app"></div>
+<script type="text/babel" src="/static/app.js"></script>
 
 <xi:include href="dialogs.html"/>
 

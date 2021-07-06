@@ -248,11 +248,17 @@ DisplayTab = function( title, provider )
             accept: '.objitem',
             hoverClass: 'ui-state-hover',
             drop: function( event, ui ) {
+                if( ui.helper.is( '.dropped' ) ) {
+                    return false;
+                }
+
                 tab = $( this ).data( 'tab' );
                 item = $( ui.draggable );
                 item.draggable( 'option', 'revert', false );
 
                 tab.drop( item.data( 'drop_data' ) );
+
+                ui.helper.addClass( 'dropped' );
             },
         });
 

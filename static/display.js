@@ -67,6 +67,10 @@ function public_make_sortable( disp, elem, index )
         accept: '.sortable',
         hoverClass: 'hover',
         drop: function( event, ui ) {
+            if( ui.helper.is( '.dropped' ) ) {
+                return false;
+            }
+
             slot = $( this );
             item = $( ui.draggable );
 
@@ -75,6 +79,8 @@ function public_make_sortable( disp, elem, index )
             drop_data = item.data( 'drop_data' );
 
             display.reorder( drop_data, index );
+
+            ui.helper.addClass( 'dropped' );
         },
     });
     elem.data( 'display', disp );
@@ -1100,7 +1106,7 @@ ThumbView = function()
 
         // Calculate the thumb tile exponent
         exp_w = 0;
-        while( (window.width / (1 << exp_w)) > 16 ) exp_w++;
+        while( (window.innerWidth / (1 << exp_w)) > 16 ) exp_w++;
 
         // Calculate the exponent for the thumb image
         factor_i = 0;
