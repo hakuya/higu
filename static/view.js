@@ -3,8 +3,6 @@ var TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
 // module
 var tabs = (function() {
 
-var TABS_TEMPLATE = "<li><a href='#{href}'>#{label}</a> <span class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span></li>";
-
 // Local module vars
 var tabs_elem = null;
 var tabs_counter = 1;
@@ -13,21 +11,29 @@ var login_tab = null;
 var admin_tab = null;
 var tagslist_tab = null;
 
+var all_tabs = [];
+var active_tab_id = null;
+var tabs_listeners = [];
+
 /**
  * create_tab( title ) - creates a tab with the given title
  */
-create_tab = function( title )
+create_tab = function( title, obj )
 {
     var count = tabs_counter;
     var id_val = 'tabs-' + count;
-    var li = $( TABS_TEMPLATE.replace( /#\{href\}/g, "#" + id_val ).replace( /#\{label\}/g, title ) );
-    tabs_elem.find( '.ui-tabs-nav' ).append( li );
-    tabs_elem.append( "<div class='tab' id='" + id_val + "'>loading...</div>" );
-    tabs_elem.tabs( 'refresh' );
+
+    var tab = {
+        title: title,
+        obj: obj,
+        id: id_val
+    };
+    all_tabs.push( tab );
+    active_tab_id = id_val;
+
     tabs_counter++;
 
-    tab = $( '#' + id_val );
-    public_select( tab );
+    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_added( tab ); } )
 
     return tab;
 };
@@ -39,7 +45,7 @@ TagslistTab = function()
 
     // Constructor
     {
-        this.elem = create_tab( "Taglist" );
+        this.elem = create_tab( "Taglist", this );
         this.elem.data( 'obj', this );
 
         this.load_content();
@@ -73,7 +79,7 @@ TagslistTab = function()
     TagslistTab.prototype.on_close = function()
     {
         tagslist_tab = null;
-        tabs.remove( this.elem );
+        tabs.remove( this );
     };
 
     TagslistTab.prototype.on_event = function( e )
@@ -95,7 +101,17 @@ LoginTab = function()
 
     // Constructor
     {
-        this.elem = create_tab( "Login" );
+        this.tab = create_tab( 'Login', this );
+        this.elem = null;
+
+        this.load_content();
+    };
+
+    LoginTab.prototype.set_elem = function( el )
+    {
+        if( this.elem != null ) return;
+
+        this.elem = $( el );
         this.elem.data( 'obj', this );
 
         this.load_content();
@@ -111,7 +127,7 @@ LoginTab = function()
     LoginTab.prototype.on_close = function()
     {
         login_tab = null;
-        tabs.remove( this.elem );
+        tabs.remove( this );
     };
 
     LoginTab.prototype.load_content = function()
@@ -140,7 +156,7 @@ AdminTab = function()
 
     // Constructor
     {
-        this.elem = create_tab( "Admin" );
+        this.elem = create_tab( "Admin", this );
         this.elem.data( 'obj', this );
 
         this.load_content();
@@ -206,7 +222,7 @@ AdminTab = function()
     AdminTab.prototype.on_close = function()
     {
         admin_tab = null;
-        tabs.remove( this.elem );
+        tabs.remove( this );
     };
 
     AdminTab.prototype.load_content = function()
@@ -235,14 +251,22 @@ DisplayTab = function( title, provider )
 
     // Constructor
     {
-        this.elem = create_tab( title );
-        this.elem.data( 'obj', this );
+        this.tab = create_tab( title, this );
 
+        this.elem = null;
         this.provider = provider;
         this.display = null;
-        this.title = title;
+    };
 
-        nav = tabs.get_nav_elem( this.elem );
+    DisplayTab.prototype.set_elem = function( el )
+    {
+        if( this.elem != null ) return;
+
+        this.elem = $( el );
+        this.elem.data( 'obj', this );
+
+        nav = $( '#tabs-tab-' + this.tab.id );
+
         nav.data( 'tab', this );
         nav.droppable({
             accept: '.objitem',
@@ -267,15 +291,13 @@ DisplayTab = function( title, provider )
 
     DisplayTab.prototype.close = function()
     {
-        // XXX - this should be handled in tabs
-        tabs.get_nav_elem( this.elem ).remove();
-        tab.on_close();
+        this.on_close();
     };
 
     DisplayTab.prototype.on_close = function()
     {
         this.provider.close();
-        tabs.remove( this.elem );
+        tabs.remove( this );
     };
 
     DisplayTab.prototype.tag = function( tags )
@@ -381,30 +403,30 @@ var public_init = function()
         var tab_elem = $( "#" + panelId );
         var tab = tab_elem.data( 'obj' );
         
-        if( !tab || !tab.on_close ) {
-            tabs.remove( tab_elem );
-        } else {
-            tab.on_close();
-        }
+        tab.on_close();
     });
 };
+
+/**
+ * all_tabs() - returns all tabs
+ */
+var public_all_tabs = function()
+{
+    return all_tabs;
+};
+
+var public_register_tabs_listener = function( listener )
+{
+    tabs_listeners.push( listener );
+}
 
 /**
  * active() - returns active tab
  */
 var public_active = function()
 {
-    idx = tabs_elem.tabs( 'option', 'active' );
-    return tabs_elem.find( '.tab' ).eq( idx );
-};
-
-/**
- * get_head_elem()
- */
-var public_get_nav_elem = function( tab )
-{
-    var idx = $( '#tabs > div' ).index( tab );
-    return tabs_elem.find( '.ui-tabs-nav li' ).eq( idx );
+    if( active_tab_id == null ) return null;
+    return all_tabs.find( ( it ) => { return it.id == active_tab_id; } );
 };
 
 /**
@@ -413,7 +435,7 @@ var public_get_nav_elem = function( tab )
 var public_on_event = function( e )
 {
     $( '#tabs > div' ).each( function( idx ) {
-        obj = $( this ).data( 'obj' );
+        var obj = $( this ).data( 'obj' );
         if( obj && obj.on_event ) {
             obj.on_event( e );
         }
@@ -435,10 +457,15 @@ var public_on_select = function()
 /**
  * select( tab ) - selects the given tab
  */
-public_select = function( tab )
+public_select = function( tab_id )
 {
-    var idx = $( '#tabs > div' ).index( tab );
-    tabs_elem.tabs( 'option', 'active', idx );
+    if( active_tab_id == tab_id ) return;
+
+    var tab = all_tabs.find( ( it ) => { return it.id == tab_id; } );
+    if( tab ) {
+        active_tab_id = tab_id;
+        tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_selected( tab ); } )
+    }
 };
 
 /**
@@ -491,10 +518,23 @@ public_show_tagslist_tab = function()
 /**
  * remove( elem ) - removes the given tab
  */
-public_remove = function( elem )
+public_remove = function( obj )
 {
-    elem.remove();
-    tabs_elem.tabs( "refresh" );
+    var idx = all_tabs.findIndex( function( it ) { return it.obj === obj; } );
+    if( idx >= 0 ) {
+        if( active_tab_id == all_tabs[idx].id ) {
+            if( idx == 0 ) {
+                active_tab_id = null;
+            } else {
+                active_tab_id = all_tabs[idx-1].id;
+            }
+        }
+        all_tabs.splice( idx, 1 );
+        tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_removed( obj ); } )
+
+        obj.elem.remove();
+        tabs_elem.tabs( "refresh" );
+    }
 };
 
 /**
@@ -614,7 +654,7 @@ public_SearchProvider = function( query )
     public_SearchProvider.prototype.init = function( obj, callback )
     {
         if( this.sid ) {
-            return this.fetch( idx );
+            return this.fetch( this.last );
         }
 
         var request = { action: 'search' };
@@ -693,7 +733,7 @@ public_SearchProvider = function( query )
         };
         response = load_sync( request );
 
-        if( response.result != 'ok' ) {
+        if( response == null || response.result != 'ok' ) {
             return null;
         }
 
@@ -719,8 +759,9 @@ public_SearchProvider = function( query )
 
 return {
     init: public_init,
+    all_tabs: public_all_tabs,
+    register_tabs_listener: public_register_tabs_listener,
     active: public_active,
-    get_nav_elem: public_get_nav_elem,
     on_event: public_on_event,
     on_select: public_on_select,
     select: public_select,

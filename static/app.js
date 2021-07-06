@@ -1,56 +1,53 @@
-var QueryLink = React.createClass({
-    handleClick: function() {
+class QueryLink extends React.Component {
+    handleClick() {
         var provider = new tabs.SearchProvider( { mode: this.props.mode } );
         tabs.create_display_tab( this.props.tabTitle, provider );
-    },
-    render: function() {
+    }
+    render() {
         return (
-            <a href='#' onClick={ this.handleClick }>{ this.props.label }</a>
+            <a href='#' onClick={ this.handleClick.bind( this ) }>{ this.props.label }</a>
          );
     }
-});
+}
 
-var SelectionLink = React.createClass({
-    handleClick: function() {
+class SelectionLink extends React.Component {
+    handleClick() {
         var provider = new tabs.SelectionProvider();
         tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
-    },
-    render: function() {
+    }
+    render() {
         return (
-            <a href='#' onClick={ this.handleClick }>selection</a>
+            <a href='#' onClick={ this.handleClick.bind( this ) }>selection</a>
          );
     }
-});
+}
 
-var TaglistLink = React.createClass({
-    render: function() {
+class TaglistLink extends React.Component {
+    render() {
         return (
             <a href='#' onClick={ tabs.show_tagslist_tab }>taglist</a>
          );
     }
-});
+}
 
-var AdminLink = React.createClass({
-    render: function() {
+class AdminLink extends React.Component {
+    render() {
         return (
             <a href='#' onClick={ tabs.show_admin_tab }>admin</a>
          );
     }
-});
+}
 
-var LoginLink = React.createClass({
-    render: function() {
+class LoginLink extends React.Component {
+    render() {
         return (
             <a href='#' onClick={ tabs.show_login_tab }>login</a>
          );
     }
-});
+}
 
-var QueryBox = React.createClass({
-    mountRef: function( el ) {
-        this.el = el;
-    },
-    handleSubmit: function() {
+class QueryBox extends React.Component {
+    handleSubmit() {
         var tags = $( this.el ).children( 'input' ).val();
 
         var provider = new tabs.SearchProvider( { query: tags } );
@@ -59,18 +56,18 @@ var QueryBox = React.createClass({
         $( this.el ).children( 'input' ).val( '' );
         $( document ).focus();
         return false;
-    },
-    render: function() {
+    }
+    render() {
         return (
-            <form id='tagsearch' ref={ this.mountRef } style={{ display: 'inline' }} onSubmit={ this.handleSubmit }>
+            <form id='tagsearch' ref={ ( el ) => { this.el = el; } } style={{ display: 'inline' }} onSubmit={ this.handleSubmit.bind( this ) }>
                 <input type="text" className='nokb'/>
             </form>
          );
     }
-});
+}
 
-var Header = React.createClass({
-    render: function() {
+class Header extends React.Component {
+    render() {
         if( document.username != null ) {
             return (
                 <div id="header">
@@ -94,13 +91,10 @@ var Header = React.createClass({
             );
         }
     }
-});
+}
 
-var Trash = React.createClass({
-    mountRef: function( el ) {
-        this.el = el;
-    },
-    componentDidMount: function() {
+class Trash extends React.Component {
+    componentDidMount() {
         $( this.el ).droppable({
             accept: '.objitem',
             hoverClass: 'ui-state-hover',
@@ -112,7 +106,7 @@ var Trash = React.createClass({
                 tab = tabs.active();
                 item = $( ui.draggable );
                 
-                tab = tab.data( 'obj' );
+                tab = tab.obj;
                 if( tab && tab.rm ) {
                     tab.rm( item.data( 'drop_data' ) );
                 }
@@ -120,16 +114,16 @@ var Trash = React.createClass({
                 ui.helper.addClass( 'dropped' );
             },
         });
-    },
-    render: function() {
+    }
+    render() {
         return (
-            <div id="trash" ref={ this.mountRef }>Trash</div>
+            <div id="trash" ref={ ( el ) => { this.el = el; } }>Trash</div>
         );
     }
-});
+}
 
-var WelcomeTab = React.createClass({
-    render: function() {
+class WelcomeTab extends React.Component {
+    render() {
         return (
             <div className='tab' id='welcome-tab'>
                 <h2>Welcome to Higu</h2>
@@ -138,45 +132,100 @@ var WelcomeTab = React.createClass({
             </div>
         );
     }
-});
+}
 
-var TabsView = React.createClass({
-    componentDidMount: function() {
-        tabs.init();
-    },
-    render: function() {
+class ContentTab extends React.Component {
+    render() {
         return (
-            <div id='tabs'>
-                <ul>
-                    <li><a href='#welcome-tab'>Begin</a></li>
-                </ul>
-                <WelcomeTab/>
+            <div className='tab' ref={ ( el ) => { this.props.data.set_elem( el ); } }>
+                { 'Loading...' }
             </div>
         );
     }
-});
+}
 
-var MainView = React.createClass({
-    render: function() {
+class TabsView extends React.Component {
+
+    constructor( props ) {
+        super( props );
+        this.state = {
+            tabs: tabs.all_tabs(),
+            active_key: 'welcome'
+        };
+    }
+
+    componentDidMount() {
+        tabs.init();
+        tabs.register_tabs_listener( this );
+    }
+
+    on_tab_added( tab ) {
+        var active_tab = tabs.active();
+        this.setState( {
+            tabs: tabs.all_tabs(),
+            active_key: active_tab != null ? active_tab.id : 'welcome'
+        } );
+    }
+
+    on_tab_removed( tab ) {
+        var active_tab = tabs.active();
+        this.setState( {
+            tabs: tabs.all_tabs(),
+            active_key: active_tab != null ? active_tab.id : 'welcome'
+        } );
+    }
+
+    on_tab_selected( tab ) {
+        var active_tab = tabs.active();
+        this.setState( {
+            tabs: tabs.all_tabs(),
+            active_key: active_tab != null ? active_tab.id : 'welcome'
+        } );
+    }
+
+    render() {
+        var tab_components = tabs.all_tabs().map( ( it, idx ) => (
+            <ReactBootstrap.Tab key={ it.id } eventKey={ it.id } title={ <span>{ it.title } <span onClick={ () => { it.obj.close(); } }>{ '(X)' }</span></span> }>
+                <ContentTab data={ it.obj }/>
+            </ReactBootstrap.Tab>
+        ) );
+        return (
+            <ReactBootstrap.Tabs defaultActiveKey='welcome'
+                                 activeKey={ this.state.active_key }
+                                 onSelect={ ( key ) => { tabs.select( key ); } }
+                                 id="tabs">
+                <ReactBootstrap.Tab eventKey="welcome" title="Begin">
+                    <WelcomeTab/>
+                </ReactBootstrap.Tab>
+                { tab_components }
+            </ReactBootstrap.Tabs>
+        );
+    }
+}
+
+class MainView extends React.Component {
+    render() {
         return (
             <div id='main'>
                 <TabsView/>
             </div>
         );
     }
-});
+}
 
-var Application = React.createClass({
-  render: function() {
+class Application extends React.Component {
+  render() {
     return (
        <div id="page">
-         <Header/>
-         <Trash/>
+         <div>
+           <Header/>
+           <Trash/>
+         </div>
          <MainView/>
        </div>
      );
    }
-});
+}
 
 var window_width = 0;
 var window_height = 0;
@@ -195,9 +244,9 @@ $(document).keypress( function( e ) {
 
     e = window.event || e;
 
-    tab = tabs.active();
+    var tab = tabs.active();
+    var obj = tab.obj;
 
-    obj = tab.data( 'obj' );
     if( obj && obj.display ) {
         switch( e.charCode ) {
             case 116: // t
@@ -261,16 +310,11 @@ $( window ).resize( function() {
     window_width = width;
     window_height = height;
 
-    var head_h = $( '#header' ).height();
-    var main_h = height - head_h;
-
-    $( '#main' ).height( main_h - 50 );
-    $( '#tabs' ).tabs( 'refresh' );
-
     var tab = tabs.active();
-    var obj = tab.data( 'obj' );
-    if( obj && obj.display ) {
-        obj.on_event( { type: 'resized' } );
+    if( tab ) {
+        if( tab.obj && tab.obj.display ) {
+            tab.obj.on_event( { type: 'resized' } );
+        }
     }
 } );
 

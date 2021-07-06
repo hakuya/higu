@@ -9,7 +9,9 @@ cd $HIGUHOME
 JQUERY_VER=1.10.2
 JQUERY_UI_VER=1.10.3
 JQUERY_UI_THEME=smoothness
-REACT_VER=15.6.2
+REACT_VER=16.8.6
+REACT_BS_VER=1.6.1
+BOOTSTRAP_VER=4.6.0
 BABEL_CORE_VER=5.2.17
 
 rm -rf $HIGUHOME/static/libs
@@ -28,6 +30,8 @@ rm -rf "jquery-ui-themes-${JQUERY_UI_VER}.zip" "jquery-ui-themes-${JQUERY_UI_VER
 
 echo 'Downloading and installing React'
 echo '============================================================'
-wget "https://unpkg.com/react@${REACT_VER}/dist/react.js" -O react.js
-wget "https://unpkg.com/react-dom@${REACT_VER}/dist/react-dom.js" -O react-dom.js
+wget "https://unpkg.com/react@${REACT_VER}/umd/react.development.js" -O react.js
+wget "https://unpkg.com/react-dom@${REACT_VER}/umd/react-dom.development.js" -O react-dom.js
+wget "https://unpkg.com/react-bootstrap@${REACT_BS_VER}/dist/react-bootstrap.js" -O react-bootstrap.js
+wget "https://cdn.jsdelivr.net/npm/bootstrap@${BOOTSTRAP_VER}/dist/css/bootstrap.css" -O bootstrap.css
 wget "https://unpkg.com/babel-core@${BABEL_CORE_VER}/browser.js" -O browser.js

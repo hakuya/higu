@@ -50,7 +50,7 @@ function load_async( request, obj, callback, data )
 
 function load_sync( request )
 {
-    result = null;
+    var result = null;
 
     $.ajax( {
         url:            '/callback_new',
@@ -68,7 +68,7 @@ function load_sync( request )
         }
     } );
 
-    if( result.result == 'err' && result.except == 'nosession' ) {
+    if( result != null && result.result == 'err' && result.except == 'nosession' ) {
         alert( 'Your session has expired' );
         document.location.href = '/';
         return null;
