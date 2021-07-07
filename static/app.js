@@ -213,6 +213,304 @@ class MainView extends React.Component {
     }
 }
 
+class TagDialog extends React.Component {
+    constructor( props ) {
+        super( props );
+        this.state = {
+            show: false,
+            query: '',
+            errText: ''
+        }
+    }
+    show( data ) {
+        this.setState( {
+            show: true,
+            query: this.state.query,
+            errText: ''
+        } );
+    }
+    onApply( evt ) {
+        evt.preventDefault();
+
+        var tags = $( '#tags' ).val();
+        var tab = tabs.active();
+        var r = tab.obj.tag( tags );
+
+        if( r.result == 'ok' ) {
+            $( document ).focus();
+            this.setState( {
+                show: false,
+                query: tags,
+                errText: ''
+            } );
+        } else {
+            this.setState( {
+                show: true,
+                query: tags,
+                errText: r.msg
+            } );
+        }
+    }
+    onCancel() {
+        this.setState( {
+            show: false,
+            query: this.state.query,
+            errText: ''
+        } );
+    }
+    onEntered() {
+        $( '#tags' ).focus();
+        $( '#tags' ).select();
+    }
+    componentDidMount() {
+        dialogs.register_dialog( 'tag', this );
+    }
+    render() {
+        var Button = ReactBootstrap.Button;
+        var Modal = ReactBootstrap.Modal;
+
+        return (
+            <Modal show={ this.state.show }
+                   onEntered={ this.onEntered.bind( this ) }
+                   onHide={ this.onCancel.bind( this ) }>
+                <Modal.Header closeButton>
+                    <Modal.Title>Tag Image</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Enter a series of tags separated by spaces.
+                    Prefix a tag with a dash to remove it<br/>
+                    <span id='tag-err-text' className='err-text'>{ this.state.errText }</span></p>
+                    <form id='tag-dialog-form' onSubmit={ this.onApply.bind( this ) }><fieldset>
+                    <label htmlFor='tags'>Tags</label>
+                    <input type='text' name='tags' id='tags' defaultValue={ this.state.query }/>
+                    </fieldset></form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={ this.onApply.bind( this ) }>Apply</Button>
+                    <Button variant="secondary" onClick={ this.onCancel.bind( this ) }>Cancel</Button>
+                </Modal.Footer>
+            </Modal>
+        );
+    }
+}
+
+class DupDialog extends React.Component {
+    constructor( props ) {
+        super( props );
+        this.state = {
+            show: false,
+        }
+    }
+    show( data ) {
+        this.setState( {
+            show: true,
+            received: data.received,
+            dropped: data.dropped,
+        } );
+    }
+    onLink() {
+        tab.set_variant( this.state.received, this.state.dropped );
+        this.setState( {
+            show: false,
+        } );
+    }
+    onMerge() {
+        tab.merge_duplicates( this.state.received, this.state.dropped );
+        this.setState( {
+            show: false,
+        } );
+    }
+    onCancel() {
+        this.setState( {
+            show: false,
+        } );
+    }
+    componentDidMount() {
+        dialogs.register_dialog( 'dup', this );
+    }
+    render() {
+        var Button = ReactBootstrap.Button;
+        var Modal = ReactBootstrap.Modal;
+
+        return (
+            <Modal show={ this.state.show }
+                   onHide={ this.onCancel.bind( this ) }>
+                <Modal.Header closeButton>
+                    <Modal.Title>Link Image</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Select the relationship of the dropped image:</p>
+                    <ul>
+                        <li>Link: the dropped file is a variation</li>
+                        <li>Merge: the dropped file is a duplicate</li>
+                    </ul>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={ this.onLink.bind( this ) }>Link</Button>
+                    <Button variant="secondary" onClick={ this.onMerge.bind( this ) }>Merge</Button>
+                    <Button variant="secondary" onClick={ this.onCancel.bind( this ) }>Cancel</Button>
+                </Modal.Footer>
+            </Modal>
+        );
+    }
+}
+
+class NameDialog extends React.Component {
+    constructor( props ) {
+        super( props );
+        this.state = {
+            show: false,
+        }
+    }
+    show( data ) {
+        this.setState( {
+            show: true,
+        } );
+    }
+    onApply( evt ) {
+        evt.preventDefault();
+
+        var name = $( '#fname' ).val();
+        var saveOld = $( '#saveold' ).is( ':checked' );
+
+        tab.obj.rename( name, saveOld );
+
+        $( document ).focus();
+        this.setState( {
+            show: false,
+        } );
+    }
+    onCancel() {
+        $( document ).focus();
+        this.setState( {
+            show: false,
+        } );
+    }
+    onEntered() {
+        $( '#fname' ).focus();
+    }
+    componentDidMount() {
+        dialogs.register_dialog( 'name', this );
+    }
+    render() {
+        var Button = ReactBootstrap.Button;
+        var Modal = ReactBootstrap.Modal;
+
+        return (
+            <Modal show={ this.state.show }
+                   onEntered={ this.onEntered.bind( this ) }
+                   onHide={ this.onCancel.bind( this ) }>
+                <Modal.Header closeButton>
+                    <Modal.Title>Rename Image</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Enter a new filename</p>
+
+                    <form id='name-dialog-form' onSubmit={ this.onApply.bind( this ) }><fieldset>
+                    <label htmlFor='fname'>Name</label>
+                    <input type='text' name='fname' id='fname'/>
+                    { ' ' }
+                    <label htmlFor='saveold'>Save old name</label>
+                    <input type='checkbox' name='saveold' id='saveold'/>
+                    </fieldset></form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={ this.onApply.bind( this ) }>Apply</Button>
+                    <Button variant="secondary" onClick={ this.onCancel.bind( this ) }>Cancel</Button>
+                </Modal.Footer>
+            </Modal>
+        );
+    }
+}
+
+class TextDialog extends React.Component {
+    constructor( props ) {
+        super( props );
+        this.state = {
+            show: false,
+            text: ''
+        }
+    }
+    show( data ) {
+        this.setState( {
+            show: true,
+            text: data.text
+        } );
+    }
+    onCancel() {
+        $( document ).focus();
+        this.setState( {
+            show: false,
+        } );
+    }
+    componentDidMount() {
+        dialogs.register_dialog( 'text', this );
+    }
+    render() {
+        var Button = ReactBootstrap.Button;
+        var Modal = ReactBootstrap.Modal;
+
+        return (
+            <Modal show={ this.state.show }
+                   onHide={ this.onCancel.bind( this ) }>
+                <Modal.Header closeButton>
+                    <Modal.Title>Info</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <textarea id='info-text' style='width:100%;height:100%;resize:none' readonly='true'>{ this.state.text }</textarea>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={ this.onCancel.bind( this ) }>OK</Button>
+                </Modal.Footer>
+            </Modal>
+        );
+    }
+}
+
+class ErrorDialog extends React.Component {
+    constructor( props ) {
+        super( props );
+        this.state = {
+            show: false,
+            msg: ''
+        }
+    }
+    show( data ) {
+        this.setState( {
+            show: true,
+            msg: data.msg
+        } );
+    }
+    onCancel() {
+        $( document ).focus();
+        this.setState( {
+            show: false,
+        } );
+    }
+    componentDidMount() {
+        dialogs.register_dialog( 'err', this );
+    }
+    render() {
+        var Button = ReactBootstrap.Button;
+        var Modal = ReactBootstrap.Modal;
+
+        return (
+            <Modal show={ this.state.show }
+                   onHide={ this.onCancel.bind( this ) }>
+                <Modal.Header closeButton>
+                    <Modal.Title>Oops, something went wrong</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <span id='error-msg' dangerouslySetInnerHTML={{ __html: this.state.msg }}></span>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={ this.onCancel.bind( this ) }>OK</Button>
+                </Modal.Footer>
+            </Modal>
+        );
+    }
+}
+
 class Application extends React.Component {
   render() {
     return (
@@ -222,6 +520,12 @@ class Application extends React.Component {
            <Trash/>
          </div>
          <MainView/>
+
+         <TagDialog/>
+         <DupDialog/>
+         <NameDialog/>
+         <TextDialog/>
+         <ErrorDialog/>
        </div>
      );
    }
@@ -238,14 +542,14 @@ ReactDOM.render(
 );
 
 $(document).keypress( function( e ) {
-    if( $( '.ui-dialog' ).is( ':visible' ) || $( '.nokb' ).is( ':focus' ) ) {
+    if( $( '.modal-dialog' ).is( ':visible' ) || $( '.nokb' ).is( ':focus' ) ) {
         return;
     }
 
     e = window.event || e;
 
     var tab = tabs.active();
-    var obj = tab.obj;
+    var obj = tab ? tab.obj : null;
 
     if( obj && obj.display ) {
         switch( e.charCode ) {

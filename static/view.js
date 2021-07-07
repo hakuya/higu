@@ -434,8 +434,8 @@ var public_active = function()
  */
 var public_on_event = function( e )
 {
-    $( '#tabs > div' ).each( function( idx ) {
-        var obj = $( this ).data( 'obj' );
+    all_tabs.forEach( ( it ) => {
+        var obj = it.obj;
         if( obj && obj.on_event ) {
             obj.on_event( e );
         }
