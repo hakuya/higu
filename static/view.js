@@ -4,7 +4,6 @@ var TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
 var tabs = (function() {
 
 // Local module vars
-var tabs_elem = null;
 var tabs_counter = 1;
 
 var login_tab = null;
@@ -28,14 +27,21 @@ create_tab = function( title, obj )
         obj: obj,
         id: id_val
     };
-    all_tabs.push( tab );
-    active_tab_id = id_val;
 
     tabs_counter++;
 
-    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_added( tab ); } )
-
     return tab;
+};
+
+/**
+ * add_tab( tab ) - adds the given tab
+ */
+add_tab = function( tab )
+{
+    all_tabs.push( tab );
+    active_tab_id = tab.id;
+
+    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_added( tab ); } )
 };
 
 /**
@@ -45,7 +51,15 @@ TagslistTab = function()
 
     // Constructor
     {
-        this.elem = create_tab( "Taglist", this );
+        this.tab = create_tab( 'Taglist', this );
+        this.elem = null;
+    };
+
+    TagslistTab.prototype.set_elem = function( el )
+    {
+        if( this.elem != null ) return;
+
+        this.elem = $( el );
         this.elem.data( 'obj', this );
 
         this.load_content();
@@ -76,7 +90,7 @@ TagslistTab = function()
         } );
     };
 
-    TagslistTab.prototype.on_close = function()
+    TagslistTab.prototype.close = function()
     {
         tagslist_tab = null;
         tabs.remove( this );
@@ -103,8 +117,6 @@ LoginTab = function()
     {
         this.tab = create_tab( 'Login', this );
         this.elem = null;
-
-        this.load_content();
     };
 
     LoginTab.prototype.set_elem = function( el )
@@ -124,7 +136,7 @@ LoginTab = function()
         }
     };
 
-    LoginTab.prototype.on_close = function()
+    LoginTab.prototype.close = function()
     {
         login_tab = null;
         tabs.remove( this );
@@ -156,7 +168,15 @@ AdminTab = function()
 
     // Constructor
     {
-        this.elem = create_tab( "Admin", this );
+        this.tab = create_tab( 'Admin', this );
+        this.elem = null;
+    };
+
+    AdminTab.prototype.set_elem = function( el )
+    {
+        if( this.elem != null ) return;
+
+        this.elem = $( el );
         this.elem.data( 'obj', this );
 
         this.load_content();
@@ -219,7 +239,7 @@ AdminTab = function()
         });
     };
 
-    AdminTab.prototype.on_close = function()
+    AdminTab.prototype.close = function()
     {
         admin_tab = null;
         tabs.remove( this );
@@ -290,11 +310,6 @@ DisplayTab = function( title, provider )
     };
 
     DisplayTab.prototype.close = function()
-    {
-        this.on_close();
-    };
-
-    DisplayTab.prototype.on_close = function()
     {
         this.provider.close();
         tabs.remove( this );
@@ -387,25 +402,7 @@ DisplayTab = function( title, provider )
  * init() - Initialize the module
  */
 var public_init = function()
-{
-    tabs_elem = $( '#tabs' );
-
-    tabs_elem.tabs({
-        fit : true,
-        heightStyle : 'fill',
-        activate: function( e ) {
-            tabs.on_select();
-        }
-    });
-
-    tabs_elem.delegate( "span.ui-icon-close", "click", function() {
-        var panelId = $( this ).closest( "li" ).remove().attr( "aria-controls" );
-        var tab_elem = $( "#" + panelId );
-        var tab = tab_elem.data( 'obj' );
-        
-        tab.on_close();
-    });
-};
+{};
 
 /**
  * all_tabs() - returns all tabs
@@ -473,7 +470,8 @@ public_select = function( tab_id )
  */
 public_create_display_tab = function( title, provider )
 {
-    new DisplayTab( title, provider );
+    var dt = new DisplayTab( title, provider );
+    add_tab( dt.tab );
 }
 
 /**
@@ -487,6 +485,7 @@ public_show_login_tab = function()
     }
 
     login_tab = new LoginTab();
+    add_tab( login_tab.tab );
 }
 
 /**
@@ -500,6 +499,7 @@ public_show_admin_tab = function()
     }
 
     admin_tab = new AdminTab();
+    add_tab( admin_tab.tab );
 }
 
 /**
@@ -513,6 +513,7 @@ public_show_tagslist_tab = function()
     }
 
     tagslist_tab = new TagslistTab();
+    add_tab( tagslist_tab.tab );
 }
 
 /**
@@ -533,7 +534,6 @@ public_remove = function( obj )
         tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_removed( obj ); } )
 
         obj.elem.remove();
-        tabs_elem.tabs( "refresh" );
     }
 };
 

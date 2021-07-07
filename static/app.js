@@ -135,9 +135,12 @@ class WelcomeTab extends React.Component {
 }
 
 class ContentTab extends React.Component {
+    componentDidMount() {
+        this.props.data.set_elem( this.el );
+    }
     render() {
         return (
-            <div className='tab' ref={ ( el ) => { this.props.data.set_elem( el ); } }>
+            <div className='tab' ref={ ( el ) => { this.el = el } }>
                 { 'Loading...' }
             </div>
         );
