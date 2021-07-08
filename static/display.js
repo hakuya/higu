@@ -178,14 +178,6 @@ DisplayableBase = function()
         this.change_listeners = [];
     };
 
-    DisplayableBase.prototype.tag = function( tags )
-    {
-        return { result: 'notimpl' };
-    };
-
-    DisplayableBase.prototype.rename = function( name, saveold ) {};
-    DisplayableBase.prototype.drop = function( drop_data ) {};
-    DisplayableBase.prototype.rm = function( drop_data ) {};
     DisplayableBase.prototype.set_variant = function(
             original, variant ) {}
     DisplayableBase.prototype.clear_variant = function(
@@ -199,17 +191,18 @@ DisplayableBase = function()
     DisplayableBase.prototype.on_event = function( e ) { return null; };
     DisplayableBase.prototype.refresh_info = function( e ) {};
 
-    DisplayableBase.prototype.display_info = function( div )
-    {
-        div.html( '&nbsp;' );
-    };
-
     DisplayableBase.prototype.get_obj_id = function() { return null; };
     DisplayableBase.prototype.get_files = function() { return []; };
 
     DisplayableBase.prototype.register_change_listener = function( listener )
     {
         this.change_listeners.push( listener );
+    };
+
+    DisplayableBase.prototype.unregister_change_listener = function( listener )
+    {
+        var i = this.change_listeners.indexOf( listener );
+        this.change_listeners.splice( i, 1 );
     };
 
     DisplayableBase.prototype.notify_change = function( e )
@@ -228,6 +221,7 @@ DisplayableObject = function( obj_id, info )
     {
         DisplayableBase.call( this );
 
+        this.type = 'object';
         this.obj_id = obj_id;
         this.stream_id = null;
         this.info = info;
@@ -266,89 +260,6 @@ DisplayableObject = function( obj_id, info )
             return { result: 'ok' };
         } else {
             return response;
-        }
-    };
-
-    DisplayableObject.prototype.drop = function( drop_data )
-    {
-        var obj_id = drop_data.get_object()
-        var repr = drop_data.get_repr()
-        var type = drop_data.get_type()
-
-        if( this.info.type == 'file') {
-            if( obj_id == this.obj_id ) {
-                alert( 'Cannot drop file on itself' );
-                return;
-            } else if( type != 'file' ) {
-                alert( 'Only a file may be dropped on a file' );
-                return;
-            }
-
-            dialogs.show_dup_dialog( obj_id, this.obj_id );
-        } else {
-            if( type != 'file' && type != 'selection' ) {
-                alert( 'Only files may be added to albums' );
-                return;
-            }
-
-            var to_append = []
-            var files = drop_data.get_files()
-
-            var changed = false;
-            for( var i = 0; i < files.length; i++ ) {
-                var obj_id = files[i][0];
-
-                if( this.find_item( obj_id ) != -1 ) continue;
-                to_append.push( obj_id );
-                changed = true;
-            }
-            if( !changed ) {
-                alert( 'Already in album' );
-                return;
-            }
-
-            var request = {
-                action:     'group_append',
-                group:      this.obj_id,
-                targets:    to_append,
-            };
-
-            load_sync( request );
-            tabs.on_event( { type: 'files_changed', affected:
-                    [ this.obj_id ] } );
-            tabs.on_event( { type: 'info_changed', affected:
-                    [ obj_id ] } );
-        }
-    };
-
-    DisplayableObject.prototype.rm = function( drop_data )
-    {
-        var obj_id = drop_data.get_object()
-        var repr = drop_data.get_repr()
-        var type = drop_data.get_type()
-
-        if( this.info.type == 'file') {
-            alert( 'delete ' + repr );
-        } else {
-            if( obj_id == this.obj_id ) {
-                this.rm_group();
-                return;
-            } else if( this.find_item( obj_id ) == -1 ) {
-                alert( repr + ' not in album' );
-                return;
-            }
-
-            var request = {
-                action:     'group_remove',
-                group:      this.obj_id,
-                targets:    [ obj_id ],
-            };
-
-            load_sync( request );
-            tabs.on_event( { type: 'files_changed', affected:
-                    [ this.obj_id ] } );
-            tabs.on_event( { type: 'info_changed', affected:
-                    [ obj_id ] } );
         }
     };
 
@@ -521,7 +432,110 @@ DisplayableObject = function( obj_id, info )
             return;
         }
         
-        if( e.type == 'info_changed' ) {
+        if( e.type == 'key' ) {
+            switch( e.charCode ) {
+                case 116: // t
+                    dialogs.show_tag_dialog( this );
+                    break;
+                case 114: // r
+                    dialogs.show_name_dialog( this );
+                    break;
+                case 49: // 1
+                case 50: // 2
+                case 51: // 3
+                case 52: // 4
+                case 53: // 5
+                case 54: // 6
+                case 55: // 7
+                case 56: // 8
+                case 57: // 9
+                    this.on_event( { type: 'push_selection', selection: e.charCode - 49 } )
+                    break;
+                case 48: // 0
+                    this.on_event( { type: 'push_selection', selection: 10 } )
+                    break;
+                default:
+                    break;
+            }
+            return;
+        } else if( e.type == 'drop' ) {
+            var obj_id = e.drop_data.get_object()
+            var repr = e.drop_data.get_repr()
+            var type = e.drop_data.get_type()
+
+            if( this.info.type == 'file') {
+                if( obj_id == this.obj_id ) {
+                    alert( 'Cannot drop file on itself' );
+                    return;
+                } else if( type != 'file' ) {
+                    alert( 'Only a file may be dropped on a file' );
+                    return;
+                }
+
+                dialogs.show_dup_dialog( this, obj_id, this.obj_id );
+            } else {
+                if( type != 'file' && type != 'selection' ) {
+                    alert( 'Only files may be added to albums' );
+                    return;
+                }
+
+                var to_append = []
+                var files = e.drop_data.get_files()
+
+                var changed = false;
+                for( var i = 0; i < files.length; i++ ) {
+                    var obj_id = files[i][0];
+
+                    if( this.find_item( obj_id ) != -1 ) continue;
+                    to_append.push( obj_id );
+                    changed = true;
+                }
+                if( !changed ) {
+                    alert( 'Already in album' );
+                    return;
+                }
+
+                var request = {
+                    action:     'group_append',
+                    group:      this.obj_id,
+                    targets:    to_append,
+                };
+
+                load_sync( request );
+                tabs.on_event( { type: 'files_changed', affected:
+                        [ this.obj_id ] } );
+                tabs.on_event( { type: 'info_changed', affected:
+                        [ obj_id ] } );
+            }
+        } else if( e.type == 'trash' ) {
+            var obj_id = e.drop_data.get_object()
+            var repr = e.drop_data.get_repr()
+            var type = e.drop_data.get_type()
+
+            if( this.info.type == 'file') {
+                alert( 'delete ' + repr );
+            } else {
+                if( obj_id == this.obj_id ) {
+                    this.rm_group();
+                    return;
+                } else if( this.find_item( obj_id ) == -1 ) {
+                    alert( repr + ' not in album' );
+                    return;
+                }
+
+                var request = {
+                    action:     'group_remove',
+                    group:      this.obj_id,
+                    targets:    [ obj_id ],
+                };
+
+                load_sync( request );
+                tabs.on_event( { type: 'files_changed', affected:
+                        [ this.obj_id ] } );
+                tabs.on_event( { type: 'info_changed', affected:
+                        [ obj_id ] } );
+            }
+        } else if( e.type == 'info_changed' ) {
             this.refresh_info( e );
         } else if( e.type == 'files_changed' ) {
             this.refresh_info( e );
@@ -530,11 +544,20 @@ DisplayableObject = function( obj_id, info )
             if( selection == null ) return;
 
             if( this.info.type == 'file') {
-                selection.drop( util.make_basic_drop_data(
-                    this.obj_id, this.info.repr, this.info.type ) );
+                selection.on_event( {
+                    type: 'drop',
+                    drop_data: util.make_basic_drop_data(
+                                    this.obj_id,
+                                    this.info.repr,
+                                    this.info.type )
+                } );
             } else {
-                selection.drop( util.make_group_drop_data(
-                    this.obj_id, this.info.files, this.info.repr, this.info.type ) );
+                selection.on_event( {
+                    type: 'drop',
+                    drop_data: util.make_group_drop_data(
+                                    this.obj_id, this.info.files,
+                                    this.info.repr, this.info.type )
+                } );
             }
         }
     };
@@ -555,213 +578,6 @@ DisplayableObject = function( obj_id, info )
         this.info = response.info;
 
         this.notify_change( e );
-    };
-
-    DisplayableObject.prototype.display_info = function( div )
-    {
-        div.html( '' );
-
-        var label = $( '<div class="objlabel objitem"></div>' );
-        label.append( util.make_link( this.info.repr, this.obj_id ) );
-
-        if( this.info.type == 'file') {
-            util.make_draggable( label, util.make_basic_drop_data(
-                this.obj_id, this.info.repr, this.info.type ) );
-        } else {
-            util.make_draggable( label, util.make_group_drop_data(
-                this.obj_id, this.info.files, this.info.repr, this.info.type ) );
-        }
-
-        div.append( label );
-        div.append( '<br/>' );
-
-        /* Display album info?
-    #        if( isinstance( obj, higu.Album ) ):
-    #
-    #            html.header( 'Files' )
-    #            fs = obj.get_files()
-    #            html.list( '<a href="javascript:selectfromalbum( %d, %d )">%s</a>', fs,
-    #                    lambda x: ( obj.get_id(), x.get_id(), x.get_repr(), ) )
-        */
-
-        div.append( '<h1>Tags</h1>' );
-        div.append( "<ul class='infotaglist'></ul>" );
-        var ls = div.find( '.infotaglist' );
-
-        for( var i = 0; i < this.info.tags.length; i++ ) {
-            var li = TAGLINK_TEMPLATE.replace( /#\{tag\}/g, this.info.tags[i]);
-            ls.append( li );
-        }
-
-        div.append( '<h1>Names</h1>' );
-        div.append( "<ul class='infonamlist'></ul>" );
-        ls = div.find( '.infonamlist' );
-
-        for( var i = 0; i < this.info.names.length; i++ ) {
-            var li = '<li>' + this.info.names[i] + '</li>'
-            ls.append( li );
-        }
-
-        if( this.info.origin_time !== null ) {
-            div.append( 'Created: ' + this.info.origin_time + '<br/>' );
-        }
-        if( this.info.creation_time !== null ) {
-            div.append( 'Added: ' + this.info.creation_time + '<br/>' );
-        }
-
-        if( this.info.type == 'file') {
-            this.display_file_info( div );
-        } else {
-            this.display_group_info( div );
-        }
-    };
-
-    DisplayableObject.prototype.display_file_info = function( div )
-    {
-        div.append( 'Size: ' + this.info.width + 'x' + this.info.height + '<br/>' );
-        if( this.info.albums && this.info.albums.length > 0 ) {
-            div.append( 'Albums: ' );
-            div.append( util.make_link_list( this.info.albums ) );
-            div.append( '<br/>' );
-        }
-
-        if( this.info.variants_of && this.info.variants_of.length > 0 ) {
-            rem_variant_of_action = function( e ) {
-                target = $( this ).data( 'target' );
-                extra = $( this ).data( 'extra' );
-                extra.obj.clear_variant( target, extra.obj.obj_id );
-            }
-
-            actions = [ { label: 'del',
-                          extra: { obj: this, },
-                          action: rem_variant_of_action, } ]
-
-            div.append( 'Variant of: ' );
-            div.append( util.make_link_list( this.info.variants_of, actions ) );
-            div.append( '<br/>' );
-        }
-
-        if( this.info.variants && this.info.variants.length > 0 ) {
-            rem_variant_action = function( e ) {
-                target = $( this ).data( 'target' );
-                extra = $( this ).data( 'extra' );
-                extra.obj.clear_variant( extra.obj.obj_id, target );
-            }
-
-            actions = [ { label: 'del',
-                          extra: { obj: this, },
-                          action: rem_variant_action, } ]
-
-            div.append( 'Variants: ' );
-            div.append( util.make_link_list( this.info.variants, actions ) );
-            div.append( '<br/>' );
-        }
-
-        div.append( 'Transform: ' );
-        var xform_auto = $( '<a href="#">auto</a>' );
-        xform_auto.data( 'obj', this );
-        xform_auto.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.transform( 'auto_orientation' );
-        });
-        div.append( xform_auto );
-        div.append( ', ' );
-        var rotate_ccw = $( '<a href="#">ccw</a>' );
-        rotate_ccw.data( 'obj', this );
-        rotate_ccw.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.transform( 'rotate_ccw' );
-        });
-        div.append( rotate_ccw );
-        div.append( ', ' );
-        var rotate_cw = $( '<a href="#">cw</a>' );
-        rotate_cw.data( 'obj', this );
-        rotate_cw.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.transform( 'rotate_cw' );
-        });
-        div.append( rotate_cw );
-        div.append( ', ' );
-        var mirror = $( '<a href="#">mirror</a>' );
-        mirror.data( 'obj', this );
-        mirror.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.transform( 'mirror' );
-        });
-        div.append( mirror );
-        div.append( '<br/>' );
-
-        if( this.stream_id === null ) {
-            var vieworig = $( '<a href="/img?id=' + this.obj_id +'"'
-                            + ' target="_blank">View Fullsize</a><br/>' );
-            div.append( vieworig );
-        } else {
-            var vieworig = $( '<a href="/img?id=' + this.obj_id
-                            + '&stream=' + this.stream_id + '"'
-                            + ' target="_blank">View Fullsize</a><br/>' );
-            div.append( vieworig );
-        }
-
-        if( this.info.dup_streams && this.info.dup_streams.length > 0 ) {
-            div.append( '<h1>Alternates</h1>' );
-            if( this.stream_id !== null ) {
-                var setmain = $( '<a href="#">Set as Main</a><br/>' );
-                setmain.click(
-                    { "obj" : this, },
-                    function( e ) {
-                        e.data.obj.set_as_main_stream( null );
-                    });
-                div.append( setmain );
-                var viewmain = $( '<a href="#">View Main</a><br/>' );
-                viewmain.click(
-                    { "obj" : this, },
-                    function( e ) {
-                        e.data.obj.show_stream( null );
-                    });
-                div.append( viewmain );
-            }
-
-            div.append( 'Duplicates: ' );
-
-            for( var i = 0; i < this.info.dup_streams.length; i++ ) {
-                var viewdup = $( '<a href="#">' + (i + 1) + '</a> ' );
-                viewdup.click(
-                    {
-                        "obj" : this,
-                        "stream_id" : this.info.dup_streams[i],
-                    }, function( e ) {
-                        e.data.obj.show_stream( e.data.stream_id );
-                    });
-                div.append( viewdup );
-            }
-            div.append( '<br/>' );
-        }
-
-        activate_links( div );
-    };
-
-    DisplayableObject.prototype.display_group_info = function( div )
-    {
-        if( this.info.text ) {
-            var view_text = $( '<a href="#">View text</a><br/>' );
-            view_text.data( 'obj', this );
-            view_text.click( function( e ) {
-                obj = $( this ).data( 'obj' );
-                dialogs.show_text_dialog( obj.info.text );
-            });
-
-            div.append( view_text );
-        }
-
-        var gather = $( '<a href="#">Gather Tags</a><br/>' );
-        gather.data( 'obj', this );
-        gather.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.gather_tags();
-        });
-        div.append( gather );
-
-        activate_links( div );
     };
 
     DisplayableObject.prototype.find_item = function( obj_id )
@@ -804,6 +620,7 @@ DisplayableSelection = function()
     {
         DisplayableBase.call( this );
 
+        this.type = 'selection';
         this.objs = [];
     }
 
@@ -827,42 +644,6 @@ DisplayableSelection = function()
         } else {
             return response;
         }
-    };
-
-    DisplayableSelection.prototype.rename = function( name, saveold )
-    {
-        alert( 'Selections cannot be renamed' );
-    };
-
-    DisplayableSelection.prototype.drop = function( drop_data )
-    {
-        var files = drop_data.get_files()
-        var repr = drop_data.get_repr()
-        var type = drop_data.get_type()
-
-        var changed = false;
-        for( var i = 0; i < files.length; i++ ) {
-            if( this.find_item( files[i][0] ) != -1 ) continue;
-            this.objs.push( files[i] );
-            changed = true;
-        }
-        if( !changed ) return;
-
-        this.notify_change( null );
-        alert( 'dropped ' + type + ' ' + repr + ' on selection' );
-    };
-
-    DisplayableSelection.prototype.rm = function( drop_data )
-    {
-        var obj_id = drop_data.get_object()
-        var repr = drop_data.get_repr()
-        var type = drop_data.get_type()
-
-        index = this.find_item( obj_id );
-        if( index == -1 ) return;
-
-        this.objs.splice( index, 1 );
-        this.notify_change( null );
     };
 
     DisplayableSelection.prototype.make_group = function()
@@ -949,52 +730,34 @@ DisplayableSelection = function()
         this.notify_change( null );
     };
 
-    DisplayableSelection.prototype.display_info = function( div )
+    DisplayableSelection.prototype.on_event = function( e )
     {
-        div.html( '' );
+        if( e.type == 'drop' ) {
+            var files = e.drop_data.get_files()
+            var repr = e.drop_data.get_repr()
+            var type = e.drop_data.get_type()
 
-        var label = $( '<div class="objlabel objitem">Selection</div>' );
-        util.make_draggable( label, {
-            selection: this,
+            var changed = false;
+            for( var i = 0; i < files.length; i++ ) {
+                if( this.find_item( files[i][0] ) != -1 ) continue;
+                this.objs.push( files[i] );
+                changed = true;
+            }
+            if( !changed ) return;
 
-            get_object: function() { return null; },
-            get_files:  function() { return this.selection.get_files(); },
-            get_repr:   function() { return 'Selection'; },
-            get_type:   function() { return 'selection'; },
-        });
+            this.notify_change( null );
+            alert( 'dropped ' + type + ' ' + repr + ' on selection' );
+        } else if( e.type == 'trash' ) {
+            var obj_id = e.drop_data.get_object()
+            var repr = e.drop_data.get_repr()
+            var type = e.drop_data.get_type()
 
-        div.append( label );
-        div.append( '<h1>Options</h1>' );
+            index = this.find_item( obj_id );
+            if( index == -1 ) return;
 
-        var ul = $( document.createElement( 'ul' ) ); div.append( ul );
-        var li;
-
-        li = $( document.createElement( 'li' ) ); ul.append( li );
-        var tool = $( '<a href="#">Sort by ID</a>' );
-        tool.data( 'obj', this );
-        tool.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.sort_by_id();
-        });
-        li.append( tool );
-
-        li = $( document.createElement( 'li' ) ); ul.append( li );
-        var tool = $( '<a href="#">Sort by Name</a>' );
-        tool.data( 'obj', this );
-        tool.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.sort_by_name();
-        });
-        li.append( tool );
-
-        li = $( document.createElement( 'li' ) ); ul.append( li );
-        var tool = $( '<a href="#">Make Album</a>' );
-        tool.data( 'obj', this );
-        tool.click( function( e ) {
-            obj = $( this ).data( 'obj' );
-            obj.make_group();
-        });
-        li.append( tool );
+            this.objs.splice( index, 1 );
+            this.notify_change( null );
+        }
     };
 
     DisplayableSelection.prototype.find_item = function( obj_id )
@@ -1091,7 +854,27 @@ ImageView = function()
             return;
         }
 
-        if( e.type == 'resized' || e.type == 'focused' ) {
+        if( e.type == 'key' ) {
+            switch( e.charCode ) {
+                case 97: // a
+                    this.on_event( { type: 'zoom', zoom: -0.5 } )
+                    break;
+                case 115: // s
+                    this.on_event( { type: 'zoom', zoom: -2.0 } )
+                    break;
+                case 122: // z
+                    this.on_event( { type: 'zoom', zoom: 1.0 } )
+                    break;
+                case 120: // x
+                    this.on_event( { type: 'zoom', zoom: 'fit_outside' } )
+                    break;
+                case 99:  // c
+                    this.on_event( { type: 'zoom', zoom: 'fit_inside' } )
+                    break;
+                default:
+                    break;
+            }
+        } else if( e.type == 'resized' || e.type == 'focused' ) {
             this.viewer.refresh();
         } else if( e.type == 'zoom' ) {
             this.viewer.set_zoom( e.zoom );
@@ -1259,123 +1042,28 @@ ThumbView = function()
         }
     };
 
-/**
- * class Display
- */
-Display = function( disp, view )
-
-    // Constructor
-    {
-        this.disp = disp;
-        this.view = view;
-        this.pane = null;
-
-        this.disp.register_change_listener( this );
-    }
-
-    Display.prototype.attach = function( pane )
-    {
-        this.pane = pane;
-        this.on_display( true );
-    };
-
-    Display.prototype.tag = function( tags )
-    {
-        return this.disp.tag( tags );
-    };
-
-    Display.prototype.rename = function( name, saveold )
-    {
-        this.disp.rename( name, saveold );
-    };
-
-    Display.prototype.drop = function( drop_data )
-    {
-        this.disp.drop( drop_data )
-    };
-
-    Display.prototype.rm = function( drop_data )
-    {
-        this.disp.rm( drop_data )
-    };
-
-    Display.prototype.set_variant = function(
-            original, variant )
-    {
-        this.disp.set_variant( original, variant );
-    };
-
-    Display.prototype.clear_variant = function(
-            original, variant )
-    {
-        this.disp.clear_variant( original, variant );
-    };
-
-    Display.prototype.merge_duplicates = function( original, duplicate )
-    {
-        this.disp.merge_duplicates( original, duplicate );
-    }
-
-    Display.prototype.reorder = function( drop_data, idx )
-    {
-        this.disp.reorder( drop_data, idx );
-    };
-
-    Display.prototype.on_event = function( e )
-    {
-        this.disp.on_event( e );
-        this.view.on_event( e );
-
-        if( e.affected
-         && e.affected.indexOf( this.disp.get_obj_id() ) != -1
-         && e.type == 'removed' )
-        {
-            return public_make_dummy_display( 'This object has been removed' );
-        } else {
-            return null;
-        }
-    };
-
-    Display.prototype.on_display = function( refresh_view )
-    {
-        var info_div = this.pane.find( '.info' );
-        var view_div = this.pane.find( '.disp' );
-
-        this.disp.display_info( info_div );
-        if( refresh_view ) {
-            this.view.display_view( this.disp, view_div );
-        }
-    };
-
-    Display.prototype.refresh_info = function( reload_all )
-    {
-        this.disp.refresh_info( reload_all );
-    };
-
-    Display.prototype.on_displayable_changed = function( disp, e )
-    {
-        this.on_display( e == null || e.type == 'files_changed' );
-    };
-
 var make_file_display = function( obj_id, info )
 {
-    disp = new DisplayableObject( obj_id, info );
-    view = new ImageView();
-    return new Display( disp, view );
+    return {
+        disp: new DisplayableObject( obj_id, info ),
+        view: new ImageView()
+    }
 };
 
 var make_group_display = function( obj_id, info )
 {
-    disp = new DisplayableObject( obj_id, info );
-    view = new ThumbView();
-    return new Display( disp, view );
+    return {
+        disp: new DisplayableObject( obj_id, info ),
+        view: new ThumbView()
+    }
 };
 
 var public_make_dummy_display = function( msg )
 {
-    disp = new DisplayableBase();
-    view = new HtmlView( '<p>' + msg + '</p>');
-    return new Display( disp, view );
+    return {
+        disp: new DisplayableBase(),
+        view: new HtmlView( '<p>' + msg + '</p>')
+    }
 };
 
 /**
@@ -1412,9 +1100,10 @@ var public_make_object_display = function( obj_id )
  */
 var public_make_selection_display = function()
 {
-    disp = new DisplayableSelection();
-    view = new ThumbView();
-    return new Display( disp, view );
+    return {
+        disp: new DisplayableSelection(),
+        view: new ThumbView()
+    }
 };
 
 var public_register_selection = function( selection )

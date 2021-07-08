@@ -1,4 +1,5 @@
-class QueryLink extends React.Component {
+class QueryLink extends React.Component
+{
     handleClick() {
         var provider = new tabs.SearchProvider( { mode: this.props.mode } );
         tabs.create_display_tab( this.props.tabTitle, provider );
@@ -10,7 +11,8 @@ class QueryLink extends React.Component {
     }
 }
 
-class SelectionLink extends React.Component {
+class SelectionLink extends React.Component
+{
     handleClick() {
         var provider = new tabs.SelectionProvider();
         tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
@@ -22,7 +24,8 @@ class SelectionLink extends React.Component {
     }
 }
 
-class TaglistLink extends React.Component {
+class TaglistLink extends React.Component
+{
     render() {
         return (
             <a href='#' onClick={ tabs.show_tagslist_tab }>taglist</a>
@@ -30,7 +33,8 @@ class TaglistLink extends React.Component {
     }
 }
 
-class AdminLink extends React.Component {
+class AdminLink extends React.Component
+{
     render() {
         return (
             <a href='#' onClick={ tabs.show_admin_tab }>admin</a>
@@ -38,7 +42,8 @@ class AdminLink extends React.Component {
     }
 }
 
-class LoginLink extends React.Component {
+class LoginLink extends React.Component
+{
     render() {
         return (
             <a href='#' onClick={ tabs.show_login_tab }>login</a>
@@ -46,7 +51,8 @@ class LoginLink extends React.Component {
     }
 }
 
-class QueryBox extends React.Component {
+class QueryBox extends React.Component
+{
     handleSubmit() {
         var tags = $( this.el ).children( 'input' ).val();
 
@@ -59,14 +65,18 @@ class QueryBox extends React.Component {
     }
     render() {
         return (
-            <form id='tagsearch' ref={ ( el ) => { this.el = el; } } style={{ display: 'inline' }} onSubmit={ this.handleSubmit.bind( this ) }>
+            <form id='tagsearch'
+                  ref={ ( el ) => { this.el = el; } }
+                  style={{ display: 'inline' }}
+                  onSubmit={ this.handleSubmit.bind( this ) }>
                 <input type="text" className='nokb'/>
             </form>
          );
     }
 }
 
-class Header extends React.Component {
+class Header extends React.Component
+{
     render() {
         if( document.username != null ) {
             return (
@@ -93,7 +103,8 @@ class Header extends React.Component {
     }
 }
 
-class Trash extends React.Component {
+class Trash extends React.Component
+{
     componentDidMount() {
         $( this.el ).droppable({
             accept: '.objitem',
@@ -103,12 +114,14 @@ class Trash extends React.Component {
                     return false;
                 }
 
-                tab = tabs.active();
-                item = $( ui.draggable );
+                var tab = tabs.active();
+                var item = $( ui.draggable );
                 
-                tab = tab.obj;
-                if( tab && tab.rm ) {
-                    tab.rm( item.data( 'drop_data' ) );
+                if( tab && tab.onEvent ) {
+                    tab.onEvent( {
+                        type: 'trash',
+                        drop_data: item.data( 'drop_data' )
+                    } );
                 }
 
                 ui.helper.addClass( 'dropped' );
@@ -122,7 +135,8 @@ class Trash extends React.Component {
     }
 }
 
-class WelcomeTab extends React.Component {
+class WelcomeTab extends React.Component
+{
     render() {
         return (
             <div className='tab' id='welcome-tab'>
@@ -134,20 +148,8 @@ class WelcomeTab extends React.Component {
     }
 }
 
-class ContentTab extends React.Component {
-    componentDidMount() {
-        this.props.data.set_elem( this.el );
-    }
-    render() {
-        return (
-            <div className='tab' ref={ ( el ) => { this.el = el } }>
-                { 'Loading...' }
-            </div>
-        );
-    }
-}
-
-class TabsView extends React.Component {
+class TabsView extends React.Component
+{
 
     constructor( props ) {
         super( props );
@@ -188,8 +190,17 @@ class TabsView extends React.Component {
 
     render() {
         var tab_components = tabs.all_tabs().map( ( it, idx ) => (
-            <ReactBootstrap.Tab key={ it.id } eventKey={ it.id } title={ <span>{ it.title } <span onClick={ () => { it.obj.close(); } }>{ '(X)' }</span></span> }>
-                <ContentTab data={ it.obj }/>
+            <ReactBootstrap.Tab key={ it.id }
+                                eventKey={ it.id }
+                                title={ <span>
+                                        { it.title }
+                                        { it.onClose &&
+                                            <span onClick={ () => {
+                                                it.onClose();
+                                            } }>{ '(X)' }</span>
+                                        }
+                                    </span> }>
+                <window.Tabs.ContentTab data={ it }/>
             </ReactBootstrap.Tab>
         ) );
         return (
@@ -206,7 +217,8 @@ class TabsView extends React.Component {
     }
 }
 
-class MainView extends React.Component {
+class MainView extends React.Component
+{
     render() {
         return (
             <div id='main'>
@@ -216,7 +228,8 @@ class MainView extends React.Component {
     }
 }
 
-class TagDialog extends React.Component {
+class TagDialog extends React.Component
+{
     constructor( props ) {
         super( props );
         this.state = {
@@ -231,13 +244,13 @@ class TagDialog extends React.Component {
             query: this.state.query,
             errText: ''
         } );
+        this.obj = data.obj;
     }
     onApply( evt ) {
         evt.preventDefault();
 
         var tags = $( '#tags' ).val();
-        var tab = tabs.active();
-        var r = tab.obj.tag( tags );
+        var r = this.obj.tag( tags );
 
         if( r.result == 'ok' ) {
             $( document ).focus();
@@ -297,7 +310,8 @@ class TagDialog extends React.Component {
     }
 }
 
-class DupDialog extends React.Component {
+class DupDialog extends React.Component
+{
     constructor( props ) {
         super( props );
         this.state = {
@@ -310,15 +324,16 @@ class DupDialog extends React.Component {
             received: data.received,
             dropped: data.dropped,
         } );
+        this.obj = data.obj;
     }
     onLink() {
-        tab.set_variant( this.state.received, this.state.dropped );
+        this.obj.set_variant( this.state.received, this.state.dropped );
         this.setState( {
             show: false,
         } );
     }
     onMerge() {
-        tab.merge_duplicates( this.state.received, this.state.dropped );
+        this.obj.merge_duplicates( this.state.received, this.state.dropped );
         this.setState( {
             show: false,
         } );
@@ -358,7 +373,8 @@ class DupDialog extends React.Component {
     }
 }
 
-class NameDialog extends React.Component {
+class NameDialog extends React.Component
+{
     constructor( props ) {
         super( props );
         this.state = {
@@ -369,6 +385,7 @@ class NameDialog extends React.Component {
         this.setState( {
             show: true,
         } );
+        this.obj = data.obj;
     }
     onApply( evt ) {
         evt.preventDefault();
@@ -376,7 +393,7 @@ class NameDialog extends React.Component {
         var name = $( '#fname' ).val();
         var saveOld = $( '#saveold' ).is( ':checked' );
 
-        tab.obj.rename( name, saveOld );
+        this.obj.rename( name, saveOld );
 
         $( document ).focus();
         this.setState( {
@@ -426,7 +443,8 @@ class NameDialog extends React.Component {
     }
 }
 
-class TextDialog extends React.Component {
+class TextDialog extends React.Component
+{
     constructor( props ) {
         super( props );
         this.state = {
@@ -470,7 +488,8 @@ class TextDialog extends React.Component {
     }
 }
 
-class ErrorDialog extends React.Component {
+class ErrorDialog extends React.Component
+{
     constructor( props ) {
         super( props );
         this.state = {
@@ -514,7 +533,8 @@ class ErrorDialog extends React.Component {
     }
 }
 
-class Application extends React.Component {
+class Application extends React.Component
+{
   render() {
     return (
        <div id="page">
@@ -552,59 +572,9 @@ $(document).keypress( function( e ) {
     e = window.event || e;
 
     var tab = tabs.active();
-    var obj = tab ? tab.obj : null;
 
-    if( obj && obj.display ) {
-        switch( e.charCode ) {
-            case 116: // t
-                dialogs.show_tag_dialog();
-                break;
-            case 114: // r
-                dialogs.show_name_dialog();
-                break;
-            case 65: // A
-                select_all();
-                break;
-            case 97: // a
-                obj.on_event( { type: 'zoom', zoom: -0.5 } )
-                break;
-            case 115: // s
-                obj.on_event( { type: 'zoom', zoom: -2.0 } )
-                break;
-            case 122: // z
-                obj.on_event( { type: 'zoom', zoom: 1.0 } )
-                break;
-            case 120: // x
-                obj.on_event( { type: 'zoom', zoom: 'fit_outside' } )
-                break;
-            case 99:  // c
-                obj.on_event( { type: 'zoom', zoom: 'fit_inside' } )
-                break;
-            case 106: // j
-                obj.down();
-                break;
-            case 107: // k
-                obj.up();
-                break;
-
-            case 49: // 1-9
-            case 50:
-            case 51:
-            case 52:
-            case 53:
-            case 54:
-            case 55:
-            case 56:
-            case 57:
-            case 58:
-                obj.on_event( { type: 'push_selection', selection: e.charCode - 49 } )
-                break;
-
-            case 48: // 0
-                obj.on_event( { type: 'push_selection', selection: 10 } )
-
-            default:
-        }
+    if( tab && tab.onEvent ) {
+        tab.onEvent( { type: 'key', charCode: e.charCode } );
     }
 });
 

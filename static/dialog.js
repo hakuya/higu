@@ -24,22 +24,23 @@ var public_show_dialog = function( name, data )
     dialog.obj.show( data );
 };
 
-var public_show_tag_dialog = function()
+var public_show_tag_dialog = function( obj )
 {
-    public_show_dialog( 'tag', {} );
+    public_show_dialog( 'tag', { obj: obj } );
 };
 
-var public_show_dup_dialog = function( dropped, received )
+var public_show_dup_dialog = function( obj, dropped, received )
 {
     public_show_dialog( 'dup', {
+        obj: obj,
         dropped: dropped,
         received: received,
     });
 };
 
-var public_show_name_dialog = function()
+var public_show_name_dialog = function( obj )
 {
-    public_show_dialog( 'name', {} );
+    public_show_dialog( 'name', { obj: obj } );
 };
 
 var public_show_text_dialog = function( text )

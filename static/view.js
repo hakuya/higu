@@ -17,14 +17,14 @@ var tabs_listeners = [];
 /**
  * create_tab( title ) - creates a tab with the given title
  */
-create_tab = function( title, obj )
+create_tab = function( title, type )
 {
     var count = tabs_counter;
     var id_val = 'tabs-' + count;
 
     var tab = {
         title: title,
-        obj: obj,
+        type: type,
         id: id_val
     };
 
@@ -43,360 +43,6 @@ add_tab = function( tab )
 
     tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_added( tab ); } )
 };
-
-/**
- * class TagslistTab
- */
-TagslistTab = function()
-
-    // Constructor
-    {
-        this.tab = create_tab( 'Taglist', this );
-        this.elem = null;
-    };
-
-    TagslistTab.prototype.set_elem = function( el )
-    {
-        if( this.elem != null ) return;
-
-        this.elem = $( el );
-        this.elem.data( 'obj', this );
-
-        this.load_content();
-    };
-
-    TagslistTab.prototype.on_content_ready = function( response )
-    {
-        if( response != null ) {
-            this.elem.html( response );
-        }
-
-        activate_links( this.elem.children().first() );
-    };
-
-    TagslistTab.prototype.load_content = function()
-    {
-        $.ajax( {
-            url:            '/taglist',
-            type:           'GET',
-            contentType:    'text/html',
-            thiz:           this,
-            success:        function( response ) {
-                this.thiz.on_content_ready( response );
-            },
-            error:          function( xhr ) {
-                dialogs.show_error_dialog( xhr.responseText );
-            }
-        } );
-    };
-
-    TagslistTab.prototype.close = function()
-    {
-        tagslist_tab = null;
-        tabs.remove( this );
-    };
-
-    TagslistTab.prototype.on_event = function( e )
-    {
-        if( e.type == 'info_changed' ) {
-            this.load_content();
-        }
-    }
-
-    TagslistTab.prototype.on_tags_changed = function()
-    {
-        this.on_content_invalidated();
-    };
-
-/**
- * class AdminTab
- */
-LoginTab = function()
-
-    // Constructor
-    {
-        this.tab = create_tab( 'Login', this );
-        this.elem = null;
-    };
-
-    LoginTab.prototype.set_elem = function( el )
-    {
-        if( this.elem != null ) return;
-
-        this.elem = $( el );
-        this.elem.data( 'obj', this );
-
-        this.load_content();
-    };
-
-    LoginTab.prototype.on_content_ready = function( response )
-    {
-        if( response != null ) {
-            this.elem.html( response );
-        }
-    };
-
-    LoginTab.prototype.close = function()
-    {
-        login_tab = null;
-        tabs.remove( this );
-    };
-
-    LoginTab.prototype.load_content = function()
-    {
-        thiz = this;
-
-        $.ajax( {
-            url:            '/login',
-            type:           'GET',
-            contentType:    'text/html',
-            success:        function( response ) {
-                thiz.on_content_ready( response );
-            },
-            error:          function( xhr ) {
-                dialogs.show_error_dialog( xhr.responseText );
-            }
-        } );
-    };
-
-    LoginTab.prototype.on_event = function( e ) {}
-
-/**
- * class AdminTab
- */
-AdminTab = function()
-
-    // Constructor
-    {
-        this.tab = create_tab( 'Admin', this );
-        this.elem = null;
-    };
-
-    AdminTab.prototype.set_elem = function( el )
-    {
-        if( this.elem != null ) return;
-
-        this.elem = $( el );
-        this.elem.data( 'obj', this );
-
-        this.load_content();
-    };
-
-    AdminTab.prototype.on_content_ready = function( response )
-    {
-        if( response != null ) {
-            this.elem.html( response );
-        }
-
-        // Delete
-        button = $( '#adm-tag-rm-button' );
-        button.click( function( e ) {
-            src = $( '#adm-tag-src' );
-            tgt = $( '#adm-tag-tgt' );
-
-            var request = {
-                action:     'tag_delete',
-                tag:        src.val(),
-            };
-            load_sync( request );
-
-            src.val( '' );
-            tgt.val( '' );
-        });
-
-        // Copy
-        button = $( '#adm-tag-cp-button' );
-        button.click( function( e ) {
-            src = $( '#adm-tag-src' );
-            tgt = $( '#adm-tag-tgt' );
-
-            var request = {
-                action:     'tag_copy',
-                tag:        src.val(),
-                target:     tgt.val(),
-            };
-            load_sync( request );
-
-            src.val( '' );
-            tgt.val( '' );
-        });
-
-        // Move
-        button = $( '#adm-tag-mv-button' );
-        button.click( function( e ) {
-            src = $( '#adm-tag-src' );
-            tgt = $( '#adm-tag-tgt' );
-
-            var request = {
-                action:     'tag_move',
-                tag:        src.val(),
-                target:     tgt.val(),
-            };
-            load_sync( request );
-
-            src.val( '' );
-            tgt.val( '' );
-        });
-    };
-
-    AdminTab.prototype.close = function()
-    {
-        admin_tab = null;
-        tabs.remove( this );
-    };
-
-    AdminTab.prototype.load_content = function()
-    {
-        thiz = this;
-
-        $.ajax( {
-            url:            '/admin',
-            type:           'GET',
-            contentType:    'text/html',
-            success:        function( response ) {
-                thiz.on_content_ready( response );
-            },
-            error:          function( xhr ) {
-                dialogs.show_error_dialog( xhr.responseText );
-            }
-        } );
-    };
-
-    AdminTab.prototype.on_event = function( e ) {}
-
-/**
- * class DisplayTab
- */
-DisplayTab = function( title, provider )
-
-    // Constructor
-    {
-        this.tab = create_tab( title, this );
-
-        this.elem = null;
-        this.provider = provider;
-        this.display = null;
-    };
-
-    DisplayTab.prototype.set_elem = function( el )
-    {
-        if( this.elem != null ) return;
-
-        this.elem = $( el );
-        this.elem.data( 'obj', this );
-
-        nav = $( '#tabs-tab-' + this.tab.id );
-
-        nav.data( 'tab', this );
-        nav.droppable({
-            accept: '.objitem',
-            hoverClass: 'ui-state-hover',
-            drop: function( event, ui ) {
-                if( ui.helper.is( '.dropped' ) ) {
-                    return false;
-                }
-
-                tab = $( this ).data( 'tab' );
-                item = $( ui.draggable );
-                item.draggable( 'option', 'revert', false );
-
-                tab.drop( item.data( 'drop_data' ) );
-
-                ui.helper.addClass( 'dropped' );
-            },
-        });
-
-        this.provider.init( this, 'on_init_complete' );
-    };
-
-    DisplayTab.prototype.close = function()
-    {
-        this.provider.close();
-        tabs.remove( this );
-    };
-
-    DisplayTab.prototype.tag = function( tags )
-    {
-        if( this.display ) {
-            return this.display.tag( tags );
-        } else {
-            return { result: 'ok' };
-        }
-    };
-
-    DisplayTab.prototype.rename = function( name, saveold )
-    {
-        if( this.display ) {
-            this.display.rename( name, saveold );
-        }
-    };
-
-    DisplayTab.prototype.set_variant = function( original, variant )
-    {
-        if( this.display ) {
-            this.display.set_variant( original, variant );
-        }
-    }
-
-    DisplayTab.prototype.merge_duplicates = function( original, duplicate )
-    {
-        if( this.display ) {
-            this.display.merge_duplicates( original, duplicate );
-        }
-    }
-
-    DisplayTab.prototype.drop = function( drop_data )
-    {
-        if( this.display ) {
-            this.display.drop( drop_data )
-        }
-    };
-
-    DisplayTab.prototype.rm = function( drop_data )
-    {
-        if( this.display ) {
-            this.display.rm( drop_data )
-        }
-    };
-
-    DisplayTab.prototype.down = function()
-    {
-        display = this.provider.next();
-        if( display ) {
-            this.display = display;
-            this.display.attach( this.elem );
-        }
-    };
-
-    DisplayTab.prototype.up = function()
-    {
-        display = this.provider.prev();
-        if( display ) {
-            this.display = display;
-            this.display.attach( this.elem );
-        }
-    };
-
-    DisplayTab.prototype.on_init_complete = function( display )
-    {
-        this.elem.html( '' );
-        this.elem.append( "<div class='info'></div>" );
-        this.elem.append( "<div class='disp'></div>" );
-
-        this.display = display;
-        this.display.attach( this.elem );
-    };
-
-    DisplayTab.prototype.on_event = function( e )
-    {
-        if( this.display ) {
-            display = this.display.on_event( e );
-            if( display ) {
-                this.display = display;
-                this.display.attach( this.elem );
-            }
-        }
-    };
 
 /**
  * init() - Initialize the module
@@ -432,9 +78,8 @@ var public_active = function()
 var public_on_event = function( e )
 {
     all_tabs.forEach( ( it ) => {
-        var obj = it.obj;
-        if( obj && obj.on_event ) {
-            obj.on_event( e );
+        if( it.onEvent ) {
+            it.onEvent( e );
         }
     });
 };
@@ -470,8 +115,15 @@ public_select = function( tab_id )
  */
 public_create_display_tab = function( title, provider )
 {
-    var dt = new DisplayTab( title, provider );
-    add_tab( dt.tab );
+    var dt = create_tab( title, 'display' );
+
+    dt.provider = provider;
+    dt.onClose = function() {
+        this.provider.close();
+        tabs.remove( this );
+    }
+
+    add_tab( dt );
 }
 
 /**
@@ -484,8 +136,13 @@ public_show_login_tab = function()
         return;
     }
 
-    login_tab = new LoginTab();
-    add_tab( login_tab.tab );
+    login_tab = create_tab( 'Login', 'login' );
+    login_tab.onClose = () => {
+        tabs.remove( login_tab );
+        login_tab = null;
+    }
+
+    add_tab( login_tab );
 }
 
 /**
@@ -498,8 +155,13 @@ public_show_admin_tab = function()
         return;
     }
 
-    admin_tab = new AdminTab();
-    add_tab( admin_tab.tab );
+    admin_tab = create_tab( 'Admin', 'admin' );
+    admin_tab.onClose = () => {
+        tabs.remove( admin_tab );
+        admin_tab = null;
+    }
+
+    add_tab( admin_tab );
 }
 
 /**
@@ -512,16 +174,21 @@ public_show_tagslist_tab = function()
         return;
     }
 
-    tagslist_tab = new TagslistTab();
-    add_tab( tagslist_tab.tab );
+    tagslist_tab = create_tab( 'Taglist', 'taglist' );
+    tagslist_tab.onClose = () => {
+        tabs.remove( tagslist_tab );
+        tagslist_tab = null;
+    }
+
+    add_tab( tagslist_tab );
 }
 
 /**
  * remove( elem ) - removes the given tab
  */
-public_remove = function( obj )
+public_remove = function( tab )
 {
-    var idx = all_tabs.findIndex( function( it ) { return it.obj === obj; } );
+    var idx = all_tabs.findIndex( function( it ) { return it === tab; } );
     if( idx >= 0 ) {
         if( active_tab_id == all_tabs[idx].id ) {
             if( idx == 0 ) {
@@ -531,9 +198,8 @@ public_remove = function( obj )
             }
         }
         all_tabs.splice( idx, 1 );
-        tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_removed( obj ); } )
+        tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_removed( tab ); } )
 
-        obj.elem.remove();
     }
 };
 
@@ -558,7 +224,7 @@ public_SelectionProvider = function()
     // Constructor
     {
         this.selection = displib.make_selection_display();
-        this.selection_id = displib.register_selection( this.selection );
+        this.selection_id = displib.register_selection( this.selection.disp );
     };
 
     // extends Provider
@@ -573,7 +239,7 @@ public_SelectionProvider = function()
 
     public_SelectionProvider.prototype.close = function()
     {
-        displib.unregister_selection( this.selection );
+        displib.unregister_selection( this.selection.disp );
     };
 
     public_SelectionProvider.prototype.repr = function()
