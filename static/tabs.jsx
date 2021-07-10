@@ -336,9 +336,9 @@ class InfoPane extends React.Component
 {
     render() {
         if( this.props.display.type == 'object' ) {
-            return ( <ObjectInfoPane display={ this.props.display }/> );
+            return ( <ObjectInfoPane display={ this.props.display } gen={ this.props.gen }/> );
         } else if( this.props.display.type == 'selection' ) {
-            return ( <SelectionInfoPane display={ this.props.display }/> );
+            return ( <SelectionInfoPane display={ this.props.display } gen={ this.props.gen }/> );
         } else {
             return ( <div className='info'/> );
         }
@@ -483,6 +483,18 @@ class ThumbViewPane extends React.Component
             size: (1 << exp_w),
         };
     }
+    componentDidUpdate() {
+        // We need to filter our selection, to 'deselect' items that no longer exist
+        var files = this.props.display.get_files();
+        var new_selection = this.state.selection.filter( ( it ) => {
+                                return files.findIndex( ( jt ) => {
+                                            return jt[0] == it[0];
+                                        } ) >= 0;
+                            } );
+        if( new_selection.length != this.state.selection.length ) {
+            this.setState( { selection: new_selection } );
+        }
+    }
     render() {
         // Workaround for jQuery exection when removing draggable during
         // drag event
@@ -499,7 +511,7 @@ class ThumbViewPane extends React.Component
                 <ul className='thumbslist'>
                     {
                         files.map( ( it, i ) => (
-                            <ThumbItem key={ i }
+                            <ThumbItem key={ it[0] }
                                        display={ this.props.display }
                                        view={ this }
                                        selected={ this.selectionIndexOf( it[0] ) >= 0 }
@@ -542,12 +554,14 @@ class ViewPane extends React.Component
         if( this.props.view.type == 'thumb' ) {
             return (
                 <ThumbViewPane display={ this.props.display }
-                               view={ this.props.view }/>
+                               view={ this.props.view }
+                               gen={ this.props.gen }/>
             );
         } else {
             return (
                 <MiscViewPane display={ this.props.display }
-                              view={ this.props.view }/>
+                              view={ this.props.view }
+                              gen={ this.props.gen }/>
             );
         }
     }
@@ -567,6 +581,7 @@ class DisplayTab extends React.Component
         this.setState( {
             display: this.state.display,
             view: this.state.view,
+            disp_gen: this.state.disp_gen,
             info_gen: this.state.info_gen + (bump_info ? 1 : 0),
             view_gen: this.state.view_gen + (bump_view ? 1 : 0)
         } );
@@ -608,6 +623,7 @@ class DisplayTab extends React.Component
         this.setState( {
             display: display.disp,
             view: display.view,
+            disp_gen: this.state.disp_gen ? this.state.disp_gen + 1 : 1,
             info_gen: this.state.info_gen ? this.state.info_gen + 1 : 1,
             view_gen: this.state.view_gen ? this.state.view_gen + 1 : 1
         } );
@@ -659,10 +675,13 @@ class DisplayTab extends React.Component
             return (
                 <div className='tab'
                      ref={ ( el ) => { this.el = el } }>
-                    <InfoPane display={ this.state.display } key={ 'i' + this.state.info_gen }/>
+                    <InfoPane display={ this.state.display }
+                              key={ 'i' + this.state.disp_gen }
+                              gen={ this.state.info_gen }/>
                     <ViewPane display={ this.state.display }
                               view={ this.state.view }
-                              key={ 'v' + this.state.view_gen }/>
+                              key={ 'v' + this.state.disp_gen }
+                              gen={ this.state.view_gen }/>
                 </div>
             );
         } else {
@@ -762,11 +781,11 @@ class TaglistTab extends React.Component {
         super( props );
         this.state = {}
 
-        this.props.data.onEvent = function( e ) {
+        this.props.data.onEvent = ( e ) => {
             if( e.type == 'info_changed' ) {
                 this.loadContent();
             }
-        }
+        };
 
         this.loadContent();
     }

@@ -523,17 +523,21 @@ DisplayableObject = function( obj_id, info )
                     return;
                 }
 
+                var targets = e.drop_data.get_files().map( ( it ) => {
+                                    return it[0];
+                                } )
+
                 var request = {
                     action:     'group_remove',
                     group:      this.obj_id,
-                    targets:    [ obj_id ],
+                    targets:    targets
                 };
 
                 load_sync( request );
                 tabs.on_event( { type: 'files_changed', affected:
                         [ this.obj_id ] } );
                 tabs.on_event( { type: 'info_changed', affected:
-                        [ obj_id ] } );
+                        [ obj_id ].concat( targets ) } );
             }
         } else if( e.type == 'info_changed' ) {
             this.refresh_info( e );
@@ -732,7 +736,16 @@ DisplayableSelection = function()
 
     DisplayableSelection.prototype.on_event = function( e )
     {
-        if( e.type == 'drop' ) {
+        if( e.type == 'key' ) {
+            switch( e.charCode ) {
+                case 116: // t
+                    dialogs.show_tag_dialog( this );
+                    break;
+                default:
+                    break;
+            }
+            return;
+        } else if( e.type == 'drop' ) {
             var files = e.drop_data.get_files()
             var repr = e.drop_data.get_repr()
             var type = e.drop_data.get_type()
@@ -748,15 +761,19 @@ DisplayableSelection = function()
             this.notify_change( null );
             alert( 'dropped ' + type + ' ' + repr + ' on selection' );
         } else if( e.type == 'trash' ) {
-            var obj_id = e.drop_data.get_object()
-            var repr = e.drop_data.get_repr()
-            var type = e.drop_data.get_type()
+            var files = e.drop_data.get_files();
+            var removed = false;
 
-            index = this.find_item( obj_id );
-            if( index == -1 ) return;
+            for( var i = 0; i < files.length; i++ ) {
+                var index = this.find_item( files[i][0] );
+                if( index == -1 ) continue;
+                this.objs.splice( index, 1 );
+                removed = true;
+            }
 
-            this.objs.splice( index, 1 );
-            this.notify_change( null );
+            if( removed ) {
+                this.notify_change( null );
+            }
         }
     };
 
