@@ -53,7 +53,9 @@ class LoginLink extends React.Component
 
 class QueryBox extends React.Component
 {
-    handleSubmit() {
+    handleSubmit( evt ) {
+        evt.preventDefault();
+
         var tags = $( this.el ).children( 'input' ).val();
 
         var provider = new tabs.SearchProvider( { query: tags } );
