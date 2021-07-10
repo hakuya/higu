@@ -93,6 +93,10 @@ class ObjectLabel extends React.Component
                 d.obj_id, d.info.files, d.info.repr, d.info.type ) );
         }
     }
+    componentDidUpdate() {
+        $( this.el ).draggable( 'destroy' );
+        this.componentDidMount();
+    }
     render() {
         var d = this.props.display;
         return (
@@ -115,6 +119,10 @@ class SelectionLabel extends React.Component
             get_repr:   function() { return 'Selection'; },
             get_type:   function() { return 'selection'; },
         });
+    }
+    componentDidUpdate() {
+        $( this.el ).draggable( 'destroy' );
+        this.componentDidMount();
     }
     render() {
         var d = this.props.display;
@@ -337,7 +345,183 @@ class InfoPane extends React.Component
     }
 }
 
-class ViewPane extends React.Component
+class ThumbTile extends React.Component
+{
+    componentDidMount() {
+        this.drop_data = {
+            view:   this.props.view,
+
+            obj_id: this.props.obj_id,
+            repr:   this.props.repr,
+            type:   this.props.type,
+
+            get_object: function() { return this.obj_id; },
+            get_repr:   function() { return this.repr; },
+            get_type:   function() { return this.type; },
+
+            get_files: function() {
+                if( this.view.selectionIndexOf( this.obj_id ) >= 0 ) {
+                    return this.view.state.selection;
+                } else {
+                    return [ [ this.obj_id, this.repr, this.type ] ];
+                }
+            },
+        };
+        util.make_draggable( $( this.el ), this.drop_data );
+    }
+    componentDidUpdate() {
+        $( this.el ).draggable( 'destroy' );
+        this.componentDidMount();
+    }
+    render() {
+        return (
+            <div ref={ ( el ) => { this.el = el; } }
+                 style={{
+                     width: this.props.metrics.size,
+                     height: this.props.metrics.size
+                 }}
+                 className={ 'albumlink objitem sortable' + (this.props.selected ? ' selected' : '') }>
+                <img src={ '/img?id=' + this.props.obj_id + '&exp=' + this.props.metrics.exp_i }
+                     style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                        }}
+                     onClick={ ( e ) => {
+                            e.preventDefault();
+
+                            if( e.metaKey ) {
+                                this.props.view.toggleSelection( this.drop_data );
+                            } else {
+                                var provider = null;
+
+                                if( this.props.group_id == null ) {
+                                    provider = new tabs.SingleProvider( this.props.obj_id );
+                                } else {
+                                    provider = new tabs.SearchProvider( {
+                                        mode:   'album',
+                                        album:  this.props.group_id,
+                                        index:  this.props.group_idx,
+                                    });
+                                }
+                                tabs.create_display_tab( this.props.repr, provider );
+                            }
+                        } }/>
+            </div>
+        );
+    }
+}
+
+class ThumbItem extends React.Component
+{
+    componentDidMount() {
+        util.make_sortable( this.props.display, $( this.el ), this.props.group_idx );
+    }
+    componentDidUpdate() {
+        $( this.el ).droppable( 'destroy' );
+        this.componentDidMount();
+    }
+    render() {
+        return (
+            <li ref={ ( el ) => { this.el = el; } }>
+                <ThumbTile display={ this.props.display }
+                           view={ this.props.view }
+                           selected={ this.props.selected }
+                           metrics={ this.props.metrics }
+                           obj_id={ this.props.obj_id }
+                           repr={ this.props.repr }
+                           type={ this.props.type }
+                           group_id={ this.props.group_id }
+                           group_idx={ this.props.group_idx }/>
+            </li>
+        );
+    }
+}
+
+class ThumbViewPane extends React.Component
+{
+    constructor( props ) {
+        super( props );
+        this.state = {
+            selection: []
+        };
+    }
+    toggleSelection( drop_data ) {
+        if( this.selectionIndexOf( drop_data.get_object() ) < 0 ) {
+            this.setState( {
+                selection: this.state.selection.concat(
+                            [ [ drop_data.get_object(),
+                                drop_data.get_repr(),
+                                drop_data.get_type() ] ] )
+            } );
+        } else {
+            this.setState( {
+                selection: this.state.selection.filter( ( it ) => {
+                                return it[0] != drop_data.get_object();
+                            } )
+            } );
+        }
+    }
+    selectionIndexOf( obj_id )
+    {
+        return this.state.selection.findIndex( ( it ) => {
+                    return it[0] == obj_id;
+                } );
+    }
+    computeMetrics() {
+        // Calculate the thumb tile exponent
+        var exp_w = 0;
+        while( (window.innerWidth / (1 << exp_w)) > 16 ) exp_w++;
+
+        // Calculate the exponent for the thumb image
+        var factor_i = 0;
+        while( window.devicePixelRatio > (1 << factor_i) ) factor_i++;
+        var exp_i = exp_w + factor_i;
+
+        return {
+            exp_w: exp_w,
+            exp_i: exp_i,
+            size: (1 << exp_w),
+        };
+    }
+    render() {
+        // Workaround for jQuery exection when removing draggable during
+        // drag event
+        //div.find( '.objitem' ).remove();
+        //div.html( '' );
+
+        var group_id = this.props.display.get_obj_id();
+        var files = this.props.display.get_files();
+
+        var metrics = this.computeMetrics();
+
+        return (
+            <div className='disp' ref={ ( el ) => { this.el = el; } }>
+                <ul className='thumbslist'>
+                    {
+                        files.map( ( it, i ) => (
+                            <ThumbItem key={ i }
+                                       display={ this.props.display }
+                                       view={ this }
+                                       selected={ this.selectionIndexOf( it[0] ) >= 0 }
+                                       metrics={ metrics }
+                                       obj_id={ it[0] }
+                                       repr={ it[1] }
+                                       type={ it[2] }
+                                       group_id={ this.props.display.get_obj_id() }
+                                       group_idx={ i }/>
+                        ) )
+                    }
+                    <li style={{
+                            width: metrics.size,
+                            height: metrics.size
+                        }}/>
+                </ul>
+            </div>
+        );
+    }
+}
+
+class MiscViewPane extends React.Component
 {
     componentDidMount() {
         this.componentDidUpdate();
@@ -352,6 +536,23 @@ class ViewPane extends React.Component
     }
 }
 
+class ViewPane extends React.Component
+{
+    render() {
+        if( this.props.view.type == 'thumb' ) {
+            return (
+                <ThumbViewPane display={ this.props.display }
+                               view={ this.props.view }/>
+            );
+        } else {
+            return (
+                <MiscViewPane display={ this.props.display }
+                              view={ this.props.view }/>
+            );
+        }
+    }
+}
+
 class DisplayTab extends React.Component
 {
     constructor( props ) {
@@ -361,6 +562,16 @@ class DisplayTab extends React.Component
         this.props.data.onEvent = ( e ) => { this.onEvent( e ) };
     }
 
+    bumpGen( bump_info, bump_view )
+    {
+        this.setState( {
+            display: this.state.display,
+            view: this.state.view,
+            info_gen: this.state.info_gen + (bump_info ? 1 : 0),
+            view_gen: this.state.view_gen + (bump_view ? 1 : 0)
+        } );
+    }
+
     onEvent( e )
     {
         if( e.type == 'key' && e.charCode == 106 /* j */ ) {
@@ -368,7 +579,7 @@ class DisplayTab extends React.Component
             if( display ) {
                 this.setDisplay( display );
             }
-        } else if( e.type =='key' && e.charCode == 107 /* k */ ) {
+        } else if( e.type == 'key' && e.charCode == 107 /* k */ ) {
             var display = this.props.data.provider.prev();
             if( display ) {
                 this.setDisplay( display );
@@ -397,8 +608,8 @@ class DisplayTab extends React.Component
         this.setState( {
             display: display.disp,
             view: display.view,
-            info_gen: 0,
-            view_gen: 0,
+            info_gen: this.state.info_gen ? this.state.info_gen + 1 : 1,
+            view_gen: this.state.view_gen ? this.state.view_gen + 1 : 1
         } );
     }
 
@@ -409,13 +620,7 @@ class DisplayTab extends React.Component
 
     on_displayable_changed( disp, e )
     {
-        this.setState( {
-            display: this.state.display,
-            view: this.state.view,
-            info_gen: this.state.info_gen + 1,
-            view_gen: e == null || e.type == 'files_changed'
-                        ? this.state.view_gen + 1 : this.state.view_gen
-        } );
+        this.bumpGen( true, (e == null || e.type == 'files_changed') );
     }
 
     componentDidMount()
@@ -454,10 +659,10 @@ class DisplayTab extends React.Component
             return (
                 <div className='tab'
                      ref={ ( el ) => { this.el = el } }>
-                    <InfoPane display={ this.state.display } gen={ this.state.info_gen }/>
+                    <InfoPane display={ this.state.display } key={ 'i' + this.state.info_gen }/>
                     <ViewPane display={ this.state.display }
                               view={ this.state.view }
-                              gen={ this.state.view_gen }/>
+                              key={ 'v' + this.state.view_gen }/>
                 </div>
             );
         } else {
