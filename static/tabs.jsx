@@ -264,7 +264,7 @@ class ObjectInfoPane extends React.Component
         var info = this.props.display.info;
 
         return (
-            <div className='info'>
+            <div className='iteminfo'>
                 <ObjectLabel display={ this.props.display }/> <br/>
                 <h1>Tags</h1>
                 <ul className='infotaglist'>
@@ -307,7 +307,7 @@ class SelectionInfoPane extends React.Component
         var info = this.props.display.info;
 
         return (
-            <div className='info'>
+            <div className='iteminfo'>
                 <SelectionLabel display={ this.props.display }/> <br/>
                 <h1>Options</h1>
                 <ul>
@@ -340,8 +340,41 @@ class InfoPane extends React.Component
         } else if( this.props.display.type == 'selection' ) {
             return ( <SelectionInfoPane display={ this.props.display } gen={ this.props.gen }/> );
         } else {
-            return ( <div className='info'/> );
+            return ( <div/> );
         }
+    }
+}
+
+class NavigatePane extends React.Component
+{
+    doNextPress() {
+        var tab = tabs.active();
+
+        if( tab && tab.onEvent ) {
+            tab.onEvent( { type: 'navigate', direction: 'next' } );
+        }
+    }
+    doPrevPress() {
+        var tab = tabs.active();
+
+        if( tab && tab.onEvent ) {
+            tab.onEvent( { type: 'navigate', direction: 'prev' } );
+        }
+    }
+    render() {
+        return (
+            <div className='navigate'>
+                <div className='prev'>
+                    <a href='#' onClick={ this.doPrevPress }> { '<< prev' } </a>
+                </div>
+                <div className='count'>
+                    { (this.props.provider.index + 1) + ' of ' + this.props.provider.count }
+                </div>
+                <div className='next'>
+                    <a href='#' onClick={ this.doNextPress }> { 'Next >>' } </a>
+                </div>
+            </div>
+        );
     }
 }
 
@@ -388,23 +421,7 @@ class ThumbTile extends React.Component
                         }}
                      onClick={ ( e ) => {
                             e.preventDefault();
-
-                            if( e.metaKey ) {
-                                this.props.view.toggleSelection( this.drop_data );
-                            } else {
-                                var provider = null;
-
-                                if( this.props.group_id == null ) {
-                                    provider = new tabs.SingleProvider( this.props.obj_id );
-                                } else {
-                                    provider = new tabs.SearchProvider( {
-                                        mode:   'album',
-                                        album:  this.props.group_id,
-                                        index:  this.props.group_idx,
-                                    });
-                                }
-                                tabs.create_display_tab( this.props.repr, provider );
-                            }
+                            this.props.view.itemClicked( e, this.drop_data );
                         } }/>
             </div>
         );
@@ -414,7 +431,7 @@ class ThumbTile extends React.Component
 class ThumbItem extends React.Component
 {
     componentDidMount() {
-        util.make_sortable( this.props.display, $( this.el ), this.props.group_idx );
+        util.make_sortable( this.props.display, $( this.el ), this.props.index );
     }
     componentDidUpdate() {
         $( this.el ).droppable( 'destroy' );
@@ -429,9 +446,7 @@ class ThumbItem extends React.Component
                            metrics={ this.props.metrics }
                            obj_id={ this.props.obj_id }
                            repr={ this.props.repr }
-                           type={ this.props.type }
-                           group_id={ this.props.group_id }
-                           group_idx={ this.props.group_idx }/>
+                           type={ this.props.type }/>
             </li>
         );
     }
@@ -444,6 +459,15 @@ class ThumbViewPane extends React.Component
         this.state = {
             selection: []
         };
+    }
+    openItem( drop_data ) {
+        var provider = this.props.display.create_provider( { start_id: drop_data.get_object() } );
+
+        if( !provider ) {
+            provider = new tabs.SingleProvider( drop_data.get_object() );
+        }
+
+        tabs.create_display_tab( drop_data.get_repr(), provider );
     }
     toggleSelection( drop_data ) {
         if( this.selectionIndexOf( drop_data.get_object() ) < 0 ) {
@@ -459,6 +483,13 @@ class ThumbViewPane extends React.Component
                                 return it[0] != drop_data.get_object();
                             } )
             } );
+        }
+    }
+    itemClicked( e, drop_data ) {
+        if( e.metaKey ) {
+            this.toggleSelection( drop_data );
+        } else {
+            this.openItem( drop_data );
         }
     }
     selectionIndexOf( obj_id )
@@ -519,8 +550,7 @@ class ThumbViewPane extends React.Component
                                        obj_id={ it[0] }
                                        repr={ it[1] }
                                        type={ it[2] }
-                                       group_id={ this.props.display.get_obj_id() }
-                                       group_idx={ i }/>
+                                       index={ i }/>
                         ) )
                     }
                     <li style={{
@@ -589,12 +619,16 @@ class DisplayTab extends React.Component
 
     onEvent( e )
     {
-        if( e.type == 'key' && e.charCode == 106 /* j */ ) {
+        if( e.type == 'key' && e.charCode == 106 /* j */
+         || e.type == 'navigate' && e.direction == 'next' )
+        {
             var display = this.props.data.provider.next();
             if( display ) {
                 this.setDisplay( display );
             }
-        } else if( e.type == 'key' && e.charCode == 107 /* k */ ) {
+        } else if( e.type == 'key' && e.charCode == 107 /* k */
+                || e.type == 'navigate' && e.direction == 'prev' )
+        {
             var display = this.props.data.provider.prev();
             if( display ) {
                 this.setDisplay( display );
@@ -675,9 +709,14 @@ class DisplayTab extends React.Component
             return (
                 <div className='tab'
                      ref={ ( el ) => { this.el = el } }>
-                    <InfoPane display={ this.state.display }
-                              key={ 'i' + this.state.disp_gen }
-                              gen={ this.state.info_gen }/>
+                    <div className='info'>
+                        <InfoPane display={ this.state.display }
+                                  key={ 'i' + this.state.disp_gen }
+                                  gen={ this.state.info_gen }/>
+                        { this.props.data.provider.count &&
+                          this.props.data.provider.count > 1 &&
+                            <NavigatePane provider={ this.props.data.provider }/> }
+                    </div>
                     <ViewPane display={ this.state.display }
                               view={ this.state.view }
                               key={ 'v' + this.state.disp_gen }

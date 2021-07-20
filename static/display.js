@@ -193,6 +193,7 @@ DisplayableBase = function()
 
     DisplayableBase.prototype.get_obj_id = function() { return null; };
     DisplayableBase.prototype.get_files = function() { return []; };
+    DisplayableBase.prototype.create_provider = function( args ) { return null; }
 
     DisplayableBase.prototype.register_change_listener = function( listener )
     {
@@ -615,6 +616,28 @@ DisplayableObject = function( obj_id, info )
         return this.info.files;
     };
 
+    DisplayableObject.prototype.create_provider = function( args )
+    {
+        if( this.info.type == 'album' ) {
+            search_args = {
+                mode: 'album',
+                album: this.obj_id,
+            }
+
+            if( args && args.start_id ) {
+                var start_idx = this.info.files.findIndex( ( it ) =>
+                                        { return it[0] == args.start_id; } );
+                if( start_idx >= 0 ) {
+                    search_args.index = start_idx;
+                }
+            }
+
+            return new tabs.SearchProvider( search_args );
+        } else {
+            return new tabs.SingleProvider( this.obj_id );
+        }
+    }
+
 /**
  * class DisplayableSelection
  */
@@ -802,6 +825,17 @@ DisplayableSelection = function()
     {
         return this.objs;
     };
+
+    DisplayableSelection.prototype.create_provider = function( args )
+    {
+        var provider = new tabs.ListProvider( this.objs );
+
+        if( args && args.start_id ) {
+            provider.obj_id = args.start_id;
+        }
+
+        return provider;
+    }
 
 /**
  * class ViewBase

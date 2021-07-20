@@ -225,6 +225,9 @@ public_SelectionProvider = function()
     {
         this.selection = displib.make_selection_display();
         this.selection_id = displib.register_selection( this.selection.disp );
+
+        this.index = null;
+        this.count = 1;
     };
 
     // extends Provider
@@ -269,6 +272,8 @@ public_SingleProvider = function( obj_id )
     // Constructor
     {
         this.obj_id = obj_id;
+        this.index = null;
+        this.count = 1;
     };
 
     // extends Provider
@@ -310,7 +315,9 @@ public_SearchProvider = function( query )
     {
         this.query = query;
         this.sid = null;
-        this.last = null;
+
+        this.index = null;
+        this.count = null;
     };
 
     // extends Provider
@@ -320,7 +327,7 @@ public_SearchProvider = function( query )
     public_SearchProvider.prototype.init = function( obj, callback )
     {
         if( this.sid ) {
-            return this.fetch( this.last );
+            return this.fetch( this.index );
         }
 
         var request = { action: 'search' };
@@ -349,7 +356,8 @@ public_SearchProvider = function( query )
     {
         if( response.result != 'ok' ) {
             this.sid = null;
-            this.last = null;
+            this.index = null;
+            this.count = null;
 
             if( response.msg ) {
                 display = displib.make_dummy_display(
@@ -360,12 +368,14 @@ public_SearchProvider = function( query )
             }
         } else if( response.results > 0 ) {
             this.sid = response.selection;
-            this.last = response.index;
+            this.index = response.index;
+            this.count = response.results;
 
             display = displib.make_object_display( response.first );
         } else {
             this.sid = null;
-            this.last = null;
+            this.index = null;
+            this.count = null;
 
             display = displib.make_dummy_display( 'The search had no results' );
         }
@@ -403,14 +413,14 @@ public_SearchProvider = function( query )
             return null;
         }
 
-        this.last = idx;
+        this.index = idx;
         display = displib.make_object_display( response.object_id );
         return display;
     };
 
     public_SearchProvider.prototype.offset = function( off )
     {
-        return this.fetch( this.last + off );
+        return this.fetch( this.index + off );
     };
 
     public_SearchProvider.prototype.next = function()
@@ -419,6 +429,73 @@ public_SearchProvider = function( query )
     };
 
     public_SearchProvider.prototype.prev = function()
+    {
+        return this.offset( -1 );
+    };
+
+/**
+ * class ListProvider
+ */
+public_ListProvider = function( list )
+
+    // Constructor
+    {
+        this.list = list;
+        this.obj_id = null;
+
+        this.index = null;
+        this.count = list.length;
+    };
+
+    // extends Provider
+    public_ListProvider.prototype = new public_Provider();
+    public_ListProvider.prototype.constructor = public_ListProvider;
+
+    public_ListProvider.prototype.init = function( obj, callback )
+    {
+        if( this.obj_id ) {
+            this.index = this.list.findIndex( ( it ) =>
+                                { return it[0] == this.obj_id; } );
+        }
+
+        if( !this.index || this.index < 0 || this.index >= this.list.length ) {
+            this.index = 0;
+        }
+
+        this.obj_id = this.list[this.index][0];
+
+        display = displib.make_object_display( this.obj_id );
+        eval( 'obj.' + callback + '( display )' );
+    };
+
+    public_ListProvider.prototype.repr = function()
+    {
+        return 'List';
+    };
+
+    public_ListProvider.prototype.fetch = function( idx )
+    {
+        if( idx < 0 || idx >= this.list.length ) {
+            return null;
+        }
+
+        this.index = idx;
+
+        this.obj_id = this.list[this.index][0];
+        return displib.make_object_display( this.obj_id );
+    };
+
+    public_ListProvider.prototype.offset = function( off )
+    {
+        return this.fetch( this.index + off );
+    };
+
+    public_ListProvider.prototype.next = function()
+    {
+        return this.offset( 1 );
+    };
+
+    public_ListProvider.prototype.prev = function()
     {
         return this.offset( -1 );
     };
@@ -440,6 +517,7 @@ return {
     SelectionProvider: public_SelectionProvider,
     SingleProvider: public_SingleProvider,
     SearchProvider: public_SearchProvider,
+    ListProvider: public_ListProvider,
 };
 
 })(); // module tabs
