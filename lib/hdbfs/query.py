@@ -7,9 +7,10 @@ import model
 
 class TagConstraint:
 
-    def __init__( self, tag ):
+    def __init__( self, tag, fuzzy = False ):
 
         self.__tag = tag
+        self.__fuzzy = fuzzy
 
     def get_preferred_order( self ):
 
@@ -17,20 +18,54 @@ class TagConstraint:
 
     def to_db_constraint( self, db ):
 
+        from sqlalchemy import and_
+
         if( isinstance( self.__tag, hdbfs.Obj ) ):
             tag = self.__tag
         elif( isinstance( self.__tag, int ) ):
             tag = db.get_object_by_id( self.__tag )
         else:
-            tag = db.get_tag( self.__tag )
-        return db.session.query( model.Relation.child_id ) \
-                 .filter( model.Relation.parent_id == tag.obj.object_id )
+            tag = str( self.__tag )
+            if( '*' in tag and self.__fuzzy ):
+                sql_s = tag.replace( '%', '[%]' ) \
+                           .replace( '*', '%' )
+                tag = db.session.query( model.Object.object_id ) \
+                        .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
+                        .filter( model.Object.name.like( sql_s ) )
+            else:
+                tag = db.get_tag( self.__tag )
 
-class StringConstraint:
+        if( isinstance( tag, hdbfs.Obj ) ):
+            return db.session.query( model.Relation.child_id ) \
+                     .filter( model.Relation.parent_id == tag.obj.object_id )
+        else:
+            return db.session.query( model.Relation.child_id ) \
+                     .filter( model.Relation.parent_id.in_( tag ) )
 
-    def __init__( self, s ):
+class NameConstraint:
 
-        self.__s = s
+    def __init__( self, op, s ):
+
+        from sqlalchemy import and_
+
+        if( op == '=' or op == '!=' ):
+
+            if( s is None ):
+                self.__constraint = (model.Object.name == None)
+            else:
+                s = str( s )
+                if( '*' in s ):
+                    sql_s = s.replace( '%', '[%]' ) \
+                             .replace( '*', '%' )
+                    self.__constraint = (model.Object.name.like( sql_s ))
+                else:
+                    self.__constraint = (model.Object.name == s)
+
+            if( op == '!=' ):
+                self.__constraint = ~self.__constraint
+
+        else:
+            assert False
 
     def get_preferred_order( self ):
 
@@ -38,18 +73,8 @@ class StringConstraint:
 
     def to_db_constraint( self, db ):
 
-        if( len( self.__s ) == 0 ):
-            sql_s = '%'
-        else:
-            sql_s = self.__s.replace( '%', '[%]' ) \
-                            .replace( '*', '%' )
-            if( sql_s[0] != '%' ):
-                sql_s = '%' + sql_s
-            if( sql_s[-1] != '%' ):
-                sql_s = sql_s + '%'
-
         return db.session.query( model.Object.object_id ) \
-                 .filter( model.Object.name.like( sql_s ) )
+                         .filter( self.__constraint )
 
 class UnboundConstraint:
 
@@ -71,7 +96,7 @@ class UnboundConstraint:
         except:
             pass
 
-        c = StringConstraint( self.__s )
+        c = NameConstraint( '=', '*' + self.__s + '*' )
         return c.to_db_constraint( db )
 
 def QueryInt( v, ceil = False ):
@@ -187,10 +212,22 @@ class ParameterConstraint:
 
         self.__key = key
 
-        if( op == '=' ):
-            self.__constraint = (model.ObjectMetadata.value == str( value ))
-        elif( op == '!=' ):
-            self.__constraint = (model.ObjectMetadata.value != str( value ))
+        if( op == '=' or op == '!=' ):
+
+            if( value is None ):
+                self.__constraint = (model.ObjectMetadata.value == None)
+            else:
+                value = str( value )
+                if( '*' in value ):
+                    sql_s = value.replace( '%', '[%]' ) \
+                                 .replace( '*', '%' )
+                    self.__constraint = (model.ObjectMetadata.value.like( sql_s ))
+                else:
+                    self.__constraint = (model.ObjectMetadata.value == value)
+
+            if( op == '!=' ):
+                self.__constraint = ~self.__constraint
+
         elif( op == '>' ):
             self.__constraint = (model.ObjectMetadata.numeric > QueryInt( value ))
         elif( op == '>=' ):
@@ -371,28 +408,45 @@ class Query:
 def create_constraint( s ):
 
     if( s.startswith( '@' ) ):
-        return StringConstraint( s[1:] )
+        return NameConstraint( '=', '*' + s[1:] + '*' )
     elif( s.startswith( '#' ) ):
-        return TagConstraint( s[1:] )
+        return TagConstraint( s[1:], fuzzy = True )
     elif( s.startswith( '&' ) ):
-        ops = [ '>=', '<=', '>', '<', '!=', '=', '~' ]
-        s = s[1:]
+        if( s[1:].startswith( '!' ) ):
+            if( s[1:].startswith( '!!' ) ):
+                not_null = True
+                key = s[3:]
+            else:
+                not_null = False
+                key = s[2:]
 
-        for i in ops:
-            try:
-                idx = s.index( i[0] )
-                key = s[0:idx]
-                op = i
-                value = s[idx+len(i[0]):]
-
-                if( key == 'id' ):
-                    return ObjIdConstraint( op, value )
-                else:
-                    return ParameterConstraint( key, op, value )
-            except ValueError:
-                pass
+            if( key == 'id' ):
+                raise ValueError, 'Bad Parameter Constraint'
+            elif( key == 'name' ):
+                return NameConstraint( '!=' if( not_null ) else '=', None )
+            else:
+                return ParameterConstraint( key, '!=' if( not_null ) else '=', None )
         else:
-            raise ValueError, 'Bad Parameter Constraint'
+            ops = [ '>=', '<=', '>', '<', '!=', '=', '~' ]
+            s = s[1:]
+
+            for i in ops:
+                try:
+                    idx = s.index( i[0] )
+                    key = s[0:idx]
+                    op = i
+                    value = s[idx+len(i[0]):]
+
+                    if( key == 'id' ):
+                        return ObjIdConstraint( op, value )
+                    elif( key == 'name' ):
+                        return NameConstraint( op, value )
+                    else:
+                        return ParameterConstraint( key, op, value )
+                except ValueError:
+                    pass
+            else:
+                raise ValueError, 'Bad Parameter Constraint'
     else:
         return UnboundConstraint( s )
 

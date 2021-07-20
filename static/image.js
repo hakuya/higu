@@ -120,6 +120,10 @@ ImageViewer = function( pane, image_info )
             s += '&stream=' + this.image_info.stream_id;
         }
 
+        if( this.image_info.gen ) {
+            s += '&gen=' + this.image_info.gen;
+        }
+
         return s;
     }
 

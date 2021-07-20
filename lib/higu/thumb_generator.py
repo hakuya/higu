@@ -46,14 +46,15 @@ class ThumbGenerator:
                 print 'Generating thumbs and meta for file', obj.get_id()
                 obj.check_metadata()
 
-                exp = hdbfs.imgdb.MIN_THUMB_EXP
-                while( db.tbcache.make_thumb( obj, exp ) is not None
-                   and exp <= max_exp ):
+                time.sleep( sleep )
+                #exp = hdbfs.imgdb.MIN_THUMB_EXP
+                #while( db.tbcache.make_thumb( obj, exp ) is not None
+                #   and exp <= max_exp ):
 
-                    exp += 1
+                #    exp += 1
 
-                    if( sleep is not None ):
-                        time.sleep( sleep )
+                #    if( sleep is not None ):
+                #        time.sleep( sleep )
 
             elif( isinstance( obj, hdbfs.Album ) ):
                 print 'Generating metadata for album', obj.get_id()

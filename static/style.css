@@ -137,6 +137,10 @@ html, body, #app{
     vertical-align: middle;
 }
 
+img {
+    image-orientation: none;
+}
+
 #list{
     overflow:auto;
 }

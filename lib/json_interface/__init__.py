@@ -79,7 +79,7 @@ def fetch_info( items, target, stream = None ):
         info['tags'] = map( lambda x: x.get_name(), tags )
     if( 'names' in items ):
         if( isinstance( target, hdbfs.File ) ):
-            info['names'] = target.get_origin_names()
+            info['names'] = target.get_origin_names( all_streams = True )
         else:
             name = target.get_name()
             if( name is not None ):
