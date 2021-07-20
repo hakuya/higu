@@ -575,7 +575,7 @@ DisplayableObject = function( obj_id, info )
             items:      [ 'type', 'repr', 'tags', 'names',
                 'variants', 'variants_of', 'dup_streams',
                 'albums', 'files', 'text', 'thumb_gen',
-                'width', 'height', 'origin_time', 'creation_time' ],
+                'width', 'height', 'sizes', 'origin_time', 'creation_time' ],
         };
         
         response = load_sync( request );
@@ -858,9 +858,20 @@ ImageView = function()
 //            return;
 //        }
 
-        this.viewer = attach_image(
-            div, disp.obj_id, disp.stream_id, disp.info.thumb_gen,
-            disp.info.repr, disp.info.type );
+        image_info = {
+            obj_id: disp.obj_id,
+            repr: disp.info.repr,
+            type: disp.info.type,
+            gen: disp.info.thumb_gen,
+        };
+
+        if( disp.stream_id !== null ) {
+            image_info.stream_id = disp.stream_id;
+        } else {
+            image_info.sizes = disp.info.sizes;
+        }
+
+        this.viewer = attach_image( div, image_info );
 
         div.append( '<br/>' );
     };
@@ -956,7 +967,7 @@ var public_make_object_display = function( obj_id )
         items:      [ 'type', 'repr', 'tags', 'names',
             'variants', 'variants_of', 'dup_streams',
             'albums', 'files', 'text', 'thumb_gen',
-            'width', 'height', 'origin_time', 'creation_time' ],
+            'width', 'height', 'sizes', 'origin_time', 'creation_time' ],
     };
     
     response = load_sync( request );

@@ -714,8 +714,8 @@ class AdminTab extends React.Component {
         // Delete
         var button = $( '#adm-tag-rm-button' );
         button.click( function( e ) {
-            src = $( '#adm-tag-src' );
-            tgt = $( '#adm-tag-tgt' );
+            var src = $( '#adm-tag-src' );
+            var tgt = $( '#adm-tag-tgt' );
 
             var request = {
                 action:     'tag_delete',
@@ -730,8 +730,8 @@ class AdminTab extends React.Component {
         // Copy
         button = $( '#adm-tag-cp-button' );
         button.click( function( e ) {
-            src = $( '#adm-tag-src' );
-            tgt = $( '#adm-tag-tgt' );
+            var src = $( '#adm-tag-src' );
+            var tgt = $( '#adm-tag-tgt' );
 
             var request = {
                 action:     'tag_copy',
@@ -747,8 +747,8 @@ class AdminTab extends React.Component {
         // Move
         button = $( '#adm-tag-mv-button' );
         button.click( function( e ) {
-            src = $( '#adm-tag-src' );
-            tgt = $( '#adm-tag-tgt' );
+            var src = $( '#adm-tag-src' );
+            var tgt = $( '#adm-tag-tgt' );
 
             var request = {
                 action:     'tag_move',

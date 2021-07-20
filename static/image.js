@@ -1,7 +1,7 @@
 /**
  * class Viewer
  */
-ImageViewer = function( pane, obj_id, stream_id, gen, repr, type )
+ImageViewer = function( pane, image_info )
 {
     this.get_container_dims = function()
     {
@@ -12,53 +12,60 @@ ImageViewer = function( pane, obj_id, stream_id, gen, repr, type )
         return [ container_width, container_height ]
     };
 
-    /**
-     * apply_zoom( zoom ) - zoom the image to the given amount
-     */
-    this.apply_zoom = function( zoom )
+    this.choose_image_dims = function()
     {
-        if( this.im == null ) return;
+        if( this.im_width == null ) return null;
 
-        this.im.width = this.im_width * zoom;
-        this.im.height = this.im_height * zoom;
-    };
+        cd = this.get_container_dims();
+        rd = [ cd[1] * this.im_width / this.im_height,
+               cd[0] * this.im_height / this.im_width ];
 
-    this.compute_zoom = function()
-    {
-        if( this.im == null ) return null;
-
-        if( this.zoom == 'fit_inside' || this.zoom == 'fit_outside' ) {
-            container_dims = this.get_container_dims();
-
-            width_ratio = 1.0 * container_dims[0] / this.im_width;
-            height_ratio = 1.0 * container_dims[1] / this.im_height;
-
-            if( this.zoom == 'fit_inside' ) {
-                if( width_ratio < height_ratio ) {
-                    return width_ratio;
-                } else {
-                    return height_ratio;
-                }
+        if( this.zoom == 'fit_inside' ) {
+            if( cd[1] < rd[1] ) {
+                // Height constrainted
+                return [ rd[0], cd[1] ];
             } else {
-                if( width_ratio < height_ratio ) {
-                    return height_ratio;
-                } else {
-                    return width_ratio;
-                }
+                // Width constrainted
+                return [ cd[0], rd[1] ];
+            }
+        } else if( this.zoom == 'fit_outside' ) {
+            if( cd[1] < rd[1] ) {
+                // Height constrainted
+                return [ cd[0], rd[1] ];
+            } else {
+                // Width constrainted
+                return [ rd[0], cd[1] ];
             }
         } else {
-            return this.zoom;
+            return [ this.im_width * this.zoom,
+                     this.im_height * this.zoom ];
         }
     }
 
     /**
-     * refresh() - reapply the set zoom mode
+     * apply_zoom( zoom ) - zoom the image to the given amount
      */
-    this.refresh = function()
+    this.apply_zoom_css = function( im )
+    {
+        dims = this.choose_image_dims();
+        if( !dims ) return;
+
+        im.width( dims[0] );
+        im.height( dims[1] );
+    };
+
+    this.apply_zoom = function()
     {
         if( this.im == null ) return;
 
-        this.apply_zoom( this.compute_zoom() );
+        var im = $( this.im );
+        var src = this.choose_src();
+
+        if( src != im.attr( 'src' ) ) {
+            im.attr( 'src', src );
+        }
+
+        this.apply_zoom_css( im );
     };
 
     /**
@@ -70,67 +77,89 @@ ImageViewer = function( pane, obj_id, stream_id, gen, repr, type )
      */
     this.set_zoom = function( zoom )
     {
-        if( this.im == null ) return;
-
-        if( zoom == 'fit_inside' || zoom == 'fit_outside' || zoom > 0 ) {
-            this.zoom = zoom;
-        } else if( zoom < 0 ) {
-            this.zoom = this.compute_zoom();
-            this.zoom *= -zoom;
+        if( zoom < 0 ) {
+            if( typeof this.zoom == 'number' ) {
+                this.zoom *= -zoom;
+            } else {
+                this.zoom = 1.0;
+            }
         } else {
-            // do nothing
+            this.zoom = zoom;
         }
-
-        this.refresh();
+        this.apply_zoom();
     };
 
     this.on_image_loaded = function( im )
     {
         this.im = im;
 
-        this.im_width = im.width;
-        this.im_height = im.height;
-        this.zoom = 'fit_inside';
-
-        this.refresh();
+        if( this.im_width == null ) {
+            this.im_width = im.width;
+            this.im_height = im.height;
+        }
+        this.apply_zoom();
     };
 
+    this.choose_src = function()
+    {
+        s = '/img?id=' + this.image_info.obj_id;
+
+        if( this.image_info.sizes ) {
+            var dims = this.choose_image_dims();
+            var size = null;
+            for( var i = 0; i < this.image_info.sizes.length; i++ ) {
+                size = this.image_info.sizes[i];
+                if( size[1] >= dims[0] && size[2] >= dims[1] ) {
+                    break;
+                }
+            }
+            s += '&exp=' + size[0];
+        }
+
+        if( this.image_info.stream_id ) {
+            s += '&stream=' + this.image_info.stream_id;
+        }
+
+        return s;
+    }
+
+    this.attach_image = function()
+    {
+        if( this.image_info.sizes ) {
+            this.im_width = this.image_info.sizes[ this.image_info.sizes.length - 1][1];
+            this.im_height = this.image_info.sizes[ this.image_info.sizes.length - 1][2];
+        }
+
+        var img_tag = $( '<img class="objitem" src="' + this.choose_src() + '" '
+                       + 'onload="on_image_loaded( this )"/>' );
+
+        this.apply_zoom_css( img_tag );
+
+        util.make_draggable( img_tag, util.make_basic_drop_data(
+                                            this.image_info.obj_id,
+                                            this.image_info.repr,
+                                            this.image_info.type ) );
+
+        pane.append( img_tag );
+    }
+
     this.pane = pane;
+    this.image_info = image_info;
 
     this.im = null;
     this.im_width = null;
     this.im_height = null;
-    this.zoom = null;
+    this.im_src = null;
+    this.zoom = 'fit_inside';
 
-    dpr = window.devicePixelRatio;
-    container_dims = this.get_container_dims();
-
-    exp_w = 0;
-    exp_h = 0;
-    while( (1 << exp_w) < container_dims[0] * dpr ) exp_w++;
-    while( (1 << exp_h) < container_dims[1] * dpr ) exp_h++;
-
-    exp = Math.min( exp_w, exp_h );
-
-    if( stream_id === null ) {
-        img_tag = $( '<img class="objitem" src="/img?id=' + obj_id
-                + '&exp=' + exp + '&gen=' + gen + '" class="picture" '
-                + 'onload="on_image_loaded( this )"/>' );
-    } else {
-        img_tag = $( '<img class="objitem" src="/img?id=' + obj_id
-                + '&stream=' + stream_id + '" class="picture" '
-                + 'onload="on_image_loaded( this )"/>' );
-    }
-
-    util.make_draggable( img_tag, util.make_basic_drop_data( obj_id, repr, type ) );
-    pane.append( img_tag );
+    this.attach_image();
 
     pane.data( 'viewer', this );
 };
 
-function attach_image( pane, id, stream, gen, repr, type )
+function attach_image( pane, image_info )
 {
-    return new ImageViewer( pane, id, stream, gen, repr, type );
+    return new ImageViewer( pane, image_info );
 }
 
 function on_image_loaded( im )

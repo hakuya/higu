@@ -106,24 +106,49 @@ def fetch_info( items, target, stream = None ):
             info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
         except:
             info['thumb_gen'] = 0
-    if( 'width' in items or 'height' in items ):
+    if( 'width' in items
+     or 'height' in items
+     or 'sizes' in items ):
+
+        w = None
+        h = None
+
         if( stream is not None ):
             if( isinstance( stream, hdbfs.ImageStream ) ):
                 try:
                     w, h = stream.get_dimensions()
                 except:
-                    w = None
-                    h = None
-                info['width'] = w
-                info['height'] = h
+                    pass
         elif( isinstance( target, hdbfs.ImageFile ) ):
             try:
                 w, h = target.get_dimensions()
             except:
-                w = None
-                h = None
-            info['width'] = w
-            info['height'] = h
+                pass
+        
+        info['width'] = w
+        info['height'] = h
+
+        if( 'sizes' in items and w is not None ):
+            maxdim = w if( w > h ) else h
+            sizes = [ 1 << hdbfs.imgdb.MIN_THUMB_EXP ]
+            exps = [ hdbfs.imgdb.MIN_THUMB_EXP ]
+
+            while( sizes[-1] < maxdim ):
+                sizes.append( sizes[-1] * 2 )
+                exps.append( exps[-1] + 1 )
+
+            sizes[-1] = maxdim
+
+            if( w > h ):
+                sizes = map( lambda x, e: ( e, x, x * h / w ), sizes, exps )
+            else:
+                sizes = map( lambda y, e: ( e, y * w / h, y ), sizes, exps )
+
+            info['sizes'] = sizes
+
+        elif( 'sizes' in items ):
+            info['sizes'] = []
+
     if( 'origin_time' in items ):
         if( stream is not None ):
             origin_ts = stream.get_origin_time()
