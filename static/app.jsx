@@ -395,6 +395,13 @@ class NameDialog extends React.Component
         var name = $( '#fname' ).val();
         var saveOld = $( '#saveold' ).is( ':checked' );
 
+        if( name == '' ) {
+            alert( 'Please enter a name' );
+            return;
+        } else if( name == '-' ) {
+            name = null;
+        }
+
         this.obj.rename( name, saveOld );
 
         $( document ).focus();
@@ -426,7 +433,7 @@ class NameDialog extends React.Component
                     <Modal.Title>Rename Image</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <p>Enter a new filename</p>
+                    <p>Enter a new filename, or use '-' to clear the name.</p>
 
                     <form id='name-dialog-form' onSubmit={ this.onApply.bind( this ) }><fieldset>
                     <label htmlFor='fname'>Name</label>
