@@ -188,38 +188,39 @@ class JsonInterface:
             return json_err( 'nosession' )
 
         try:
-            fn = getattr( self, 'cmd_' + data['action'] )
-            argspec = inspect.getargspec( fn )
-            if( 'data' in argspec.args ):
-                # Old style
-                return fn( data )
-            elif( argspec.keywords is None ):
-                # Grab the required and optional
-                if( argspec.defaults is None ):
-                    req_args = argspec.args[1:]
-                    opt_args = []
-                else:
-                    req_args = argspec.args[1:-len( argspec.defaults )]
-                    opt_args = argspec.args[-len( argspec.defaults ):]
+            with self.__db.transaction():
+                fn = getattr( self, 'cmd_' + data['action'] )
+                argspec = inspect.getargspec( fn )
+                if( 'data' in argspec.args ):
+                    # Old style
+                    return fn( data )
+                elif( argspec.keywords is None ):
+                    # Grab the required and optional
+                    if( argspec.defaults is None ):
+                        req_args = argspec.args[1:]
+                        opt_args = []
+                    else:
+                        req_args = argspec.args[1:-len( argspec.defaults )]
+                        opt_args = argspec.args[-len( argspec.defaults ):]
 
-                args = {}
-                for arg in req_args:
-                    assert data.has_key( arg ), "%s not provided" % ( arg, )
-                    args[arg] = data[arg]
-                for arg in opt_args:
-                    if( data.has_key( arg ) ):
+                    args = {}
+                    for arg in req_args:
+                        assert data.has_key( arg ), "%s not provided" % ( arg, )
                         args[arg] = data[arg]
-                return fn( **args )
-            else:
-                # Just make sure required arguments are present
-                if( argspec.defaults is None ):
-                    req_args = argspec.args[1:]
+                    for arg in opt_args:
+                        if( data.has_key( arg ) ):
+                            args[arg] = data[arg]
+                    return fn( **args )
                 else:
-                    req_args = argspec.args[1:-len( argspec.defaults )]
+                    # Just make sure required arguments are present
+                    if( argspec.defaults is None ):
+                        req_args = argspec.args[1:]
+                    else:
+                        req_args = argspec.args[1:-len( argspec.defaults )]
 
-                for arg in req_args:
-                    assert data.has_key( arg ), 'Missing arg ' + arg
-                return fn( **data )
+                    for arg in req_args:
+                        assert data.has_key( arg ), 'Missing arg ' + arg
+                    return fn( **data )
         finally:
             pass
         #except:
