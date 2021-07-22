@@ -274,14 +274,19 @@ class Query:
         self.__obj_type = None
         self.__order_by = None
         self.__strict = False
+        self.__expand = False
 
         self.__req_constraints = []
         self.__or_constraints = []
         self.__not_constraints = []
 
-    def set_strict( self ):
+    def set_strict( self, strict = True ):
 
-        self.__strict = True
+        self.__strict = strict
+
+    def set_expand( self, expand = True ):
+
+        self.__expand = expand
 
     def set_type( self, obj_type ):
 
@@ -343,7 +348,7 @@ class Query:
         if( q_order is None ):
             q_order = ( 'rand', False, )
 
-        query = db.session.query( model.Object )
+        query = db.session.query( model.Object.object_id )
 
         if( req_q is not None ):
             q = req_q
@@ -378,6 +383,18 @@ class Query:
 
             query = query.filter( model.Object.object_type.in_( [
                 hdbfs.TYPE_FILE, hdbfs.TYPE_ALBUM ] ) )
+
+        if( self.__expand ):
+            from sqlalchemy import or_
+
+            query = db.session.query( model.Object ) \
+                    .join( model.Relation, model.Relation.child_id == model.Object.object_id ) \
+                    .filter( model.Object.object_type == hdbfs.TYPE_FILE ) \
+                    .filter( or_( model.Object.object_id.in_( query ),
+                                  model.Relation.parent_id.in_( query ) ) )
+        else:
+            query = db.session.query( model.Object ) \
+                    .filter( model.Object.object_id.in_( query ) )
 
         if( q_order[0] == 'rand' ):
             query = query.order_by( func.random() )
@@ -489,6 +506,9 @@ def build_query( s ):
                 query.set_type( hdbfs.TYPE_ALBUM );
             else:
                 raise ValueError, 'Bad type'
+
+        elif( cmd[0] == 'expand' ):
+            query.set_expand()
 
         else:
             raise ValueError, 'Bad Command'

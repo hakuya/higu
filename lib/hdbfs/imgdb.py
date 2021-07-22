@@ -578,66 +578,70 @@ class ThumbCache:
 
     def init_stream_metadata( self, stream ):
 
-        try:
-            del stream['creation_time']
-        except:
-            pass
+        with stream.db._access( write = True ):
+            try:
+                del stream['creation_time']
+            except:
+                pass
 
-        streaminfo = StreamInfo( self.imgdb, stream )
-        streaminfo.get_origin_time()
-        streaminfo.get_dims()
-        streaminfo.get_orientation()
+            streaminfo = StreamInfo( self.imgdb, stream )
+            streaminfo.get_origin_time()
+            streaminfo.get_dims()
+            streaminfo.get_orientation()
 
-        stream['.metaver'] = METADATA_VERSION
+            stream['.metaver'] = METADATA_VERSION
 
     def init_object_metadata( self, obj ):
 
-        try:
-            del stream['creation_time']
-        except:
-            pass
+        with obj.db._access( write = True ):
+            try:
+                del stream['creation_time']
+            except:
+                pass
 
-        self.init_stream_metadata( obj.get_root_stream() )
+            self.init_stream_metadata( obj.get_root_stream() )
 
-        imginfo = ImageInfo( self.imgdb, obj )
-        imginfo.get_origin_time()
-        imginfo.get_dims()
+            imginfo = ImageInfo( self.imgdb, obj )
+            imginfo.get_origin_time()
+            imginfo.get_dims()
 
-        obj['.metaver'] = METADATA_VERSION
+            obj['.metaver'] = METADATA_VERSION
 
     def init_album_metadata( self, obj ):
 
-        try:
-            del obj['creation_time']
-        except:
-            pass
+        with obj.db._access( write = True ):
+            try:
+                del obj['creation_time']
+            except:
+                pass
 
-        files = obj.get_files()
-        min_ts = None
+            files = obj.get_files()
+            min_ts = None
 
-        for f in files:
-            f.check_metadata()
-            f_ts = f.get_origin_time()
-            f_ts = calendar.timegm( f_ts.timetuple() ) if( f_ts is not None ) else None
-            if( f_ts is not None
-            and (min_ts is None or f_ts < min_ts) ):
-                min_ts = f_ts
+            for f in files:
+                f.check_metadata()
+                f_ts = f.get_origin_time()
+                f_ts = calendar.timegm( f_ts.timetuple() ) if( f_ts is not None ) else None
+                if( f_ts is not None
+                and (min_ts is None or f_ts < min_ts) ):
+                    min_ts = f_ts
 
-        if( min_ts is not None ):
-            obj['origin_time'] = min_ts
+            if( min_ts is not None ):
+                obj['origin_time'] = min_ts
 
-        obj['.metaver'] = METADATA_VERSION
+            obj['.metaver'] = METADATA_VERSION
 
     def init_metadata( self, obj, stream ):
 
-        if( isinstance( obj, ImageFile ) ):
-            if( stream == None ):
-                stream = obj.get_root_stream()
+        with obj.db._access():
+            if( isinstance( obj, ImageFile ) ):
+                if( stream == None ):
+                    stream = obj.get_root_stream()
 
-            self.init_stream_metadata( stream )
-            self.init_object_metadata( obj )
-        elif( isinstance( obj, Album ) ):
-            self.init_album_metadata( obj )
+                self.init_stream_metadata( stream )
+                self.init_object_metadata( obj )
+            elif( isinstance( obj, Album ) ):
+                self.init_album_metadata( obj )
 
     def make_thumb( self, obj, exp ):
 
@@ -737,7 +741,7 @@ def _img_obj_factory( db, obj ):
     else:
         return None
 
-def _post_commit_hook( db, is_rollback ):
+def _commit_hook( db, is_rollback ):
     global _METADATA_INIT_REQUIRED
 
     # This hook can cause a write, which will trigger this hook again.
@@ -757,4 +761,4 @@ def init_module():
 
     add_stream_factory( _img_stream_factory )
     add_obj_factory( _img_obj_factory )
-    add_post_commit_hook( _post_commit_hook )
+    add_pre_commit_hook( _commit_hook )

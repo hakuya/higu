@@ -100,8 +100,17 @@ class ObjectLabel extends React.Component
     render() {
         var d = this.props.display;
         return (
-            <div className="objlabel objitem" ref={ ( el ) => { this.el = el; } }>
-                <ObjectLink label={ d.info.repr } target={ d.obj_id }/>
+            <div className='objitem'>
+                <div className='objlabel' ref={ ( el ) => { this.el = el; } }>
+                    <ObjectLink label={ d.info.repr } target={ d.obj_id }/>
+                </div>
+                <div className='objinfo'>
+                    <div>{ 'id: ' } { d.obj_id }</div>
+                    { d.info.type == 'file' &&
+                        <div>{ d.info.width } { 'x' } { d.info.height }</div> }
+                    { d.info.type == 'album' &&
+                        <div>{ d.info.files.length } { 'images' }</div> }
+                </div>
             </div>
         );
     }
@@ -173,7 +182,6 @@ class ObjectInfoPane extends React.Component
     renderFileInfo( info ) {
         return (
             <div>
-                { 'Size: ' } { info.width } { 'x' } { info.height } <br/>
                 { info.albums && info.albums.length > 0 &&
                     <ObjectList label='Albums: ' objects={ info.albums }/>
                 }
@@ -800,15 +808,56 @@ class AdminTab extends React.Component {
             tgt.val( '' );
         });
     }
+    doBulk( commit ) {
+        var select = $( '#adm-bulk-select' );
+        var exec = $( '#adm-bulk-exec' );
+
+        var request = {
+            action:     'bulk',
+            query:      select.val(),
+            exec:       exec.val(),
+            commit:     commit
+        };
+
+        var response = load_sync( request );
+        if( response.result == 'ok' ) {
+            var lines = [ response.affected + ' rows affected' ];
+            lines = lines.concat( response.changes.map( ( it ) => {
+                                        return it[0] + ': ' + it[1];
+                                    } ));
+            
+            dialogs.show_text_dialog( lines.join( '\n' ) );
+        } else {
+            alert( response.msg );
+        }
+    }
     render() {
+        var Button = ReactBootstrap.Button;
+
         return (
             <div className='tab' ref={ ( el ) => { this.el = el } }>
+                <h1>Tag Management</h1>
                 <form>
                   Src: <input type="text" id="adm-tag-src"/>,
                   Dst: <input type="text" id="adm-tag-tgt"/><br/>
                   <input type="button" id="adm-tag-rm-button" value="Delete"/>
                   <input type="button" id="adm-tag-cp-button" value="Copy"/>
                   <input type="button" id="adm-tag-mv-button" value="Move"/>
+                </form><hr/>
+
+                <h1>Bulk Operation</h1>
+                <form>
+                  { 'Select: ' } <input type="text" id="adm-bulk-select"/>
+                  { ' Execute: ' } <input type="text" id="adm-bulk-exec"/><br/>
+                  <input type="button" value="Run" onClick={ ( e ) => {
+                            e.preventDefault();
+                            this.doBulk( true );
+                        } }/>
+                  <input type="button" value="Pretend" onClick={ ( e ) => {
+                            e.preventDefault();
+                            this.doBulk( false );
+                        } }/>
+
                 </form>
             </div>
         );

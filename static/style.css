@@ -41,14 +41,36 @@ html, body, #app{
     height: 2em;
 }
 
+.objitem{
+    margin-bottom: 10px;
+}
+
 .objlabel{
-    display: table-cell;
-    background-color:#dddddd;
-    text-align: center;
-    vertical-align: middle;
     font-weight: bold;
-    width: 18em;
-    height: 2em;
+    text-align: center;
+    background-color:#dddddd;
+    width: 20em;
+    padding: 5px;
+}
+
+.objinfo{
+    width: 20em;
+}
+
+.objinfo div{
+    width: 50%;
+    float: left;
+    font-size: 80%;
+    color: #666;
+    padding: 0 5px 0 5px;
+}
+
+.objinfo div:first-child{
+    text-align: left;
+}
+
+.objinfo div:last-child{
+    text-align: right;
 }
 
 .tab{

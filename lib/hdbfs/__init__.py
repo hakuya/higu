@@ -33,55 +33,41 @@ def make_unicode( s ):
 
 class _AccessContext:
 
-    def __init__( self, db, manager, write = False, auto_commit = True ):
+    def __init__( self, manager,
+                  write = False,
+                  transaction = False ):
 
-        self.__db = db
         self.__manager = manager
         self.__write = write
-        self.__auto_commit = auto_commit
+        self.__transaction = transaction
         self.__active = False
 
     def __enter__( self ):
 
-        self.__db._begin( self.__write )
-        self.__manager._begin_access( self.__write )
+        self.__manager._begin_access( self )
         self.__active = True
+
         return self
 
     def __exit__( self, type, value, trace ):
 
         self.__active = False
+        self.__manager._end_access( self, type is not None )
 
-        if( self.__write ):
-            committed = False
-
-            if( type is None
-            and self.__auto_commit ):
-
-                try:
-                    self.__db._commit()
-                    committed = True
-
-                except:
-                    type, value, trace = sys.exc_info()
-
-            if( not committed ):
-                self.__db._rollback()
-
-        self.__manager._end_access()
         if( type is not None ):
             raise type, value, trace
 
-    def commit( self ):
+    def is_transaction( self ):
+        return self.__transaction
 
-        assert self.__write, 'Can only commit with write access'
-        self.__db._commit()
-        self.__db._begin( self.__write )
+    def is_write( self ):
+        return self.__write
+
+    def commit( self ):
+        self.__manager._commit( self )
 
     def rollback( self ):
-
-        self.__db._rollback()
-        self.__db._begin( self.__write )
+        self.__manager._rollback( self )
 
 class AccessManager:
 
@@ -90,13 +76,64 @@ class AccessManager:
         self.__db = db
         self.__write_permitted = False
 
-    def _begin_access( self, write ):
+        self.__accesses = []
+        self.__locked = False
+        self.__failed = False
 
-        assert not write or self.__write_permitted, 'Read-Only Access'
+    def _begin_access( self, dba ):
 
-    def _end_access( self ):
+        assert not dba.is_write() or self.__write_permitted, 'Read-Only Access'
 
-        pass
+        if( dba.is_transaction() ):
+            assert len( self.__accesses ) == 0
+
+        self.__accesses.append( dba )
+
+        if( dba.is_write() and not self.__locked ):
+            self.__db._begin()
+            self.__locked = True
+
+    def _end_access( self, dba, is_except ):
+
+        # Don't pop yet! we may be within the pre-commit hook!
+        assert dba == self.__accesses[-1]
+
+        if( len( self.__accesses ) == 1 ):
+            if( self.__locked ):
+                committed = False
+
+                if( not is_except ):
+                    try:
+                        self.__db._commit()
+                        committed = True
+
+                    except:
+                        pass
+
+                if( not committed ):
+                    self.__db._rollback()
+
+            self.__locked = False
+
+        assert dba == self.__accesses.pop()
+
+    def _commit( self, dba ):
+
+        assert self.__locked, 'Can only commit with write access'
+        assert self.__accesses[0] == dba, 'Only transaction may commit'
+
+        self.__db._commit()
+        if( self.__locked ):
+            self.__db._begin()
+
+    def _rollback( self, dba ):
+
+        assert self.__locked, 'Can only rollback with write access'
+        assert self.__accesses[0] == dba, 'Only transaction may rollback'
+
+        self.__db._rollback()
+        if( self.__locked ):
+            self.__db._begin()
 
     def enable_writes( self ):
 
@@ -104,7 +141,7 @@ class AccessManager:
 
     def __call__( self, **kwargs ):
 
-        return _AccessContext( self.__db, self, **kwargs )
+        return _AccessContext( self, **kwargs )
 
 class Database:
 
@@ -127,11 +164,11 @@ class Database:
         if( self.session is not None ):
             self.session.close()
 
-    def _begin( self, write ):
+    def _begin( self ):
 
-        if( write ):
-            self.session.execute( 'BEGIN EXCLUSIVE' )
-            self._trans_write = True
+        assert not self._trans_write
+        self.session.execute( 'BEGIN EXCLUSIVE' )
+        self._trans_write = True
 
     def _commit( self ):
 
@@ -139,7 +176,9 @@ class Database:
             return
 
         self.imgdb.prepare_commit()
+
         try:
+            trigger_pre_commit_hooks( self, False )
             self.session.commit()
             self.imgdb.complete_commit()
         except:
@@ -148,6 +187,7 @@ class Database:
 
         self.obj_del_list = []
         self._trans_write = False
+
         trigger_post_commit_hooks( self, False )
 
     def _rollback( self ):
@@ -155,9 +195,12 @@ class Database:
         if( not self._trans_write ):
             return
 
+        trigger_pre_commit_hooks( self, True )
+
         self.imgdb.rollback()
         self.session.rollback()
         self._trans_write = False
+
         trigger_post_commit_hooks( self, True )
 
     def close( self ):
@@ -168,6 +211,10 @@ class Database:
     def enable_write_access( self ):
 
         self._access.enable_writes()
+
+    def transaction( self ):
+
+        return self._access()
 
     def _get_object_by_id( self, object_id ):
 

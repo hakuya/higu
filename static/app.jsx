@@ -487,7 +487,15 @@ class TextDialog extends React.Component
                     <Modal.Title>Info</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <textarea id='info-text' style='width:100%;height:100%;resize:none' readonly='true'>{ this.state.text }</textarea>
+                    <textarea id='info-text'
+                              style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    resize: 'none'
+                                }}
+                              rows={ 10 }
+                              defaultValue={ this.state.text }
+                              readOnly={ true }/>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="primary" onClick={ this.onCancel.bind( this ) }>OK</Button>

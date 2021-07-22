@@ -331,19 +331,19 @@ class JsonInterface:
 
         return json_ok( tags = tags )
 
-    def cmd_search( self, data ):
+    def __exec_search( self, data ):
 
         db = self.__db
 
         if( data.has_key( 'mode' ) ):
             # Search by directive
             if( data['mode'] == 'all' ):
-                rs = db.all_albums_or_free_files()
+                return db.all_albums_or_free_files()
             elif( data['mode'] == 'untagged' ):
-                rs = db.unowned_files()
+                return db.unowned_files()
             elif( data['mode'] == 'album' ):
                 album = db.get_object_by_id( data['album'] )
-                rs = map( lambda x: x.get_id(), album.get_files() )
+                return map( lambda x: x.get_id(), album.get_files() )
 
         else:
             if( data.has_key( 'query' ) ):
@@ -380,36 +380,133 @@ class JsonInterface:
                 except ( KeyError, ValueError, ), e:
                     return json_err( e )
 
-            rs = query.execute( db )
+            return query.execute( db )
+
+    def cmd_search( self, data ):
+
+        rs = self.__exec_search( data )
 
         # Register the result set
         sel = self.__cache.register_selection(
                         self.__session_id, rs )
         selid = sel.get_id()
-
-        if( data.has_key( 'index' ) ):
-            idx = data['index']
-        else:
-            idx = 0
-
         results = len( sel )
-        if( results > 0 ):
-            if( idx == 0 or idx >= results ):
-                return json_ok(
-                    selection = selid,
-                    results = results,
-                    index = 0,
-                    first = sel[0], )
-            else:
-                return json_ok(
-                    selection = selid,
-                    results = results,
-                    index = idx,
-                    first = sel[idx], )
-        else:
+
+        # Any results?
+        if( results == 0 ):
             self.__cache.close_selection(
                     self.__session_id, selid )
             return json_ok( results = 0 )
+
+        idx = data['index'] if( 'index' in data ) else 0
+        count = data['count'] if( 'count' in data ) else None
+
+        if( idx < 0 or idx >= results ):
+            idx = 0
+
+        if( count is not None and (idx + count) > results ):
+            count = results - idx
+
+        if( count is None ):
+            return json_ok(
+                selection = selid,
+                results = results,
+                index = idx,
+                first = sel[idx], )
+
+        else:
+            return json_ok(
+                selection = selid,
+                results = results,
+                index = idx,
+                items = sel[idx:idx+count], )
+
+    def cmd_bulk( self, data ):
+
+        rs = self.__exec_search( data )
+        count = 0
+
+        if( 'exec' not in data ):
+            return json_err( 'argument', 'Expected an execution' )
+
+        try:
+            action, operand = map( lambda x: x.strip(), data['exec'].split( ':', 1 ) )
+        except:
+            return json_err( 'argument', 'Bad execution format' )
+
+        if( action == 'name' ):
+            import re
+
+            parts = map( lambda x: x.replace( '\0', '/' ),
+                         operand.replace( '\\/', '\0' ).split( '/' ) )
+
+            items = []
+
+            if( parts[0] == 's' and len( parts ) >= 3 ):
+                op, pattern, repl = parts
+
+                for r in rs:
+                    name = r.get_name()
+                    if( name is None ):
+                        continue
+
+                    subd = re.sub( pattern, repl, name )
+
+                    if( subd != name ):
+                        count += 1
+                        if( 'commit' in data and data['commit'] ):
+                            r.set_name( subd )
+
+                        items.append( ( r.get_id(), name + ' -> ' + subd ) )
+
+            elif( parts[0] == 'del' ):
+                for r in rs:
+                    name = r.get_name()
+                    if( name is None ):
+                        continue
+
+                    if( name is not None ):
+                        process = (len( parts ) == 1 or re.match( parts[1], name ))
+                    else:
+                        process = False
+
+                    if( process ):
+                        count += 1
+                        if( 'commit' in data and data['commit'] ):
+                            r.set_name( None )
+
+                        items.append( ( r.get_id(), name + ' -> [none]' ) )
+
+            elif( parts[0] == 'select' or parts[0] == 'select!' ):
+                for r in rs:
+                    if( r.get_type() != hdbfs.TYPE_FILE ):
+                        continue
+
+                    name = r.get_name()
+                    if( name is not None and parts[0] != 'select!' ):
+                        continue
+
+                    new_name = None
+                    for n in r.get_origin_names( True ):
+                        if( len( parts ) == 1 or re.match( parts[1], n ) ):
+                            new_name = n
+                            break
+
+                    if( new_name is not None and new_name != name ):
+                        count += 1
+                        if( 'commit' in data and data['commit'] ):
+                            r.set_name( new_name )
+
+                        if( name is not None ):
+                            items.append( ( r.get_id(), name + ' -> ' + new_name ) )
+                        else:
+                            items.append( ( r.get_id(), '[none] -> ' + new_name ) )
+            else:
+                return json_err( 'argument', 'Invalid string operation' )
+
+            return json_ok( affected = count, changes = items )
+        else:
+            return json_err( 'argument', 'Unsupported execution action' )
 
     def cmd_selection_fetch( self, selection, index ):
 
