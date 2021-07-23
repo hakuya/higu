@@ -16,6 +16,8 @@ import web_session
 
 from html import TextFormatter, HtmlGenerator
 
+_json = json
+
 CONFIG={
     'global' : {
         'server.socket_host'    : '0.0.0.0',
@@ -84,27 +86,35 @@ class Server:
         tmpl = loader.load( 'index.html' )
         stream = tmpl.generate( username = username,
                                 is_admin = is_admin )
-        return stream.render( 'html', doctype = 'html' )    
+        return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
     def login( self ):
 
         tmpl = loader.load( 'tabs/login.html' )
         stream = tmpl.generate()
-        return stream.render( 'html', doctype = 'html' )    
+        return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
-    def do_login( self, username, password ):
+    def do_login( self, username, password, json = 0 ):
 
         access = web_session.WebSessionAccess()
         session_id = self.__get_session_id( access )
 
         success = access.login( session_id, username, password )
 
-        tmpl = loader.load( 'login.html' )
-        stream = tmpl.generate( username = username,
-                                success = success )
-        return stream.render( 'html', doctype = 'html' )    
+        if( json ):
+            cherrypy.response.headers['Content-Type'] = 'application/json'
+            return _json.dumps( {
+                        'username' : username,
+                        'session_id' : session_id if( success ) else None,
+                        'success' : success
+                    } )
+        else:
+            tmpl = loader.load( 'login.html' )
+            stream = tmpl.generate( username = username,
+                                    success = success )
+            return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
     def do_logout( self ):
@@ -116,14 +126,14 @@ class Server:
 
         tmpl = loader.load( 'logout.html' )
         stream = tmpl.generate()
-        return stream.render( 'html', doctype = 'html' )    
+        return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
     def admin( self ):
 
         tmpl = loader.load( 'tabs/admin.html' )
         stream = tmpl.generate()
-        return stream.render( 'html', doctype = 'html' )    
+        return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
     def taglist( self ):
@@ -133,7 +143,7 @@ class Server:
 
         tmpl = loader.load( 'tabs/taglist.html' )
         stream = tmpl.generate( taglist = all_tags )
-        return stream.render( 'html', doctype = 'html' )    
+        return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
     def info( self, id ):
@@ -154,7 +164,7 @@ class Server:
 
         tmpl = loader.load( 'tabs/display/info.html' )
         stream = tmpl.generate( hdbfs = hdbfs, info = info )
-        return stream.render( 'html', doctype = 'html' )    
+        return stream.render( 'html', doctype = 'html' )
 
     @cherrypy.expose
     def callback_new( self ):
@@ -237,7 +247,7 @@ def _background_thumb_generator():
             gen.run( 9, False, 2 )
         except:
             cherrypy.log( 'Exception while generating thumbs', traceback=True )
-            
+
         time.sleep( 2 )
 
 def start():
