@@ -1,0 +1,6 @@
+# Python
+*.pyc
+
+# Test Databases
+test/data/hfdb_*.dat
+test.db/*
