@@ -1,38 +1,289 @@
-.App {
-  text-align: center;
+#header{
+    float: left;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+#page{
+    padding: 10px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+#main{
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    flex-basis: 0;
+    min-height: 0;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+#main .tab-content{
+    flex-grow: 1;
+    flex-basis: 0;
+    min-height: 0;
 }
 
-.App-link {
-  color: #61dafb;
+#main .tab-pane{
+    height: 100%;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+#trash{
+    float: right;
+    text-align:center;
+    border-width:2px;
+    border-color:#000000;
+    background-color:#dddddd;
+    width: 4em;
+    height: 2em;
 }
+
+.objitem{
+    margin-bottom: 10px;
+}
+
+.objlabel{
+    font-weight: bold;
+    text-align: center;
+    background-color:#dddddd;
+    width: 20em;
+    padding: 5px;
+}
+
+.objinfo{
+    width: 20em;
+}
+
+.objinfo div{
+    width: 50%;
+    float: left;
+    font-size: 80%;
+    color: #666;
+    padding: 0 5px 0 5px;
+}
+
+.objinfo div:first-child{
+    text-align: left;
+}
+
+.objinfo div:last-child{
+    text-align: right;
+}
+
+.tab{
+    overflow: auto;
+    height: 100%;
+}
+
+.info, .disp{
+    overflow: auto;
+    height: 100%;
+}
+
+#tabs li .ui-icon-close {
+    float: left;
+    cursor: pointer;
+}
+
+.info{
+    width: 20em;
+    height: 100%;
+    float: left;
+    display: flex;
+    flex-direction: column;
+}
+
+.iteminfo{
+    width: 100%;
+    flex-grow: 1;
+    flex-basis: 0;
+    min-height: 0;
+    overflow:auto;
+}
+
+.navigate{
+    width: 100%;
+    height: 2em;
+    display: flex;
+    flex-direction: row;
+}
+
+.navigate div {
+    padding: 0.2em 1em 0.2em 1em;
+}
+
+.navigate .count{
+    text-align: center;
+    flex-grow: 1;
+    flex-basis: 0;
+}
+
+.disp{
+    height: 100%;
+/*    float: left;*/
+}
+
+.taglist {
+    overflow: hidden;
+}
+
+.taglist li {
+    float: left;
+    width: 15em;
+    display: inline;
+}
+
+.thumbslist {
+    overflow: hidden;
+}
+
+.thumbslist li {
+    float: left;
+    text-align: center;
+    display: inline;
+    padding: 5px;
+}
+
+.thumbslist .selected {
+    background-color: #ddddff;
+}
+
+.thumbslist .hover {
+    background-color:#dddddd;
+}
+
+.thumbslist li img {
+    vertical-align: middle;
+}
+
+img {
+    image-orientation: none;
+}
+
+#list{
+    overflow:auto;
+}
+
+#main{
+    width: 100%;
+    height: 500px;
+    float:left;
+    overflow:auto;
+}
+
+#right{
+    float:left;
+    overflow:auto;
+    visibility:hidden;
+}
+
+#overlay{
+    position:absolute;
+    left:0px;
+    top:0px;
+    width:100%;
+    height:100%;
+    z-index:1;
+    visibility:hidden;
+}
+
+#grey{
+    position:absolute;
+    left:0px;
+    top:0px;
+    width:100%;
+    height:100%;
+    background-color:#000000;
+    opacity:0.2;
+}
+
+#dialogbox{
+    position:absolute;
+    left:0px;
+    top:0px;
+    width:100px;
+    height:100px;
+}
+
+#dialoghead{
+    float:left;
+    padding:4px;
+    background-color:#eeeeee;
+    width:100%;
+}
+
+#dialogtitle{
+    float:left;
+    font-weight:bold;
+}
+
+#dialogcontrols{
+    float:right;
+    text-align:right;
+}
+
+#dialog{
+    float:left;
+    padding:4px;
+    width:100%;
+    height:100%;
+    background-color:#ffffff;
+    overflow:auto;
+}
+
+.picture{
+    float:left;
+}
+
+.description{
+    font-size:12px;
+    color:#666666;
+}
+
+.err-text{
+    color:red;
+}
+
+h1{
+    font-family:sans-serif;
+    font-size:14pt;
+}
+
+h2{
+    font-family:sans-serif;
+    font-size:12pt;
+}
+
+body{
+    font-family:sans-serif;
+    font-size:11pt;
+}
+
+a{
+    text-decoration:none;
+}
+
+a:hover{
+    text-decoration:underline;
+}
+
+#tag-dialog{
+    display:none;
+}
+
+#dup-dialog{
+    display:none;
+}
+
+#name-dialog{
+    display:none;
+}
+
+#text-dialog{
+    display:none;
+}
+
+#error-dialog{
+    display:none;
+}
+
+/* vim:sts=4:sw=4:et */
