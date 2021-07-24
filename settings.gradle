@@ -1,3 +1,4 @@
 rootProject.name = 'Higu'
+include 'lib'
 include 'higu-backend'
 include 'higu-app'
