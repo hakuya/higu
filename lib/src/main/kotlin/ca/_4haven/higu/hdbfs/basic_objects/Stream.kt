@@ -2,6 +2,7 @@ package ca._4haven.higu.hdbfs.basic_objects
 
 import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
+import java.io.InputStream
 
 open class Stream( val db: Database, val stream: ModelStream ) {
 
@@ -16,7 +17,7 @@ open class Stream( val db: Database, val stream: ModelStream ) {
         return this.db._access().with { this.get_file() }
     }
 
-    fun get_stream_id(): Int {
+    fun get_stream_id(): Id {
         return this.db._access().with { this.stream.stream_id }
     }
 
@@ -67,7 +68,7 @@ open class Stream( val db: Database, val stream: ModelStream ) {
         return null
     }
 
-    fun get_length(): Int? {
+    fun get_length(): Long? {
         return this.db._access().with { this.stream.stream_length }
     }
 
@@ -83,34 +84,25 @@ open class Stream( val db: Database, val stream: ModelStream ) {
         return this.db._access().with { this.stream.mime_type }
     }
 
-    fun _read(): Int {
+    fun _read(): InputStream? {
         return this.db.imgdb.read( this.stream.stream_id,
                                    this.stream.priority,
                                    this.stream.extension  )
     }
 
-    fun read(): Int {
+    fun read(): InputStream? {
         return this.db._access().with { this._read() }
     }
 
     fun _verify(): Boolean {
-        /* TODO
+        val istm = this._read() ?: return false
 
-        val fd = this._read()
+        val details = Details.calculate( istm )
 
-        if( fd == null ):
-            return false
-
-        val details = calculate_details( fd )
-
-        if( details[0] != self.stream.stream_length ):
-            return False
-        if( details[1] != self.stream.hash_crc32 ):
-            return False
-        if( details[2] != self.stream.hash_md5 ):
-            return False
-        if( details[3] != self.stream.hash_sha1 ):
-            return False*/
+        if( details.length != this.stream.stream_length ) return false
+        if( details.crc32  != this.stream.hash_crc32 )    return false
+        if( details.md5    != this.stream.hash_md5 )      return false
+        if( details.sha1   != this.stream.hash_sha1 )     return false
 
         return true
     }

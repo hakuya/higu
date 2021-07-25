@@ -1,16 +1,17 @@
 package ca._4haven.higu.hdbfs.imgdb
 
+import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
-import java.nio.file.Paths
+import java.nio.file.*
 
 val IMGDB_DATA_PATH = "imgdat"
 val IMGDB_THUMB_PATH = "tbdat"
 
 class Config( val imgdb_path: String ) {
 
-    fun get_file_vol_path( vol_id: Int, priority: Int ): String {
+    fun get_file_vol_path( vol_id: Id, priority: Int ): Path {
 
-        var path = when {
+        val path = when {
             priority > SP_EXPENDABLE -> Paths.get( this.imgdb_path, IMGDB_DATA_PATH )
             else -> Paths.get( this.imgdb_path, IMGDB_THUMB_PATH )
         }
@@ -19,11 +20,9 @@ class Config( val imgdb_path: String ) {
         var lv3 = (vol_id shr 12) and 0xfff
         var lv4 = (vol_id shr 24) and 0xfff
 
-        if( lv4 != 0 ) throw RuntimeException()
+        if( lv4 != 0.toLong() ) throw RuntimeException()
 
-        path = path.resolve( "%03x".format( lv3 ) )
+        return path.resolve( "%03x".format( lv3 ) )
                    .resolve( "%03x".format( lv2 ) )
-
-        return path.toString()
     }
 }

@@ -1,13 +1,21 @@
 package ca._4haven.higu.hdbfs.ark
 
 import ca._4haven.higu.hdbfs.imgdb.Config
+import ca._4haven.higu.hdbfs.model.Id
+import java.io.InputStream
 
 class StreamDatabase( val data_config: Config ) {
+    enum class State {
+        CLEAN,
+        COMITTED,
+        DIRTY,
+        PREPARED,
+    }
 
-    private val volumes = mutableMapOf<Int,Volume>()
-    private var state = "clean"
+    private val volumes = mutableMapOf<Id,Volume>()
+    private var state = State.CLEAN
 
-    private fun __get_volume( vol_id: Int ): Volume {
+    private fun __get_volume( vol_id: Id ): Volume {
 
         if( this.volumes.containsKey( vol_id ) ) {
             return this.volumes[vol_id]!!
@@ -19,84 +27,83 @@ class StreamDatabase( val data_config: Config ) {
         return vol
     }
 
-    private fun __get_vol_for_id( id: Int ): Volume {
+    private fun __get_vol_for_id( id: Id ): Volume {
         return this.__get_volume( id shr 12 )
     }
 
-    fun get_state(): String = this.state
+    fun get_state(): State = this.state
 
     fun reset_state() {
         this.volumes.values.forEach { vol ->
             vol.reset_state()
         }
 
-        this.state = "clean"
+        this.state = State.CLEAN
     }
 
 
     fun prepare_commit() {
-        /* TODO
-        if( self.state == 'clean' ):
-            return
+        if( this.state == State.CLEAN ) return
+        if( this.state == State.PREPARED ) throw IllegalStateException()
 
-        assert self.state != 'prepared'
+        val vols = this.volumes.values
+        // Clean things up before we begin. We need to do this so that
+        // We can determine the volumes that changes as part of this
+        // commit
+        vols.forEach {
+            assert( it.get_state() != Volume.State.COMITTED )
+        }
 
-        vols = self.volumes.values()
-        # Clean things up before we begin. We need to do this so that
-        # We can determine the volumes that changes as part of this
-        # commit
-        for vol in vols:
-            assert vol.get_state() != 'committed'
+        try {
+            // Try to commit all the dirty volumes
+            vols.forEach {
+                if( it.get_state() == Volume.State.DIRTY ) {
+                    it.commit()
+                }
+            }
+        } catch( ex: Exception ) {
+            // Something went wrong, rollback
+            vols.forEach {
+                if( it.get_state() == Volume.State.COMITTED ) {
+                    it.rollback()
+                }
+            }
 
-        try:
-            # Try to commit all the dirty volumes
-            for vol in vols:
-                if( vol.get_state() == 'dirty' ):
-                    vol.commit()
-        except:
-            # Something went wrong, rollback
-            for vol in vols:
-                if( vol.get_state() == 'committed' ):
-                    vol.rollback()
+            throw ex
+        }
 
-            raise
-
-        # Comitted
-        self.state = 'prepared'*/
+        // Comitted
+        this.state = State.PREPARED
     }
 
     fun unprepare_commit() {
-        /* TODO
-        if( self.state == 'clean' ):
-            return
+        if( this.state != State.PREPARED ) throw IllegalStateException()
 
-        assert self.state == 'prepared'
+        val vols = this.volumes.values
+        vols.forEach {
+            assert( it.get_state() != Volume.State.DIRTY )
+            if( it.get_state() == Volume.State.COMITTED ) {
+                it.rollback()
+            }
+        }
 
-        vols = self.volumes.values()
-        for vol in vols:
-            assert vol.get_state() != 'dirty'
-            if( vol.get_state() == 'committed' ):
-                vol.rollback()
+        vols.forEach {
+            assert( it.get_state() != Volume.State.COMITTED )
+        }
 
-        for vol in vols:
-            assert vol.get_state() != 'committed'
-
-        self.state = 'dirty'*/
+        this.state = State.DIRTY
     }
 
     fun complete_commit() {
-        /* TODO
-        if( self.state == 'clean' ):
-            return
+        if( this.state != State.PREPARED ) throw IllegalStateException()
 
-        assert self.state == 'prepared'
+        this.volumes.values.forEach {
+            if( it.get_state() == Volume.State.COMITTED ) {
+                it.reset_state()
+            }
+        }
 
-        vols = self.volumes.values()
-        for vol in vols:
-            if( vol.get_state() == 'committed' ):
-                vol.reset_state()
-
-        self.state = 'clean'*/
+        this.state = State.CLEAN
     }
 
     fun commit() {
@@ -105,60 +112,66 @@ class StreamDatabase( val data_config: Config ) {
     }
 
     fun rollback() {
-        /* TODO
-        vols = self.volumes.values()
+        val vols = this.volumes.values
 
-        if( self.state == 'clean' ):
-            for vol in vols:
-                assert vol.get_state() == 'clean'
+        if( this.state == State.CLEAN ) {
+            vols.forEach {
+                assert( it.get_state() == Volume.State.CLEAN )
+            }
             return
+        }
 
-        if( self.state == 'prepared' ):
-            self.unprepare_commit()
+        if( this.state == State.PREPARED ) {
+            this.unprepare_commit()
+        }
 
-        if( self.state == 'dirty' ):
-            for vol in vols:
-                assert vol.get_state() != 'committed'
-                if( vol.get_state() == 'dirty' ):
-                    vol.rollback()
+        if( this.state == State.DIRTY ) {
+            vols.forEach {
+                assert( it.get_state() != Volume.State.COMITTED )
+                if( it.get_state() == Volume.State.DIRTY ) {
+                    it.rollback()
+                }
+            }
 
-            for vol in vols:
-                assert vol.get_state() == 'clean'
+            vols.forEach {
+                assert( it.get_state() == Volume.State.CLEAN )
+            }
 
-            self.state = 'clean'*/
+            this.state = State.CLEAN
+        }
     }
 
-    fun load_data( path: String, id: Int, priority: Int, extension: String? ) {
+    fun load_data( path: String, id: Id, priority: Int, extension: String? ) {
 
-        /* TODO
-        if( self.state == 'committed' ):
-            # Clean things up before we begin. We need to do this so that
-            # We can determine the volumes that changes as part of this
-            # commit
-            self.reset_state()
-
-        self.state = 'dirty'
-
-        v = self.__get_vol_for_id( id )
-        v.load_data( path, id, priority, extension )*/
-    }
-
-    fun delete( id: Int, priority: Int, extension: String? ) {
-
-        if( this.state == "committed" ) {
+        if( this.state == State.COMITTED ) {
             // Clean things up before we begin. We need to do this so that
             // We can determine the volumes that changes as part of this
             // commit
             this.reset_state()
         }
 
-        this.state = "dirty"
+        this.state = State.DIRTY
+
+        this.__get_vol_for_id( id )
+            .load_data( path, id, priority, extension )
+    }
+
+    fun delete( id: Id, priority: Int, extension: String? ) {
+
+        if( this.state == State.COMITTED ) {
+            // Clean things up before we begin. We need to do this so that
+            // We can determine the volumes that changes as part of this
+            // commit
+            this.reset_state()
+        }
+
+        this.state = State.DIRTY
 
         val v = this.__get_vol_for_id( id )
         v.delete( id, priority, extension )
     }
 
-    fun read( id: Int, priority: Int, extension: String? ): Int {
+    fun read( id: Id, priority: Int, extension: String? ): InputStream? {
         return this.__get_vol_for_id( id )
                    .read( id, priority, extension )
     }

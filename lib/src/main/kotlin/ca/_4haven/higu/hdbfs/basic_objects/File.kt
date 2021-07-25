@@ -2,6 +2,8 @@ package ca._4haven.higu.hdbfs.basic_objects
 
 import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
+import org.ktorm.dsl.*
+import org.ktorm.entity.find
 
 open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
 
@@ -176,9 +178,12 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _get_root_stream(): Stream? {
-        /* TODO
-        return ObjectFactory.model_stream_to_higu_stream( this.db, this.obj.root_stream )*/
-        return null
+        val stream_id = this.obj.root_stream_id ?: return null
+        return this.db.session.streams.find {
+                    Streams.stream_id eq stream_id
+                }?.let {
+                    ObjectFactory.model_stream_to_higu_stream( this.db, it )
+                }
     }
 
     fun get_root_stream(): Stream? {

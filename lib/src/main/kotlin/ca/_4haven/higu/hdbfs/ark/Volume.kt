@@ -1,12 +1,21 @@
 package ca._4haven.higu.hdbfs.ark
 
+import ca._4haven.higu.hdbfs.model.Id
+import java.io.InputStream
+
 interface Volume {
+    enum class State {
+        CLEAN,
+        COMITTED,
+        DIRTY,
+    }
+
     fun verify(): Boolean
-    fun read( id: Int, priority: Int, extension: String? ): Int
-    fun get_state(): String
+    fun read( id: Id, priority: Int, extension: String? ): InputStream?
+    fun get_state(): State
     fun reset_state()
     fun commit()
     fun rollback()
-    fun load_data( path: String, id: Int, priority: Int, extension: String? )
-    fun delete( id: Int, priority: Int, extension: String? )
+    fun load_data( path: String, id: Id, priority: Int, extension: String? )
+    fun delete( id: Id, priority: Int, extension: String? )
 }

@@ -1,20 +1,20 @@
 package ca._4haven.higu.hdbfs.model
 
+import ca._4haven.higu.hdbfs.dbutils.Session
 import org.ktorm.schema.*
 import org.ktorm.entity.Entity
-
-object Objects : Table<Nothing>( "objects" ) {
-    val object_id = int( "object_id" ).primaryKey()
-    val object_type = int( "object_type" )
-    val create_ts = int( "create_ts" )
-    val name = varchar( "name" )
-}
+import org.ktorm.entity.sequenceOf
 
 interface ModelObject : Entity<ModelObject> {
-    val object_id: Int
-    val object_type: Int
-    val create_ts: Int
+
+    companion object : Entity.Factory<ModelObject>()
+
+    var object_id: Id
+    var object_type: Int
+    var create_ts: Long
     var name: String?
+    var root_stream_id: Id?
+
     /* TODO
     __tablename__ = 'objects'
 
@@ -93,3 +93,31 @@ interface ModelObject : Entity<ModelObject> {
         return 'Object( %r, %r, %r )' % ( self.id, self.type, time.gmtime( self.create_ts ), self.name )
     */
 }
+
+object Objects : Table<ModelObject>( "objects" ) {
+    val object_id = long( "object_id" ).primaryKey().bindTo { it.object_id }
+    val object_type = int( "object_type" ).bindTo { it.object_type }
+    val create_ts = long( "create_ts" ).bindTo { it.create_ts }
+    val name = varchar( "name" ).bindTo { it.name }
+    val root_stream_id = long( "root_stream_id" ).bindTo { it.root_stream_id }
+
+    fun create( session: Session ) {
+        session.useConnection { conn ->
+            val sql = """
+                CREATE TABLE IF NOT EXISTS objects (
+                    object_id       INTEGER PRIMARY KEY,
+                    object_type     INTEGER NOT NULL,
+                    create_ts       INTEGER NOT NULL,
+                    name            TEXT,
+                    root_stream_id  INTEGER
+                )
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.execute()
+            }
+        }
+    }
+}
+
+val Session.objects get() = this.sequenceOf( Objects )

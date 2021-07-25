@@ -4,11 +4,14 @@ import ca._4haven.higu.hdbfs.ark.*
 import ca._4haven.higu.hdbfs.basic_objects.*
 import ca._4haven.higu.hdbfs.imgdb.*
 import ca._4haven.higu.hdbfs.model.*
+import ca._4haven.higu.hdbfs.dbutils.Session
 import java.nio.file.Paths
 import java.nio.file.Path
+import java.nio.file.Files
 import kotlin.io.path.isDirectory
-
-val HIGURASHI_DB_NAME = "hfdb.dat"
+import org.ktorm.entity.add
+import org.ktorm.database.*
+import org.ktorm.dsl.*
 
 class Database( library_path: String? = null ) {
 
@@ -130,23 +133,20 @@ class Database( library_path: String? = null ) {
 
     var library: Path
     val model = Model()
-    //val session = model.Session();
+    val session: Session
 
     val hooks = Hooks( this )
     val imgdb: StreamDatabase
     val tbcache: ThumbCache
 
     val _access = AccessManager( this )
-    var _trans_write = false;
+    var transaction: Transaction? = null
 
     var obj_del_list = listOf<Obj>()
 
     init {
-        if( library_path != null ) {
-            this.library = Paths.get( library_path )
-        } else {
-            this.library = Paths.get( System.getProperty( "user.home" ), ".higu" )
-        }
+        this.library = library_path?.let { Paths.get( it ) }
+                            ?: Database.defaultLibrary
 
         if( !this.library.toFile().isDirectory() ) {
             this.library.toFile().mkdirs()
@@ -154,6 +154,7 @@ class Database( library_path: String? = null ) {
 
         this.model.init( this.library.resolve( HIGURASHI_DB_NAME ).toString(),
                          this.library.toString() )
+        this.session = this.model.session
 
         val imgdat_config = Config( this.library.toString() )
         this.imgdb = StreamDatabase( imgdat_config )
@@ -166,31 +167,29 @@ class Database( library_path: String? = null ) {
             self.session.close()*/
 
     fun _begin() {
-
-        /*assert not self._trans_write
-        self.session.execute( 'BEGIN EXCLUSIVE' )
-        self._trans_write = True*/
+        if( this.transaction != null ) throw RuntimeException()
+        this.transaction = this.session.transactionManager
+                               .newTransaction( TransactionIsolation.SERIALIZABLE )
     }
 
     fun _commit() {
-        /* TODO
-        if( !this._trans_write ) return
+        val transaction = this.transaction ?: throw RuntimeException()
 
         this.imgdb.prepare_commit()
 
         try {
             this.hooks.trigger_pre_commit_hooks( false )
-            this.session.commit()
+            transaction.commit()
             this.imgdb.complete_commit()
-        } catch {
+        } catch( ex: Exception ) {
             this.imgdb.unprepare_commit()
-            throw
+            throw ex
         }
 
         this.obj_del_list = listOf()
-        this._trans_write = false
+        this.transaction = null
 
-        this.hooks.trigger_post_commit_hooks( false )*/
+        this.hooks.trigger_post_commit_hooks( false )
     }
 
     fun _rollback() {
@@ -210,7 +209,7 @@ class Database( library_path: String? = null ) {
     fun close() {
         this.session.close()
         this.session = null
-    }
+    }*/
 
     fun enable_write_access() {
         this._access.write_permitted = true
@@ -220,6 +219,7 @@ class Database( library_path: String? = null ) {
         return this._access()
     }
 
+    /* TODO
     fun _get_object_by_id( object_id ) {
         val obj = self.session.query( model.Object ) \
                     .filter( model.Object.object_id == object_id ) \
@@ -279,13 +279,14 @@ class Database( library_path: String? = null ) {
                     .filter( model.Object.object_type.in_( [ TYPE_FILE, TYPE_ALBUM ] ) )
                     .filter( ~model.Object.object_id.in_( all_children ) )
                     .order_by( func.random() ) )
-    }
+    }*/
 
-    fun lookup_streams_by_details( file_length = null,
-                                   hash_crc32 = null,
-                                   hash_md5 = null,
-                                   hash_sha1 = null )
+    fun lookup_streams_by_details( file_length: Long? = null,
+                                   hash_crc32: String? = null,
+                                   hash_md5: String? = null,
+                                   hash_sha1: String? = null ): List<Stream>
     {
+        /* TODO
         var q = this.session.query( model.Stream )
         if( file_length is not None ):
             q = q.filter( model.Stream.stream_length == file_length )
@@ -297,8 +298,18 @@ class Database( library_path: String? = null ) {
             q = q.filter( model.Stream.hash_sha1 == hash_sha1 )
 
         return [ model_stream_to_higu_stream( this, s ) for s in q ]
+        */
+        return listOf()
     }
 
+    fun lookup_streams_by_details( details: Details ): List<Stream> {
+        return lookup_streams_by_details( details.length,
+                                          details.crc32,
+                                          details.md5,
+                                          details.sha1 )
+    }
+
+    /* TODO
     fun lookup_untagged_files() {
         return this.unowned_files()
     }
@@ -454,62 +465,96 @@ class Database( library_path: String? = null ) {
         this._access( write = True ).use {
             return this.__create_album( tags, name, text )
         }
-    }
+    }*/
 
-    fun __register_file( path: String, name_policy ) {
+    private fun __register_file( path: String, name_policy: NamePolicy )
+            : Triple< File, Stream, Boolean >
+    {
+        val _timestamp = System.currentTimeMillis() / 1000
 
-        import mimetypes
+        val _path = Paths.get( path )
+        val _file = _path.toFile()
 
-        name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
-        ext = os.path.splitext( name )[1]
-        assert ext[0] == '.'
-        ext = ext[1:]
+        val _name = _file.getName()
+        val _ext = _name.split("\\.(?=[^\\.]+$)".toRegex()).getOrNull(1)
+        val _mime_type = Files.probeContentType( _path )
 
-        details = calculate_details( path )
+        val details = Details.calculate( _file.inputStream() )
 
-        mime_type = mimetypes.guess_type( path, strict=False )[0]
-        streams = this.lookup_streams_by_details( *details )
-        new_stream = False
+        val streams = this.lookup_streams_by_details( details )
+        var new_stream = false
 
-        if( len( streams ) == 0 ) {
-            obj = model.Object( TYPE_FILE )
-            this.session.add( obj )
-            stream = model.Stream( obj, '.', model.SP_NORMAL,
-                                   None, ext, mime_type )
-            stream.set_details( *details )
-            this.session.add( stream )
-            obj.root_stream = stream
+        var f: File? = null
+        var stream: Stream? = null
 
-            f = model_obj_to_higu_obj( this, obj )
-            stream = model_stream_to_higu_stream( this, stream )
-            new_stream = True
+        if( streams.isEmpty() ) {
+            // Add object
+            val mobj = ModelObject {
+                object_type = TYPE_FILE
+                create_ts = _timestamp
+            }
+            this.session.objects.add( mobj )
 
-            this.session.flush()
+            // Add stream
+            val mstream = ModelStream {
+                object_id = mobj.object_id
+                name = "."
+                priority = SP_NORMAL
+                origin_stream_id = null
+                extension = _ext
+                mime_type = _mime_type
+                stream_length = details.length
+                hash_crc32 = details.crc32
+                hash_md5 = details.md5
+                hash_sha1 = details.sha1
+            }
+            this.session.streams.add( mstream )
+
+            mobj.root_stream_id = mstream.stream_id
+            mobj.flushChanges()
+
+            f = ObjectFactory.model_obj_to_higu_obj( this, mobj ) as File
+            stream = ObjectFactory.model_stream_to_higu_stream( this, mstream )
+            new_stream = true
+
             f._on_created( stream )
         } else {
             stream = streams[0]
-            if( stream.stream.mime_type is None ):
-                stream.stream.mime_type = mime_type
+            if( stream.stream.mime_type == null ) {
+                stream.stream.mime_type = _mime_type
+                stream.stream.flushChanges()
+            }
 
             f = stream._get_file()
         }
 
-        if( name_policy == NAME_POLICY_DONT_REGISTER ) {
-            log = model.StreamLog( stream.stream, 'hdbfs:register',
-                                   None, None )
-        } else {
-            log = model.StreamLog( stream.stream, 'hdbfs:register',
-                                   None, name )
-        }
+        val log = if( name_policy == NAME_POLICY_DONT_REGISTER ) {
+                StreamLogEntry {
+                    stream_id = stream.stream.stream_id
+                    timestamp = _timestamp
+                    origin_method = "hdbfs:register"
+                    origin_stream_id = null
+                    origin_name = null
+                }
+            } else {
+                StreamLogEntry {
+                    stream_id = stream.stream.stream_id
+                    timestamp = _timestamp
+                    origin_method = "hdbfs:register"
+                    origin_stream_id = null
+                    origin_name = null
+                }
+            }
 
-        this.session.add( log )
+        this.session.stream_log.add( log )
 
         if( name_policy == NAME_POLICY_SET_ALWAYS
-         or (name_policy == NAME_POLICY_SET_IF_UNDEF
-         and f.obj.name is None) )
+         || (name_policy == NAME_POLICY_SET_IF_UNDEF
+          && f.obj.name == null) )
          {
-            f.obj.name = name
+            f.obj.name = _name
          }
+         f.obj.flushChanges()
 
         if( !stream._verify() ) {
             this.imgdb.load_data( path, stream.stream.stream_id,
@@ -517,18 +562,19 @@ class Database( library_path: String? = null ) {
                                         stream.stream.extension )
         }
 
-        return f, stream, new_stream
+        return Triple( f, stream, new_stream )
     }
 
-    fun register_file( path: String, name_policy = NAME_POLICY_SET_IF_UNDEF ) {
+    fun register_file( path: String, name_policy: NamePolicy = NAME_POLICY_SET_IF_UNDEF )
+            : Triple< File, Stream, Boolean >
+    {
 
-        this._access( write = True ).use {
-            f, stream, is_new = this.__register_file( path, name_policy )
+        return this._access( write = true ).with {
+            this.__register_file( path, name_policy )
         }
-
-        return f
     }
 
+    /* TODO
     fun __register_thumb( path: String, obj, origin, name ) {
 
         import mimetypes
@@ -724,11 +770,29 @@ class Database( library_path: String? = null ) {
             this.session.query( model.Object ) \
                 .filter( model.Object.object_id == object_id ) \
                 .delete()
-    }
+    }*/
 
     companion object {
-        var _LIBRARY: String? = null
+        var defaultLibrary: Path
 
+        init {
+            defaultLibrary = Paths.get( System.getProperty( "user.home" ), ".higu" )
+
+            ObjectFactory.add_stream_factory( { db, stream ->
+                // TODO pick only image mime types?
+                ImageStream( db, stream )
+            } )
+            ObjectFactory.add_obj_factory( { db, obj ->
+                when {
+                    obj.object_type == TYPE_FILE -> ImageFile( db, obj )
+                    obj.object_type == TYPE_ALBUM -> Album( db, obj )
+                    obj.object_type == TYPE_CLASSIFIER -> Tag( db, obj )
+                    else -> null
+                }
+            } )
+        }
+
+        /* TODO
         fun init( library_path: String? = null ) {
             global _LIBRARY
 
@@ -754,6 +818,6 @@ class Database( library_path: String? = null ) {
                 && str( a[1] ) == str( b[1] ) \
                 && str( a[2] ) == str( b[2] ) \
                 && str( a[3] ) == str( b[3] )
-        }
-    }*/
+        }*/
+    }
 }

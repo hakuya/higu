@@ -2,6 +2,8 @@ package ca._4haven.higu.hdbfs.dbutils
 
 import org.ktorm.database.*
 import org.ktorm.dsl.*
+import org.ktorm.entity.add
+import org.ktorm.entity.find
 import java.util.UUID
 
 /* TODO
@@ -12,45 +14,48 @@ def _do_sqlite_connect( dbapi_conn, conn_record ):
 
 typealias Session = org.ktorm.database.Database
 
-class DatabaseFile( val __file: String, private val __migrators: List<Migrator>) {
+class DatabaseFile( val __file: String, private val __migrators: Map<String,Migrator>) {
 
     private var session: Session? = null
 
-    fun get_schema_version( schema: String ): Pair<Int,Int>? {
+    fun get_schema_version( schema: String ): Schema.Version? {
         try { 
             var result = Schema.createEntity( this.get_session()
                 .from( Schema )
                 .select()
                 .where { Schema.schema_name eq schema }
                 .iterator().next() )
-            return Pair( result.ver, result.rev )
+            return Schema.Version( result.ver, result.rev )
         } catch( ex: NoSuchElementException ) {
             return null
         }
     }
 
-    fun set_schema_version( schema: String, ver: Int, rev: Int ) {
-        this.get_session().useTransaction {
-            var c = this.get_session().update( Schema ) {
-                set( it.ver, ver )
-                set( it.rev, rev )
+    fun set_schema_version( schema: String, version: Schema.Version ) {
+
+        val session = this.get_session()
+
+        session.useTransaction {
+            var c = session.update( Schema ) {
+                set( it.ver, version.major )
+                set( it.rev, version.rev )
             }
             if( c == 0 ) {
                 // No updated rows, must insert
-                c = this.get_session().insert( Schema ) {
-                    set( it.uuid, UUID.randomUUID() )
-                    set( it.schema_name, schema )
-                    set( it.ver, ver )
-                    set( it.rev, rev )
+                val entry = SchemaEntry {
+                    uuid = UUID.randomUUID().toString()
+                    schema_name = schema
+                    ver = version.major
+                    rev = version.rev
                 }
+                c = this.get_session().schema_.add( entry )
             }
             if( c == 0 ) throw RuntimeException()
         }
     }
 
-    /* TODO
-    def backup( self ):
-
+    fun backup() {
+        /* TODO
         with file( self.__file, 'rb' ) as f:
             n = 0
             while( 1 ):
@@ -65,6 +70,7 @@ class DatabaseFile( val __file: String, private val __migrators: List<Migrator>)
                         g.close()
                         break
                     g.write( buff )*/
+    }
 
     fun init() {
         val session = Database.connect( "jdbc:sqlite:" + this.__file )
@@ -78,37 +84,46 @@ class DatabaseFile( val __file: String, private val __migrators: List<Migrator>)
         this.session = session
     }
 
+    fun init_schema( schema: String, target_ver: Schema.Version ) {
+
+        val session = this.get_session()
+        val migrator = this.__migrators[schema] ?: throw RuntimeException()
+
+        val version = this.get_schema_version( schema )
+
+        if( version == null ) {
+            migrator.init_schema( session, target_ver )
+            this.set_schema_version( schema, target_ver )
+        } else if( version.major > target_ver.major ) {
+            throw RuntimeException( "Unsupported schema version" )
+        } else if( version.major != target_ver.major
+                || version.rev != target_ver.rev )
+        {
+            this.backup()
+
+            session.useTransaction( TransactionIsolation.SERIALIZABLE ) {
+                var _version: Schema.Version = version
+                while( _version.major != target_ver.major
+                    || _version.rev != target_ver.rev )
+                {
+                    var new_version = migrator.upgrade_schema( session, _version )
+                    if( new_version.major < _version.major
+                     || (new_version.major == _version.major && new_version.rev <= _version.rev) )
+                    {
+                        throw RuntimeException()
+                    }
+                    _version = new_version
+                }
+
+                val info = session.schema_.find { Schema.schema_name eq schema }!!
+                info.ver = _version.major
+                info.rev = _version.rev
+                info.flushChanges()
+            }
+        }
+    }
+
     /* TODO
-    def init_schema( self, schema, target_ver, target_rev ):
-
-        ver, rev = self.get_schema_version( schema )
-
-        if( ver is None ):
-            self.__migrators[schema].init_schema( self.__engine, target_ver, target_rev )
-            self.set_schema_version( schema, target_ver, target_rev )
-        elif( ver > target_ver ):
-            assert False, 'Unsupported schema version'
-        elif( ver != target_ver or rev != target_rev ):
-            self.backup()
-
-            s = self.get_session()
-            try:
-                m = self.__migrators[schema]
-                s.execute( 'BEGIN EXCLUSIVE' )
-
-                while( ver != target_ver or rev != target_rev ):
-                    new_ver, new_rev = m.upgrade_schema( s, ver, rev )
-                    assert new_ver > ver or (new_ver == ver and new_rev > rev)
-                    ver, rev = new_ver, new_rev
-
-                info = s.query( Schema ).filter( Schema.schema == schema ).first()
-                info.ver = ver
-                info.rev = rev
-
-                s.commit()
-            finally:
-                s.close()
-
     def dispose( self ):
 
         self.__Session = None
@@ -120,7 +135,7 @@ class DatabaseFile( val __file: String, private val __migrators: List<Migrator>)
         return self.__engine*/
 
     fun get_session(): Session {
-        if( session != null ) {
+        if( this.session != null ) {
             return this.session!!
         }
         throw RuntimeException()

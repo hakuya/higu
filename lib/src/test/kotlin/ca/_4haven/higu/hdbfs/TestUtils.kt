@@ -1,7 +1,9 @@
 package ca._4haven.higu.hdbfs
 
+import ca._4haven.higu.hdbfs.model.FBUFF
 import java.io.*
 import java.nio.file.*
+import kotlin.comparisons.compareValues
 
 class TestUtils {
 
@@ -29,7 +31,6 @@ class TestUtils {
         val black_hash = "c2d1060c9ea2949e327d412778ccda8d31cdb538"
     }
 
-    lateinit var data_dir: Path
     lateinit var work_dir: Path
     lateinit var cfg_file_path: Path
     lateinit var db_path: Path
@@ -37,7 +38,6 @@ class TestUtils {
 
     fun init_env( do_init: Boolean = true, web_init: Boolean = false ) {
 
-        this.data_dir = Paths.get( "test/data" )
         this.work_dir = Files.createTempDirectory( "higuTest" )
         this.cfg_file_path = this.work_dir.resolve( "test.cfg" )
         this.db_path = this.work_dir.resolve( "test.db" )
@@ -56,6 +56,8 @@ class TestUtils {
 
         /* TODO
         if( web_init ) higu.model.init( self.web_db )*/
+
+        println( "Test environment initialized: ${this.work_dir.toString()}")
     }
 
     fun uninit_env() {
@@ -66,57 +68,57 @@ class TestUtils {
     }
 
     fun _init_hdbfs() {
-        Database( this.db_path.toString() )
+        Database.defaultLibrary = this.db_path
+        Database()
     }
 
-    /* TODO
-    fun _data_path( self, fname ) {
-        return os.path.join( self.data_dir, fname )
+    private inline fun readResource( name: String ): InputStream {
+        return this::class.java.getResourceAsStream( "/" + name )
     }
 
-    fun _load_data( self, fname, tname = None ) {
+    fun _load_data( fname: String, tname: String? = null ): File {
 
-        src = self._data_path( fname )
-        if( tname is None ):
-            tgt = os.path.join( self.work_dir, fname )
-        else:
-            tgt = os.path.join( self.work_dir, tname )
+        val tgt = this.work_dir.resolve( tname ?: fname ).toFile()
 
-        shutil.copy( src, tgt )
+        val istm = readResource( fname )
+        val ostm = tgt.outputStream()
+
+        istm.use { ostm.use {
+            val b = ByteArray( FBUFF )
+            while( true ) {
+                val c = istm.read( b )
+                if( c <= 0 ) break
+                ostm.write( b, 0, c )
+            }
+        }}
 
         return tgt
     }
 
-    fun _diff_data( self, f, data ) {
-        return self._diff( f, self._data_path( data ) )
+    fun _diff_data( f: InputStream, data: String ): Boolean {
+        return this._diff( f, readResource( data ) )
     }
 
-    fun _diff( self, f1, f2 ) {
+    fun _diff( f1: InputStream, f2: InputStream ): Boolean {
+        val b1 = ByteArray( FBUFF )
+        val b2 = ByteArray( FBUFF )
 
-        if( isinstance( f1, str ) ):
-            if( not os.path.isfile( f1 ) ):
-                return False
+        f1.use { f2.use {
+            while( true ) {
+                val c1 = f1.read( b1 )
+                val c2 = f2.read( b2 )
 
-            f1 = open( f1, "rb" )
+                if( c1 < 4096 ) {
+                    if( c1 != c2 ) return false
+                    if( c1 <= 0 )  return true
 
-        if( isinstance( f2, str ) ):
-            if( not os.path.isfile( f2 ) ):
-                return False
-
-            f2 = open( f2, "rb" )
-
-        try:
-            while True:
-                d1 = f1.read( 4096 )
-                d2 = f2.read( 4096 )
-
-                if( d1 != d2 ):
-                    return False
-
-                if( len( d1 ) == 0 ):
-                    return True
-        finally:
-            f1.close()
-            f2.close()
-    }*/
+                    for( i in 0 until c1 ) {
+                        if( b1[i] != b2[i] ) return false
+                    }
+                } else {
+                    if( !b1.equals( b2 ) ) return false
+                }
+            }
+        }}
+    }
 }

@@ -11,7 +11,7 @@ object StreamMetadata : Table<Nothing>( "stream_metadata" ) {
 }
 
 interface StreamMetadataEntry : Entity<StreamMetadataEntry> {
-    val stream_id: Int
+    var stream_id: Id
     var key: String
     var value: String?
     var numeric: Int?

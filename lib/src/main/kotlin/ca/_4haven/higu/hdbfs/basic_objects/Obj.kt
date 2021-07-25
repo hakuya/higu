@@ -11,7 +11,7 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     open fun _on_children_changed() {
     }
 
-    fun get_id(): Int {
+    fun get_id(): Id {
         return this.db._access().with { this.obj.object_id }
     }
 

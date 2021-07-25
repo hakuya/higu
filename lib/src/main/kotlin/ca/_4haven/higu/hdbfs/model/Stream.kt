@@ -1,31 +1,22 @@
 package ca._4haven.higu.hdbfs.model
 
+import ca._4haven.higu.hdbfs.dbutils.Session
 import org.ktorm.schema.*
 import org.ktorm.entity.Entity
-
-object Streams : Table<Nothing>( "streams" ) {
-    val stream_id = int( "stream_id" ).primaryKey()
-    val object_id = int( "object_id" )
-    val name = varchar( "name" )
-    val priority = int( "priority" )
-    val origin_stream_id = int( "origin_stream_id" )
-    val extension = varchar( "extension" )
-    val mime_type = varchar( "mimetype" )
-    val stream_length = varchar( "stream_length" )
-    val hash_crc32 = varchar( "hash_crc32" )
-    val hash_md5 = varchar( "hash_md5" )
-    val hash_sha1 = varchar( "hash_sha1" )
-}
+import org.ktorm.entity.sequenceOf
 
 interface ModelStream : Entity<ModelStream> {
-    val stream_id: Int
-    val object_id: Int
+
+    companion object : Entity.Factory<ModelStream>()
+
+    var stream_id: Id
+    var object_id: Id
     var name: String
     var priority: Int
-    var origin_stream_id: Int?
+    var origin_stream_id: Id?
     var extension: String?
     var mime_type: String?
-    var stream_length: Int?
+    var stream_length: Long?
     var hash_crc32: String?
     var hash_md5: String?
     var hash_sha1: String?
@@ -115,3 +106,48 @@ interface ModelStream : Entity<ModelStream> {
                 self.origin_stream_id, self.mime_type, self.stream_length,
                 self.hash_crc32, self.hash_md5, self.hash_sha1 )*/
 }
+
+object Streams : Table<ModelStream>( "streams" ) {
+    val stream_id = long( "stream_id" ).primaryKey().bindTo { it.stream_id }
+    val object_id = long( "object_id" ).bindTo { it.object_id }
+    val name = varchar( "name" ).bindTo { it.name }
+    val priority = int( "priority" ).bindTo { it.priority }
+    val origin_stream_id = long( "origin_stream_id" ).bindTo { it.origin_stream_id }
+    val extension = varchar( "extension" ).bindTo { it.extension }
+    val mime_type = varchar( "mime_type" ).bindTo { it.mime_type }
+    val stream_length = long( "stream_length" ).bindTo { it.stream_length }
+    val hash_crc32 = varchar( "hash_crc32" ).bindTo { it.hash_crc32 }
+    val hash_md5 = varchar( "hash_md5" ).bindTo { it.hash_md5 }
+    val hash_sha1 = varchar( "hash_sha1" ).bindTo { it.hash_sha1 }
+
+    fun create( session: Session ) {
+        session.useConnection { conn ->
+            val sql = """
+                CREATE TABLE IF NOT EXISTS streams (
+                    stream_id           INTEGER PRIMARY KEY,
+                    object_id           INTEGER NOT NULL,
+                    name                TEXT NOT NULL,
+                    priority            INTEGER NOT NULL,
+                    origin_stream_id    INTEGER,
+                    extension           TEXT,
+                    mime_type           TEXT,
+                    stream_length       INTEGER,
+                    hash_crc32          TEXT,
+                    hash_md5            TEXT,
+                    hash_sha1           TEXT,
+                    UNIQUE ( object_id, name ),
+                    FOREIGN KEY ( object_id )
+                        REFERENCES objects( object_id ),
+                    FOREIGN KEY ( origin_stream_id )
+                        REFERENCES streams( stream_id )
+                )
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.execute()
+            }
+        }
+    }
+}
+
+val Session.streams get() = this.sequenceOf( Streams )

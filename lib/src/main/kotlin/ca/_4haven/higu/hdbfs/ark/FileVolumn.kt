@@ -1,35 +1,32 @@
 package ca._4haven.higu.hdbfs.ark
 
 import ca._4haven.higu.hdbfs.imgdb.Config
+import ca._4haven.higu.hdbfs.model.Id
+import java.io.IOException
+import java.io.InputStream
+import java.nio.file.*
 
-class FileVolume( val data_config: Config, val vol_id: Int ) : Volume {
+class FileVolume( val data_config: Config, val vol_id: Id ) : Volume {
+    private var to_commit = mutableListOf< Pair<Path,Path> >()
+    private var state = Volume.State.CLEAN
+    private var rm_dir: Path? = null
 
-    private var to_commit = listOf<String>()
-    private var state = "clean"
-    private var rm_dir: String? = null
-
-    /* TODO
-    def __get_path( self, id, priority, extension ):
-
-        path = self.data_config.get_file_vol_path( self.vol_id, priority )
-        return os.path.join( path, '%016x.%s' % ( id, extension ) )*/
+    private fun __get_path( id: Id, priority: Int, extension: String? ): Path {
+        val path = this.data_config.get_file_vol_path( this.vol_id, priority )
+        return path.resolve( "%016x.%s".format( id, extension ) )
+    }
 
     override fun verify(): Boolean {
         return true
     }
 
-    override fun read( id: Int, priority: Int, extension: String? ): Int {
-        /* TODO
-        p = self.__get_path( id, priority, extension )
-        if( not os.path.isfile( p ) ):
-            return None
-        else:
-            try:
-                return open( p, 'rb' )
-            except IndexError:
-                return None
-        */
-        return 0
+    override fun read( id: Id, priority: Int, extension: String? ): InputStream? {
+        val p = this.__get_path( id, priority, extension )
+        return if( !p.toFile().isFile() ) {
+            null
+        } else {
+            p.toFile().inputStream()
+        }
     }
 
     /* TODO
@@ -42,86 +39,89 @@ class FileVolume( val data_config: Config, val vol_id: Int ) : Volume {
         except IndexError:
             return None*/
 
-    override fun get_state(): String = this.state
+    override fun get_state(): Volume.State = this.state
 
     override fun reset_state() {
-        /* TODO
-        self.to_commit = []
-        self.state = 'clean'
+        this.state = Volume.State.CLEAN
 
-        rm_dir = self.rm_dir
-        self.rm_dir = None
-        self.to_commit = []
+        val rm_dir = this.rm_dir
+        this.rm_dir = null
+        this.to_commit = mutableListOf()
 
-        if( rm_dir is not None ):
-            shutil.rmtree( rm_dir )*/
+        rm_dir?.toFile()?.deleteRecursively()
     }
 
     override fun commit() {
-        /* TODO
-        completion = 0
+        val moved = mutableListOf< Pair<Path,Path> >()
 
-        try:
-            for t in self.to_commit:
-                shutil.move( t[0], t[1] )
-                completion += 1
+        try {
+            this.to_commit.forEach {
+                Files.move( it.first, it.second )
+                moved.add( it )
+            }
+        } catch( ex: Exception ) {
+            // Something went wrong, rollback
+            moved.forEach {
+                Files.move( it.second, it.first )
+            }
 
-        except:
-            # Something went wrong, rollback
-            for t in self.to_commit[:completion]:
-                shutil.move( t[1], t[0] )
+            // Sometimes move() seems to leave files behind
+            moved.forEach {
+                try {
+                    if( it.second.toFile().isFile() ) {
+                        it.second.toFile().delete()
+                    }
+                } catch( ex: IOException ) {
+                }
+            }
 
-            # Sometimes move() seems to leave files behind
-            for t in self.to_commit:
-                try:
-                    if( os.path.isfile( t[1] ) ):
-                        os.remove( t[1] )
-                except:
-                    pass
+            throw ex
+        }
 
-            raise
-
-        # Comitted
-        self.state = 'committed'*/
+        // Comitted
+        this.state = Volume.State.COMITTED
     }
 
     override fun rollback() {
-        /* TODO
-        if( self.state == 'dirty' ):
-            self.to_commit = []
-            self.state = 'clean'
+        if( this.state == Volume.State.DIRTY ) {
+            this.to_commit = mutableListOf()
+            this.state = Volume.State.CLEAN
+        } else if( this.state == Volume.State.COMITTED ) {
+            this.to_commit.forEach {
+                Files.move( it.second, it.first )
+            }
 
-        elif( self.state == 'committed' ):
-            for t in self.to_commit:
-                shutil.move( t[1], t[0] )
+            // Sometimes move() seems to leave files behind
+            this.to_commit.forEach {
+                try {
+                    if( it.second.toFile().isFile() ) {
+                        it.second.toFile().delete()
+                    }
+                } catch( ex: IOException ) {
+                }
+            }
 
-            # Sometimes move() seems to leave files behind
-            for t in self.to_commit:
-                try:
-                    if( os.path.isfile( t[1] ) ):
-                        os.remove( t[1] )
-                except:
-                    pass
-
-            self.state = 'dirty'*/
+            this.state = Volume.State.DIRTY
+        }
     }
 
-    override fun load_data( path: String, id: Int, priority: Int, extension: String? ) {
-        /* TODO
-        if( self.state == 'committed' ):
-            self.reset_state()
+    override fun load_data( path: String, id: Id, priority: Int, extension: String? ) {
+        if( this.state == Volume.State.COMITTED ) {
+            this.reset_state()
+        }
 
-        self.state = 'dirty'
+        this.state = Volume.State.DIRTY
 
-        new_path = self.data_config.get_file_vol_path( self.vol_id, priority )
-        if( not os.path.isdir( new_path ) ):
-            os.makedirs( new_path )
+        val new_path = this.data_config.get_file_vol_path( this.vol_id, priority )
+        if( !new_path.toFile().isDirectory() ) {
+            new_path.toFile().mkdirs()
+        }
 
-        tgt = os.path.join( new_path, '%016x.%s' % ( id, extension ) )
-        self.to_commit.append( ( path, tgt, ) )*/
+        val tgt = new_path.resolve( "%016x.%s".format( id, extension ) )
+        this.to_commit.add( Pair( Paths.get( path ), tgt ) )
     }
 
-    override fun delete( id: Int, priority: Int, extension: String? ) {
+    override fun delete( id: Id, priority: Int, extension: String? ) {
         /* TODO
         if( self.state == 'committed' ):
             self.reset_state()

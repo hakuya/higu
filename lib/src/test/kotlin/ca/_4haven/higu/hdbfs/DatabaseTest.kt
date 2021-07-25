@@ -3,6 +3,7 @@ package ca._4haven.higu.hdbfs
 import kotlin.test.*
 import kotlin.test.assertTrue
 import kotlin.io.path.isRegularFile
+import kotlin.io.path.isDirectory
 
 class DatabaseTest {
     /* TODO
@@ -29,26 +30,27 @@ class DatabaseTest {
                 "Sqlite database not created" )
     }
 
-    /* TODO
-    def test_imgdat_structure( self ):
+    @Test
+    fun test_imgdat_structure() {
+        val red = this.utils._load_data( TestUtils.red )
 
-        red = self._load_data( self.red )
-
-        h = hdbfs.Database()
+        val h = Database()
         h.enable_write_access()
 
-        obj = h.register_file( red, False )
+        val tri = h.register_file( red.toString(), NAME_POLICY_DONT_REGISTER )
 
-        self.assertFalse( os.path.exists( red ),
-                'Old image was not removed' )
-        self.assertTrue( os.path.isdir(
-                    os.path.join( self.db_path, 'imgdat' ) ),
-                'Image data directory not created' )
+        assertFalse( red.isFile(), "Old image was not removed" )
 
-        red_fd = obj.get_root_stream().read()
-        self.assertTrue( self._diff_data( red_fd, self.red ),
-                'Image not read from library' )
+        assertTrue( this.utils.db_path.resolve( "imgdat" ).toFile().isDirectory(),
+                    "Image data directory not created" )
 
+        val red_istm = tri.first.get_root_stream()?.read()
+        assertNotNull( red_istm )
+        assertTrue( this.utils._diff_data( red_istm, TestUtils.red ),
+                    "Image not read from library" )
+    }
+
+    /* TODO
     def test_delete( self ):
 
         yellow = self._load_data( self.yellow )

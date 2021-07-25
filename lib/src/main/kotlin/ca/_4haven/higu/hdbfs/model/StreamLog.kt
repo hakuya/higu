@@ -1,23 +1,19 @@
 package ca._4haven.higu.hdbfs.model
 
+import ca._4haven.higu.hdbfs.dbutils.Session
 import org.ktorm.schema.*
 import org.ktorm.entity.Entity
-
-object StreamLog : Table<Nothing>( "stream_log" ) {
-    val log_id = int( "log_id" ).primaryKey()
-    val stream_id = int( "stream_id" )
-    val timestamp = int( "timestamp" )
-    val origin_method = varchar( "origin_method" )
-    val origin_stream_id = int( "origin_stream_id" )
-    val origin_name = varchar( "origin_name" )
-}
+import org.ktorm.entity.sequenceOf
 
 interface StreamLogEntry : Entity<StreamLogEntry> {
-    val log_id: Int
-    var stream_id: Int
-    var timestamp: Int
+
+    companion object : Entity.Factory<StreamLogEntry>()
+
+    var log_id: Id
+    var stream_id: Id
+    var timestamp: Long
     var origin_method: String
-    var origin_stream_id: Int?
+    var origin_stream_id: Id?
     var origin_name: String?
     /* TODO
     __tablename__ = 'stream_log'
@@ -51,3 +47,37 @@ interface StreamLogEntry : Entity<StreamLogEntry> {
                 self.stream_id, self.timestamp, self.origin_method,
                 self.origin_stream_id, self.origin_name )*/
 }
+
+object StreamLog : Table<StreamLogEntry>( "stream_log" ) {
+    val log_id = long( "log_id" ).primaryKey().bindTo { it.log_id }
+    val stream_id = long( "stream_id" ).bindTo { it.stream_id }
+    val timestamp = long( "timestamp" ).bindTo { it.timestamp }
+    val origin_method = varchar( "origin_method" ).bindTo { it.origin_method }
+    val origin_stream_id = long( "origin_stream_id" ).bindTo { it.origin_stream_id }
+    val origin_name = varchar( "origin_name" ).bindTo { it.origin_name }
+
+    fun create( session: Session ) {
+        session.useConnection { conn ->
+            val sql = """
+                CREATE TABLE IF NOT EXISTS stream_log (
+                    log_id            INTEGER PRIMARY KEY,
+                    stream_id         INTEGER NOT NULL,
+                    timestamp         INTEGER NOT NULL,
+                    origin_method     TEXT NOT NULL,
+                    origin_stream_id  INTEGER,
+                    origin_name       TEXT,
+                    FOREIGN KEY ( stream_id )
+                        REFERENCES streams( stream_id ),
+                    FOREIGN KEY ( origin_stream_id )
+                        REFERENCES streams( stream_id )
+                )
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.execute()
+            }
+        }
+    }
+}
+
+val Session.stream_log get() = this.sequenceOf( StreamLog )
