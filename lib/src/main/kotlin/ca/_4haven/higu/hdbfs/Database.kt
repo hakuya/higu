@@ -9,7 +9,7 @@ import java.nio.file.Paths
 import java.nio.file.Path
 import java.nio.file.Files
 import kotlin.io.path.isDirectory
-import org.ktorm.entity.add
+import org.ktorm.entity.*
 import org.ktorm.database.*
 import org.ktorm.dsl.*
 
@@ -142,7 +142,7 @@ class Database( library_path: String? = null ) {
     val _access = AccessManager( this )
     var transaction: Transaction? = null
 
-    var obj_del_list = listOf<Obj>()
+    var obj_del_list = mutableListOf<Id>()
 
     init {
         this.library = library_path?.let { Paths.get( it ) }
@@ -186,23 +186,24 @@ class Database( library_path: String? = null ) {
             throw ex
         }
 
-        this.obj_del_list = listOf()
+        this.obj_del_list = mutableListOf()
+        transaction.close()
         this.transaction = null
 
         this.hooks.trigger_post_commit_hooks( false )
     }
 
     fun _rollback() {
-        /* TODO
-        if( !this._trans_write ) return
+        val transaction = this.transaction ?: throw RuntimeException()
 
         this.hooks.trigger_pre_commit_hooks( true )
 
         this.imgdb.rollback()
-        this.session.rollback()
-        this._trans_write = false
+        transaction.rollback()
+        transaction.close()
+        this.transaction = null
 
-        this.hooks.trigger_post_commit_hooks( true )*/
+        this.hooks.trigger_post_commit_hooks( true )
     }
 
     /* TODO
@@ -219,22 +220,21 @@ class Database( library_path: String? = null ) {
         return this._access()
     }
 
-    /* TODO
-    fun _get_object_by_id( object_id ) {
-        val obj = self.session.query( model.Object ) \
-                    .filter( model.Object.object_id == object_id ) \
-                    .first()
-        if( obj == null ) return null
+    fun _get_object_by_id( object_id: Id ): Obj? {
+        val obj = this.session.objects.find {
+            Objects.object_id eq object_id
+        } ?: return null
 
         return ObjectFactory.model_obj_to_higu_obj( this, obj )
     }
 
-    fun get_object_by_id( object_id ) {
-        this._access().with {
-            return this._get_object_by_id( object_id )
+    fun get_object_by_id( object_id: Id ): Obj? {
+        return this._access().with {
+            this._get_object_by_id( object_id )
         }
     }
 
+    /* TODO
     fun get_stream_by_id( stream_id ) {
 
         this._access().with {
@@ -286,20 +286,14 @@ class Database( library_path: String? = null ) {
                                    hash_md5: String? = null,
                                    hash_sha1: String? = null ): List<Stream>
     {
-        /* TODO
-        var q = this.session.query( model.Stream )
-        if( file_length is not None ):
-            q = q.filter( model.Stream.stream_length == file_length )
-        if( hash_crc32 is not None ):
-            q = q.filter( model.Stream.hash_crc32 == hash_crc32 )
-        if( hash_md5 is not None ):
-            q = q.filter( model.Stream.hash_md5 == hash_md5 )
-        if( hash_sha1 is not None ):
-            q = q.filter( model.Stream.hash_sha1 == hash_sha1 )
+        var q = this.session.streams
 
-        return [ model_stream_to_higu_stream( this, s ) for s in q ]
-        */
-        return listOf()
+        file_length?.let { v -> q = q.filter { Streams.stream_length eq v } }
+        hash_crc32?.let { v -> q = q.filter { Streams.hash_crc32 eq v } }
+        hash_md5?.let { v -> q = q.filter { Streams.hash_md5 eq v } }
+        hash_sha1?.let { v -> q = q.filter { Streams.hash_sha1 eq v} }
+
+        return q.map { ObjectFactory.model_stream_to_higu_stream( this, it ) }
     }
 
     fun lookup_streams_by_details( details: Details ): List<Stream> {
@@ -467,8 +461,9 @@ class Database( library_path: String? = null ) {
         }
     }*/
 
-    private fun __register_file( path: String, name_policy: NamePolicy )
-            : Triple< File, Stream, Boolean >
+    data class RegistrationResult( val file: File, val stream: Stream, val was_known: Boolean )
+
+    private fun __register_file( path: String, name_policy: NamePolicy ): RegistrationResult
     {
         val _timestamp = System.currentTimeMillis() / 1000
 
@@ -562,11 +557,11 @@ class Database( library_path: String? = null ) {
                                         stream.stream.extension )
         }
 
-        return Triple( f, stream, new_stream )
+        return RegistrationResult( f, stream, !new_stream )
     }
 
     fun register_file( path: String, name_policy: NamePolicy = NAME_POLICY_SET_IF_UNDEF )
-            : Triple< File, Stream, Boolean >
+            : RegistrationResult
     {
 
         return this._access( write = true ).with {
@@ -574,42 +569,55 @@ class Database( library_path: String? = null ) {
         }
     }
 
-    /* TODO
-    fun __register_thumb( path: String, obj, origin, name ) {
+    private fun __register_thumb( path: String, obj: Obj, origin: Stream, _name: String ): Stream {
 
-        import mimetypes
+        val _timestamp = System.currentTimeMillis() / 1000
 
-        var ext = os.path.splitext( path )[1]
-        assert ext[0] == '.'
-        ext = ext[1:]
+        val _path = Paths.get( path )
+        val _file = _path.toFile()
 
-        val details = calculate_details( path )
-        val mime_type = mimetypes.guess_type( path, strict=False )[0]
+        val _ext = _name.split("\\.(?=[^\\.]+$)".toRegex()).getOrNull(1)
+        val _mime_type = Files.probeContentType( _path )
 
-        val stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE,
-                                   origin.stream, ext, mime_type )
-        stream.set_details( *details )
-        this.session.add( stream )
+        val details = Details.calculate( _file.inputStream() )
 
-        val log = model.StreamLog( stream, 'imgdb:' + name,
-                                   origin.stream, None )
-        this.session.add( log )
-        this.session.flush()
+        val mstream = ModelStream {
+            object_id = obj.obj.object_id
+            name = _name
+            priority = SP_EXPENDABLE
+            origin_stream_id = origin.stream.stream_id
+            extension = _ext
+            mime_type = _mime_type
+            stream_length = details.length
+            hash_crc32 = details.crc32
+            hash_md5 = details.md5
+            hash_sha1 = details.sha1
+        }
+        this.session.streams.add( mstream )
 
-        this.imgdb.load_data( path, stream.stream_id,
-                                    stream.priority,
-                                    stream.extension )
+        val log = StreamLogEntry {
+            stream_id = mstream.stream_id
+            timestamp = _timestamp
+            origin_method = "imgdb:${_name}"
+            origin_stream_id = origin.stream.stream_id
+            origin_name = null
+        }
+        this.session.stream_log.add( log )
 
-        return model_stream_to_higu_stream( this, stream )
+        this.imgdb.load_data( path, mstream.stream_id,
+                                    mstream.priority,
+                                    mstream.extension )
+
+        return ObjectFactory.model_stream_to_higu_stream( this, mstream )
     }
 
-    fun register_thumb( path: String, obj, origin, name ) {
-
-        this._access( write = True ).use {
-            return this.__register_thumb( path, obj, origin, name )
+    fun register_thumb( path: String, obj: Obj, origin: Stream, name: String ): Stream {
+        return this._access( write = true ).with {
+            this.__register_thumb( path, obj, origin, name )
         }
     }
 
+    /* TODO
     fun batch_add_files( files, tags = [], tags_new = [],
                          name_policy = NAME_POLICY_SET_IF_UNDEF,
                          create_album = False, album_name = None, album_text = None )
@@ -745,32 +753,30 @@ class Database( library_path: String? = null ) {
         this._access( write = True ) {
             this._merge_objects( primary_obj, merge_obj )
         }
-    }
+    }*/
 
-    fun delete_object( obj ) {
+    fun delete_object( obj: Obj ) {
 
-        with this._access( write = True ):
+        this._access( write = true ).with {
 
-            object_id = obj.obj.object_id
+            val object_id = obj.obj.object_id
 
-            if( isinstance( obj, File ) ) {
-                obj._drop_streams()
-                this.obj_del_list.append( object_id )
+            (obj as? File)?.let {
+                it._drop_streams()
+                this.obj_del_list.add( object_id )
             }
 
-            this.session.query( model.ObjectMetadata ) \
-                .filter( model.ObjectMetadata.object_id == object_id ) \
-                .delete()
+            this.session.object_metadata.removeIf { ObjectMetadata.object_id eq object_id }
+            /* TODO
             this.session.query( model.Relation ) \
                 .filter( model.Relation.parent_id == object_id ) \
                 .delete()
             this.session.query( model.Relation ) \
                 .filter( model.Relation.child_id == object_id ) \
-                .delete()
-            this.session.query( model.Object ) \
-                .filter( model.Object.object_id == object_id ) \
-                .delete()
-    }*/
+                .delete()*/
+            this.session.objects.removeIf { Objects.object_id eq object_id }
+        }
+    }
 
     companion object {
         var defaultLibrary: Path

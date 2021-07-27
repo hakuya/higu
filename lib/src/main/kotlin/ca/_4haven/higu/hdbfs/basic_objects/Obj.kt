@@ -2,6 +2,8 @@ package ca._4haven.higu.hdbfs.basic_objects
 
 import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
+import org.ktorm.dsl.*
+import org.ktorm.entity.*
 
 open class Obj( val db: Database, val obj: ModelObject ) {
 
@@ -155,18 +157,39 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     }
 
     fun getItem( key: String ): Any? {
-        /* TODO
         return this.db._access().with {
-            self.obj.getItem( key )
-        }*/
-        return null
+            val entry = this.db.session.object_metadata.find {
+                (ObjectMetadata.object_id eq this.obj.object_id) and
+                (ObjectMetadata.key eq key)
+            }
+            entry?.numeric ?: entry?.value
+        }
     }
 
     fun setItem( key: String, value: Any? ) {
-        /* TODO
+        if( value == null ) return delItem( key )
+
         this.db._access( write = true ).with {
-            this.obj.setItem( key, value )
-        }*/
+            val entry = ObjectMetadataEntry {
+                this.object_id = this@Obj.obj.object_id
+                this.key = key
+                this.value = value.toString()
+                this.numeric = value as? Int
+            }
+
+            if( this.db.session.object_metadata.update( entry ) < 1 ) {
+                this.db.session.object_metadata.add( entry )
+            }
+        }
+    }
+
+    fun delItem( key: String ) {
+        this.db._access( write = true ).with {
+            this.db.session.object_metadata.removeIf {
+                (ObjectMetadata.object_id eq this.obj.object_id) and
+                (ObjectMetadata.key eq key)
+            }
+        }
     }
 
     override fun equals( o: Any? ): Boolean {

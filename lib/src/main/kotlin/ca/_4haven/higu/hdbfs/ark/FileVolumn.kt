@@ -122,21 +122,22 @@ class FileVolume( val data_config: Config, val vol_id: Id ) : Volume {
     }
 
     override fun delete( id: Id, priority: Int, extension: String? ) {
-        /* TODO
-        if( self.state == 'committed' ):
-            self.reset_state()
+        if( this.state == Volume.State.COMITTED ) {
+            this.reset_state()
+        }
 
-        self.state = 'dirty'
+        this.state = Volume.State.DIRTY
 
-        if( self.rm_dir is None ):
-            self.rm_dir = tempfile.mkdtemp()
+        val rm_dir = this.rm_dir ?: Files.createTempDirectory( "higuVol${this.vol_id}" )
+        this.rm_dir = rm_dir
 
-        src = self.__get_path( id, priority, extension )
-        if( not os.path.isfile( src ) ):
+        val src = this.__get_path( id, priority, extension )
+        if( !src.toFile().isFile() ) {
             return
+        }
 
-        name = os.path.split( src )[-1]
-        tgt = os.path.join( self.rm_dir, name )
-        self.to_commit.append( ( src, tgt, ) )*/
+        val name = src.toFile().getName()
+        val tgt = rm_dir.resolve( name )
+        this.to_commit.add( Pair( src, tgt ) )
     }
 }

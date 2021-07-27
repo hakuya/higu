@@ -4,8 +4,12 @@ import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.ark.*
 import ca._4haven.higu.hdbfs.basic_objects.*
 import ca._4haven.higu.hdbfs.model.*
+import com.sksamuel.scrimage.*
+import com.sksamuel.scrimage.nio.JpegWriter
+import java.io.IOException
+import java.nio.file.Files
+import kotlin.io.createTempFile
 
-val MIN_THUMB_EXP = 7
 val METADATA_VERSION = 2
 
 class ThumbCache( val fsdb: Database, val imgdb: StreamDatabase ) {
@@ -124,88 +128,84 @@ class ThumbCache( val fsdb: Database, val imgdb: StreamDatabase ) {
         }
     }
 
+    fun make_thumb( obj: ImageFile, exp: Int ): ImageStream? {
+
+        val imginfo = ImageInfo( this.imgdb, obj )
+
+        val tbi = imginfo.get_tb_info() ?: return null
+        //gen, max_e, use_root = imginfo.get_tb_info()
+
+        val _exp = when {
+            exp < ThumbCache.minThumbExp -> ThumbCache.minThumbExp
+            exp > tbi.max_e -> tbi.max_e
+            else -> exp
+        }
+
+        if( _exp == tbi.max_e && tbi.use_root ) {
+            return imginfo.get_root_stream()
+        }
+
+        val t_stream = obj.get_stream( "tb:${exp}" ) as? ImageStream
+        if( t_stream != null ) return t_stream
+
+        val target_sz = (1 shl exp)
+
+        // If we're here, we need to produce a thumb
+        val work_file = Files.createTempFile( "higu", ".tb" )
+
+        // At this point, we need to create a thumb, open the file
+        try {
+            val dims = imginfo.get_obj_dims( verify = true ) ?: return null
+            val orientation = imginfo.get_orientation()
+
+            var img = imginfo.get_img() ?: return null
+
+            // Always operate in RGB
+            // img = img.convert( 'RGB' )
+
+            // Do the rotate
+            img = when {
+                orientation == Orientation.MIRROR      -> img.flipX()
+                orientation == Orientation.R180        -> img.flipX().flipY()
+                orientation == Orientation.R180_MIRROR -> img.flipY()
+                orientation == Orientation.R90_MIRROR  -> img.flipX().rotateRight()
+                orientation == Orientation.R90         -> img.rotateRight()
+                orientation == Orientation.R270_MIRROR -> img.flipX().rotateLeft()
+                orientation == Orientation.R270        -> img.rotateLeft()
+                else -> img
+            }
+
+            // Do the resize
+            if( dims.width > target_sz || dims.height > target_sz ) {
+                val target_dims = if( dims.width > dims.height ) {
+                                        Dimensions( target_sz, dims.height * target_sz / dims.width )
+                                    } else {
+                                        Dimensions( dims.width * target_sz / dims.height, target_sz )
+                                    }
+
+                img = img.scaleTo( target_dims.width, target_dims.height, ScaleMethod.Lanczos3 )
+            }
+
+            // Save the image
+            val writer = JpegWriter().withCompression( 90 )
+            img.output( writer, work_file )
+
+            // Now load the thumb into the database
+            return obj.db.register_thumb( work_file.toString(), obj,
+                                          imginfo.get_root_stream()!!,
+                                          "tb:${exp}" ) as? ImageStream
+        } catch( ex: IOException ) {
+            return null
+        }
+    }
+
     /* TODO
-    def make_thumb( self, obj, exp ):
-
-        from PIL import Image
-
-        imginfo = ImageInfo( self.imgdb, obj )
-
-        gen, max_e, use_root = imginfo.get_tb_info()
-
-        if( exp < MIN_THUMB_EXP ):
-            exp = MIN_THUMB_EXP
-
-        if( exp >= max_e ):
-            if( use_root == 1 ):
-                return imginfo.get_root_stream()
-            else:
-                exp = max_e
-
-        t_stream = obj.get_stream( 'tb:%d' % ( exp, ) )
-        if( t_stream is not None ):
-            return t_stream
-
-        s = 2**exp
-
-        # If we're here, we need to produce a thumb
-        t = tempfile.mkstemp( '.jpg' )
-        os.close( t[0] )
-
-        # At this point, we need to create a thumb, open the file
-        try:
-            img = imginfo.get_img()
-            if( img is None ):
-                return None
-
-            w, h = imginfo.get_obj_dims( verify = True )
-            orientation = imginfo.get_orientation()
-
-            # Always operate in RGB
-            img = img.convert( 'RGB' )
-
-            # Do the rotate
-            if( orientation == 2 ):
-                img = img.transpose( Image.FLIP_LEFT_RIGHT )
-            elif( orientation == 3 ):
-                img = img.transpose( Image.ROTATE_180 )
-            elif( orientation == 4 ):
-                img = img.transpose( Image.FLIP_TOP_BOTTOM )
-            elif( orientation == 5 ):
-                img = img.transpose( Image.FLIP_LEFT_RIGHT )
-                img = img.transpose( Image.ROTATE_270 )
-            elif( orientation == 6 ):
-                img = img.transpose( Image.ROTATE_270 )
-            elif( orientation == 7 ):
-                img = img.transpose( Image.FLIP_LEFT_RIGHT )
-                img = img.transpose( Image.ROTATE_90 )
-            elif( orientation == 8 ):
-                img = img.transpose( Image.ROTATE_90 )
-
-            # Do the resize
-            if( w > s or h > s ):
-                if( w > h ):
-                    tw = s
-                    th = h * s / w
-                else:
-                    tw = w * s / h
-                    th = s
-
-                img = img.resize( ( tw, th, ), Image.ANTIALIAS )
-
-            # Save the image
-            img.save( t[1] )
-
-            # Now load the thumb into the database
-            return obj.db.register_thumb( t[1], obj,
-                                          imginfo.get_root_stream(),
-                                          'tb:%d' % ( exp, ) )
-
-        except IOError:
-            return None
-
     def purge_thumbs( self, obj ):
 
         obj.drop_expendable_streams()
         ImageInfo( self.imgdb, obj ).get_tb_info( True )*/
+
+    companion object {
+        var minThumbExp = 7
+    }
 }

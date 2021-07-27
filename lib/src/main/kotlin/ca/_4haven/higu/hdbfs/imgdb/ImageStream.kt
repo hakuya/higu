@@ -6,9 +6,10 @@ import ca._4haven.higu.hdbfs.model.*
 
 class ImageStream( db: Database, stream: ModelStream ) : Stream( db, stream ) {
 
-    fun get_dimensions() {
+    fun get_dimensions(): Dimensions? {
         /* TODO
         return StreamInfo( this ).get_dims()*/
+        return null
     }
 
     fun get_origin_time() {

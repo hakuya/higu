@@ -42,4 +42,6 @@ dependencies {
 
     compile "org.ktorm:ktorm-core:${ktormVersion}"
     compile "org.ktorm:ktorm-support-sqlite:${ktormVersion}"
+
+    implementation "com.sksamuel.scrimage:scrimage-core:${scrimageVersion}"
 }

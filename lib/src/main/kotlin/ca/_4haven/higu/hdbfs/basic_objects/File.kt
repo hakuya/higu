@@ -3,7 +3,7 @@ package ca._4haven.higu.hdbfs.basic_objects
 import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
 import org.ktorm.dsl.*
-import org.ktorm.entity.find
+import org.ktorm.entity.*
 
 open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
 
@@ -115,17 +115,18 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
         return null
     }
 
-    fun get_stream( name: String ) {
+    fun get_stream( name: String ): Stream? {
         return this.db._access().with { this._get_stream( name ) }
     }
 
     fun _get_streams(): List<Stream> {
-        /* TODO
-        return [ model_stream_to_higu_stream( self.db, s ) for s in
-            self.db.session.query( model.Stream )
-                .filter( model.Stream.object_id == self.obj.object_id )
-                .order_by( model.Stream.stream_id ) ]*/
-        return listOf<Stream>()
+        return this.db.session.streams.filter {
+            Streams.object_id eq this.obj.object_id
+        }.sortedBy {
+            Streams.stream_id
+        }.map {
+            ObjectFactory.model_stream_to_higu_stream( this.db, it )
+        }
     }
 
     fun get_streams(): List<Stream> {
@@ -133,21 +134,14 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _drop_streams() {
-        /* TODO
-        for s in self._get_streams():
+        this._get_streams().forEach { s ->
             s._drop_data()
 
-            self.db.session.query( model.StreamMetadata ) \
-                .filter( model.StreamMetadata.stream_id == s.stream.stream_id ) \
-                .delete()
+            this.db.session.stream_metadata.removeIf { StreamMetadata.stream_id eq s.stream.stream_id }
+            this.db.session.stream_log.removeIf { StreamLog.stream_id eq s.stream.stream_id }
+        }
 
-            self.db.session.query( model.StreamLog ) \
-                .filter( model.StreamLog.stream_id == s.stream.stream_id ) \
-                .delete()
-
-        self.db.session.query( model.Stream ) \
-            .filter( model.Stream.object_id == self.obj.object_id ) \
-            .delete()*/
+        this.db.session.streams.removeIf { Streams.object_id eq this.obj.object_id }
     }
 
     fun _drop_expendable_streams() {

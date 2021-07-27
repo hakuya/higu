@@ -1,14 +1,12 @@
 package ca._4haven.higu.hdbfs
 
+import ca._4haven.higu.hdbfs.imgdb.*
 import kotlin.test.*
 import kotlin.test.assertTrue
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.isDirectory
 
 class DatabaseTest {
-    /* TODO
-    hdbfs.imgdb.MIN_THUMB_EXP = 4*/
-
     val utils = TestUtils()
 
     @BeforeTest
@@ -37,58 +35,64 @@ class DatabaseTest {
         val h = Database()
         h.enable_write_access()
 
-        val tri = h.register_file( red.toString(), NAME_POLICY_DONT_REGISTER )
+        val result = h.register_file( red.toString(), NAME_POLICY_DONT_REGISTER )
 
         assertFalse( red.isFile(), "Old image was not removed" )
 
         assertTrue( this.utils.db_path.resolve( "imgdat" ).toFile().isDirectory(),
                     "Image data directory not created" )
 
-        val red_istm = tri.first.get_root_stream()?.read()
+        val red_istm = result.file.get_root_stream()?.read()
         assertNotNull( red_istm )
         assertTrue( this.utils._diff_data( red_istm, TestUtils.red ),
                     "Image not read from library" )
     }
 
-    /* TODO
-    def test_delete( self ):
+    @Test
+    fun test_delete() {
+        val yellow = this.utils._load_data( TestUtils.yellow )
 
-        yellow = self._load_data( self.yellow )
-
-        h = hdbfs.Database()
+        val h = Database()
         h.enable_write_access()
 
-        obj = h.register_file( yellow, False )
+        val y_reg = h.register_file( yellow.toString(), NAME_POLICY_DONT_REGISTER )
+        val obj = y_reg.file as ImageFile
 
-        img_fd = obj.get_root_stream().read()
-        tb_fd = obj.get_thumb_stream( 4 ).read()
-        self.assertIsNotNone( img_fd, 'Invalid image returned' )
-        self.assertIsNotNone( tb_fd, 'Invalid thumb returned' )
+        val img_s = obj.get_root_stream()
+        val tb_s = obj.get_thumb_stream( 4 )
 
-        img_fd.close()
-        tb_fd.close()
+        var img_istm = img_s?.read()
+        var tb_istm = tb_s?.read()
 
-        obj_id = obj.get_id()
+        assertNotNull( img_istm, "Invalid image returned" )
+        assertNotNull( tb_istm, "Invalid thumb returned" )
 
-        s_id = obj.get_root_stream().get_stream_id()
-        s_prio = obj.get_root_stream().get_priority()
-        s_ext = obj.get_root_stream().get_extension()
+        img_istm.close()
+        tb_istm.close()
 
-        t_id = obj.get_thumb_stream( 4 ).get_stream_id()
-        t_prio = obj.get_thumb_stream( 4 ).get_priority()
-        t_ext = obj.get_thumb_stream( 4 ).get_extension()
+        val obj_id = obj.get_id()
+
+        val s_id = img_s?.get_stream_id()
+        val s_prio = img_s?.get_priority()
+        val s_ext = img_s?.get_extension()
+
+        val t_id = tb_s?.get_stream_id()
+        val t_prio = tb_s?.get_priority()
+        val t_ext = tb_s?.get_extension()
 
         h.delete_object( obj )
 
-        self.assertEqual( h.get_object_by_id( obj_id ), None,
-                          'Object returned by id after delete' )
+        assertNull( h.get_object_by_id( obj_id ),
+                    "Object returned by id after delete" )
 
-        img_fd = h.imgdb.read( s_id, s_prio, s_ext )
-        self.assertIsNone( img_fd, 'Image returned after delete' )
+        img_istm = h.imgdb.read( s_id!!, s_prio!!, s_ext )
+        assertNull( img_istm, "Image returned after delete" )
 
-        tb_fd = h.imgdb.read( t_id, t_prio, t_ext )
-        self.assertIsNone( tb_fd, 'Thumb returned after delete' )
+        tb_istm = h.imgdb.read( t_id!!, t_prio!!, t_ext )
+        assertNull( tb_istm, "Thumb returned after delete" )
+    }
 
+    /* TODO
     def test_drop_streams( self ):
 
         red = self._load_data( self.red )

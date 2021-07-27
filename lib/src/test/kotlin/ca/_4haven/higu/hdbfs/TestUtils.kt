@@ -1,5 +1,6 @@
 package ca._4haven.higu.hdbfs
 
+import ca._4haven.higu.hdbfs.imgdb.ThumbCache
 import ca._4haven.higu.hdbfs.model.FBUFF
 import java.io.*
 import java.nio.file.*
@@ -37,6 +38,8 @@ class TestUtils {
     lateinit var web_db: Path
 
     fun init_env( do_init: Boolean = true, web_init: Boolean = false ) {
+
+        ThumbCache.minThumbExp = 4
 
         this.work_dir = Files.createTempDirectory( "higuTest" )
         this.cfg_file_path = this.work_dir.resolve( "test.cfg" )

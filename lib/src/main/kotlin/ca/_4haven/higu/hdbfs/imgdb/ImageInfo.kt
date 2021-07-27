@@ -1,62 +1,50 @@
 package ca._4haven.higu.hdbfs.imgdb
 
 import ca._4haven.higu.hdbfs.ark.*
+import com.sksamuel.scrimage.ImmutableImage
 
 class ImageInfo( val imgdb: StreamDatabase, val obj: ImageFile ) {
 
+    data class ThumbInfo( val gen: Int, val max_e: Int, val use_root: Boolean )
+
     private var root_si: StreamInfo? = null
 
-    private var tb_gen: Int? = null
-    private var max_e: Int? = null
-    private var use_root: Int? = null
+    private var tbinfo: ThumbInfo? = null
 
-    private var obj_w: Int? = null
-    private var obj_h: Int? = null
+    private var dims: Dimensions? = null
 
     private var origin_time: Int? = null
 
+    fun get_root_stream_info(): StreamInfo? {
+
+        if( this.root_si == null ) {
+            val root_s = this.obj.get_root_stream() as? ImageStream
+            if( root_s != null ) {
+                this.root_si = StreamInfo( this.imgdb, root_s )
+            }
+        }
+
+        return this.root_si
+    }
+
+    fun get_root_stream(): ImageStream? {
+        return this.get_root_stream_info()?.stream
+    }
+
+    fun get_img(): ImmutableImage? {
+        return this.get_root_stream_info()?.get_img()
+    }
+
+    fun get_orientation(): Orientation {
+        return this.get_root_stream_info()?.get_orientation()
+                    ?: Orientation.NORMAL
+    }
+
+    fun get_dims(): Dimensions? {
+        return this.get_root_stream_info()?.get_dims()
+    }
+
     /* TODO
-    def get_root_stream_info( self ):
-
-        if( self.root_si is None ):
-            root_s = self.obj.get_root_stream()
-            if( root_s is not None ):
-                self.root_si = StreamInfo( self.imgdb, root_s )
-
-        return self.root_si
-
-    def get_root_stream( self ):
-
-        root_si = self.get_root_stream_info()
-        if( root_si is not None ):
-            return root_si.stream
-        else:
-            return None
-
-    def get_img( self ):
-
-        root_si = self.get_root_stream_info()
-        if( root_si is not None ):
-            return root_si.get_img()
-        else:
-            return None
-
-    def get_orientation( self ):
-
-        root_si = self.get_root_stream_info()
-        if( root_si is not None ):
-            return root_si.get_orientation()
-        else:
-            return 1
-
-    def get_dims( self ):
-
-        root_si = self.get_root_stream_info()
-        if( root_si is not None ):
-            return root_si.get_dims()
-        else:
-            return None, None
-
     def get_origin_time( self ):
 
         if( self.origin_time is None ):
@@ -73,79 +61,83 @@ class ImageInfo( val imgdb: StreamDatabase, val obj: ImageFile ) {
             if( self.origin_time is not None ):
                 self.obj['origin_time'] = self.origin_time
 
-        return self.origin_time
+        return self.origin_time*/
 
-    def get_obj_dims( self, verify = False ):
+    fun get_obj_dims( verify: Boolean = false ): Dimensions? {
 
-        if( self.obj_w is None or self.obj_h is None ):
+        if( !verify && this.dims == null ) {
 
-            try:
-                self.obj_w = self.obj['width']
-            except:
-                pass
+            try {
+                val obj_w = this.obj.getItem( "width" ) as? Int
+                val obj_h = this.obj.getItem( "height" ) as? Int
 
-            try:
-                self.obj_h = self.obj['height']
-            except:
-                pass
+                if( obj_w != null && obj_h != null ) {
+                    this.dims = Dimensions( obj_w, obj_h )
+                }
+            } catch( ex: Exception ) {
+            }
+        }
 
-        if( verify or self.obj_w is None or self.obj_h is None ):
+        if( verify || this.dims == null ) {
 
-            w, h = self.get_dims()
-            orientation = self.get_orientation()
+            var dims = this.get_dims() ?: return null
+            val orientation = this.get_orientation()
 
-            if( orientation > 4 ):
-                w, h = h, w
+            if( orientation.value > 4 ) {
+                dims = Dimensions( dims.height, dims.width )
+            }
 
-            if( self.obj_w != w or self.obj_h != h ):
-                self.obj_w = w
-                self.obj_h = h
+            if( this.dims == null || !dims.equals( dims ) ) {
+                this.dims = dims
 
-                self.obj['width'] = w
-                self.obj['height'] = h
+                this.obj.setItem( "width", dims.width )
+                this.obj.setItem( "height", dims.height )
+            }
+        }
 
-        return self.obj_w, self.obj_h
+        return this.dims
+    }
 
-    def get_tb_info( self, bump_gen = False ):
+    fun get_tb_info( bump_gen: Boolean = false ): ThumbInfo? {
 
-        if( self.tb_gen is None
-         or self.max_e is None
-         or self.use_root is None ):
+        if( this.tbinfo == null ) {
+            try {
+                val tbinfo = this.obj.getItem( ".tbinfo" )
+                                ?.let { it.toString() }?.split( ":" )
+                                ?.map { it.toInt() }
 
-            try:
-                tb_info = map( int, self.obj['.tbinfo'].split( ':' ) )
+                this.tbinfo = tbinfo?.let { ThumbInfo( it[0], it[1], it[2] != 0 ) }
+            } catch( ex: Exception ) {
+            }
+        }
 
-                self.tb_gen = tb_info[0]
-                self.max_e = tb_info[1]
-                self.use_root = tb_info[2]
+        if( bump_gen || this.tbinfo == null ) {
 
-            except:
-                pass
+            var tb_gen = this.tbinfo?.gen?.let { it + 1 } ?: 0
 
-        if( bump_gen
-         or self.tb_gen is None
-         or self.max_e is None
-         or self.use_root is None ):
+            var max_e = this.tbinfo?.max_e
+                            ?: this.get_dims()?.let { dims ->
+                                var result = 0
 
-            w, h = self.get_dims()
-            orientation = self.get_orientation()
+                                while( (1 shl result) < dims.width
+                                    || (1 shl result) < dims.height )
+                                {
+                                    result += 1
+                                }
+                                result
+                            }
 
-            if( self.tb_gen is not None ):
-                self.tb_gen += 1
-            else:
-                self.tb_gen = 0
+            var use_root = this.tbinfo?.use_root
+                            ?: this.get_orientation().let { it ->
+                                it == Orientation.NORMAL
+                            }
 
-            self.max_e = 0
-            if( orientation == 1 ):
-                self.use_root = 1
-            else:
-                self.use_root = 0
+            if( max_e != null ) {
+                this.tbinfo = ThumbInfo( tb_gen, max_e, use_root )
+                this.obj.setItem( ".tbinfo", "${tb_gen}:${max_e}:${(if( use_root ) 1 else 0)}" )
+            }
+        }
 
-            while( 2**self.max_e < w or 2**self.max_e < h ):
-                self.max_e += 1
-
-            tb_info = [ self.tb_gen, self.max_e, self.use_root ]
-            self.obj['.tbinfo'] = ':'.join( map( str, tb_info ) )
-
-        return self.tb_gen, self.max_e, self.use_root*/
+        return this.tbinfo
+    }
 }

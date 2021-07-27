@@ -1,20 +1,19 @@
 package ca._4haven.higu.hdbfs.model
 
+import ca._4haven.higu.hdbfs.dbutils.Session
 import org.ktorm.schema.*
 import org.ktorm.entity.Entity
-
-object ObjectMetadata : Table<Nothing>( "object_metadata" ) {
-    val object_id = int( "object_id" ).primaryKey()
-    val key = varchar( "key" )
-    val value = varchar( "value" )
-    val numeric = int( "numeric" )
-}
+import org.ktorm.entity.sequenceOf
 
 interface ObjectMetadataEntry : Entity<ObjectMetadataEntry> {
-    val object_id: Int
+
+    companion object : Entity.Factory<ObjectMetadataEntry>()
+
+    var object_id: Id
     var key: String
     var value: String?
     var numeric: Int?
+
     /* TODO
 class ObjectMetadata( Base ):
     __tablename__ = 'object_metadata'
@@ -46,3 +45,32 @@ class ObjectMetadata( Base ):
         return 'ObjectMetadata( %r, %r, %r, %r )' % (
                 self.object_id, self.key, self.value, self.numeric )*/
 }
+
+object ObjectMetadata : Table<ObjectMetadataEntry>( "object_metadata" ) {
+    val object_id = long( "object_id" ).primaryKey().bindTo { it.object_id }
+    val key = varchar( "key" ).primaryKey().bindTo { it.key }
+    val value = varchar( "value" ).bindTo { it.value }
+    val numeric = int( "numeric" ).bindTo { it.numeric }
+
+    fun create( session: Session ) {
+        session.useConnection { conn ->
+            val sql = """
+                CREATE TABLE IF NOT EXISTS object_metadata (
+                    object_id         INTEGER NOT NULL,
+                    key               TEXT NOT NULL,
+                    value             TEXT,
+                    numeric           INTEGER,
+                    PRIMARY KEY ( object_id, key ),
+                    FOREIGN KEY ( object_id )
+                        REFERENCES objects( object_id )
+                )
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.execute()
+            }
+        }
+    }
+}
+
+val Session.object_metadata get() = this.sequenceOf( ObjectMetadata )

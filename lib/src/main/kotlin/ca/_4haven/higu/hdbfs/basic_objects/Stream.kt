@@ -3,6 +3,8 @@ package ca._4haven.higu.hdbfs.basic_objects
 import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
 import java.io.InputStream
+import org.ktorm.dsl.*
+import org.ktorm.entity.*
 
 open class Stream( val db: Database, val stream: ModelStream ) {
 
@@ -123,18 +125,39 @@ open class Stream( val db: Database, val stream: ModelStream ) {
     }
 
     fun getItem( key: String ): Any? {
-        /* TODO
         return this.db._access().with {
-            this.stream.getItem( key )
-        }*/
-        return null
+            val entry = this.db.session.stream_metadata.find {
+                (StreamMetadata.stream_id eq this.stream.stream_id) and
+                (StreamMetadata.key eq key)
+            }
+            entry?.numeric ?: entry?.value
+        }
     }
 
     fun setItem( key: String, value: Any? ) {
-        /* TODO
+        if( value == null ) return delItem( key )
+
         this.db._access( write = true ).with {
-            this.stream.setItem( key, value )
-        }*/
+            val entry = StreamMetadataEntry {
+                this.stream_id = this@Stream.stream.stream_id
+                this.key = key
+                this.value = value.toString()
+                this.numeric = value as? Int
+            }
+
+            if( this.db.session.stream_metadata.update( entry ) < 1 ) {
+                this.db.session.stream_metadata.add( entry )
+            }
+        }
+    }
+
+    fun delItem( key: String ) {
+        this.db._access( write = true ).with {
+            this.db.session.stream_metadata.removeIf {
+                (StreamMetadata.stream_id eq this.stream.stream_id) and
+                (StreamMetadata.key eq key)
+            }
+        }
     }
 
     override fun equals( o: Any? ): Boolean {

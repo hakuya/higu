@@ -100,12 +100,13 @@ class ImageFile( db: Database, obj: ModelObject ) : File( db, obj ) {
             except KeyError:
                 pass
 
-        self.db.tbcache.purge_thumbs( self )
+        self.db.tbcache.purge_thumbs( self )*/
 
-    def get_thumb_stream( self, exp ):
+    fun get_thumb_stream( exp: Int ): ImageStream? {
+        return this.db.tbcache.make_thumb( this, exp )
+    }
 
-        return self.db.tbcache.make_thumb( self, exp )
-
+    /* TODO
     def check_metadata( self ):
 
         try:
