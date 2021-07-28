@@ -43,18 +43,16 @@ open class Obj( val db: Database, val obj: ModelObject ) {
         return this.db._access().with { this._get_children( obj_type ) }
     }
 
-    fun get_creation_time() {
+    fun get_creation_time(): Long {
         /* TODO
         this.db._access().with {
             return datetime.datetime.fromtimestamp( this.obj.create_ts )
         }*/
+        return 0
     }
 
-    fun get_creation_time_utc() {
-        /* TODO
-        this.db._access().with {
-            return datetime.datetime.utcfromtimestamp( this.obj.create_ts )
-        }*/
+    fun get_creation_time_utc(): Long {
+        return this.obj.create_ts
     }
 
     fun get_tags(): List<Tag> {

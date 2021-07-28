@@ -9,10 +9,11 @@ import org.ktorm.entity.*
 open class Stream( val db: Database, val stream: ModelStream ) {
 
     fun _get_file(): File {
-        /* TODO return ObjectFactory.model_obj_to_higu_obj( this.db, this.stream.obj ) as! File
-        */
-        var file: File? = null
-        return file!!
+        return this.db.session.objects.find {
+            Objects.object_id eq this.stream.object_id
+        }.let {
+            ObjectFactory.model_obj_to_higu_obj( this.db, it!! )
+        } as File
     }
 
     fun get_file(): File {

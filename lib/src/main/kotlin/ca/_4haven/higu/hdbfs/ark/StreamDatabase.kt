@@ -2,7 +2,7 @@ package ca._4haven.higu.hdbfs.ark
 
 import ca._4haven.higu.hdbfs.imgdb.Config
 import ca._4haven.higu.hdbfs.model.Id
-import java.io.InputStream
+import java.io.*
 
 class StreamDatabase( val data_config: Config ) {
     enum class State {
@@ -72,7 +72,7 @@ class StreamDatabase( val data_config: Config ) {
             throw ex
         }
 
-        // Comitted
+        // Prepared
         this.state = State.PREPARED
     }
 
@@ -95,6 +95,7 @@ class StreamDatabase( val data_config: Config ) {
     }
 
     fun complete_commit() {
+        if( this.state == State.CLEAN ) return
         if( this.state != State.PREPARED ) throw IllegalStateException()
 
         this.volumes.values.forEach {
@@ -176,10 +177,8 @@ class StreamDatabase( val data_config: Config ) {
                    .read( id, priority, extension )
     }
 
-    /* TODO
-    def _debug_write( self, id, priority, extension ):
-
-        v = self.__get_vol_for_id( id )
-        return v._debug_write( id, priority, extension )
-    */
+    fun _debug_write( id: Id, priority: Int, extension: String? ): OutputStream? {
+        return this.__get_vol_for_id( id )
+                   ._debug_write( id, priority, extension )
+    }
 }

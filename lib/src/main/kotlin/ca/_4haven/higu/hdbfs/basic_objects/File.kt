@@ -103,16 +103,12 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _get_stream( name: String ): Stream? {
-        /* TODO
-        var s = this.obj.streams \
-                    .filter( model.Stream.name == name ) \
-                    .first()
-
-        if( s != null ):
-            return ObjectFactory.model_stream_to_higu_stream( self.db, s )
-        else:
-            return null*/
-        return null
+        return this.db.session.streams.find {
+                    (Streams.object_id eq this.obj.object_id) and
+                    (Streams.name eq name)
+                }?.let {
+                    ObjectFactory.model_stream_to_higu_stream( this.db, it )
+                }
     }
 
     fun get_stream( name: String ): Stream? {
@@ -145,26 +141,21 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _drop_expendable_streams() {
-        /* TODO
-        for s in self.db.session.query( model.Stream ) \
-                    .filter( model.Stream.object_id == self.obj.object_id ) \
-                    .filter( model.Stream.priority < model.SP_NORMAL ):
-
-            stream = model_stream_to_higu_stream( self.db, s )
+        this.db.session.streams.filter {
+            (Streams.object_id eq this.obj.object_id) and
+            (Streams.priority less SP_NORMAL)
+        }.forEach { s ->
+            val stream = ObjectFactory.model_stream_to_higu_stream( this.db, s )
             stream._drop_data()
 
-            self.db.session.query( model.StreamMetadata ) \
-                .filter( model.StreamMetadata.stream_id == s.stream_id ) \
-                .delete()
+            this.db.session.stream_metadata.removeIf { StreamMetadata.stream_id eq s.stream_id }
+            this.db.session.stream_log.removeIf { StreamLog.stream_id eq s.stream_id }
+        }
 
-            self.db.session.query( model.StreamLog ) \
-                .filter( model.StreamLog.stream_id == s.stream_id ) \
-                .delete()
-
-        self.db.session.query( model.Stream ) \
-            .filter( model.Stream.object_id == self.obj.object_id ) \
-            .filter( model.Stream.priority < model.SP_NORMAL ) \
-            .delete()*/
+        this.db.session.streams.removeIf {
+            (Streams.object_id eq this.obj.object_id) and
+            (Streams.priority less SP_NORMAL)
+        }
     }
 
     fun drop_expendable_streams() {

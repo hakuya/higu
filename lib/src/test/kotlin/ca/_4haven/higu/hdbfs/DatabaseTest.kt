@@ -5,6 +5,8 @@ import kotlin.test.*
 import kotlin.test.assertTrue
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.isDirectory
+import java.lang.Thread
+import java.time.Instant
 
 class DatabaseTest {
     val utils = TestUtils()
@@ -92,207 +94,213 @@ class DatabaseTest {
         assertNull( tb_istm, "Thumb returned after delete" )
     }
 
-    /* TODO
-    def test_drop_streams( self ):
+    @Test
+    fun test_drop_streams() {
 
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
+        val red = this.utils._load_data( TestUtils.red )
+        val yellow = this.utils._load_data( TestUtils.yellow )
 
-        h = hdbfs.Database()
+        val h = Database()
         h.enable_write_access()
 
-        red = h.register_file( red )
-        yellow = h.register_file( yellow )
+        val red_f = h.register_file( red.toString() ).file
+        val yellow_f = h.register_file( yellow.toString() ).file
 
-        self.assertIsNotNone( red.get_root_stream(),
-                'Red: No root stream' )
-        self.assertIsNotNone( yellow.get_root_stream(),
-                'Yellow: No root stream' )
+        assertNotNull( red_f.get_root_stream(), "Red: No root stream" )
+        assertNotNull( yellow_f.get_root_stream(), "Yellow: No root stream" )
 
-        red.get_root_stream()['test_meta'] = 5
-        yellow.get_root_stream()['test_meta'] = 5
+        red_f.get_root_stream()?.setItem( "test_meta", 5 )
+        yellow_f.get_root_stream()?.setItem( "test_meta", 5 )
 
-        yellow.drop_expendable_streams()
-        h.delete_object( yellow )
+        yellow_f.drop_expendable_streams()
+        h.delete_object( yellow_f )
 
-        self.assertIsNotNone( red.get_root_stream(),
-                'Red: No root stream' )
-        self.assertEqual( red.get_root_stream()['test_meta'], 5,
-                'Red: test_meta lost' )
+        assertNotNull( red_f.get_root_stream(), "Red: No root stream" )
+        assertEquals( red_f.get_root_stream()?.getItem( "test_meta" ), 5,
+                "Red: test_meta lost" )
+    }
 
-    def test_drop_expendible( self ):
+    @Test
+    fun test_drop_expendible() {
 
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
+        val red = this.utils._load_data( TestUtils.red )
+        val yellow = this.utils._load_data( TestUtils.yellow )
 
-        h = hdbfs.Database()
+        val h = Database()
         h.enable_write_access()
 
-        red = h.register_file( red )
-        yellow = h.register_file( yellow )
+        val red_f = h.register_file( red.toString() ).file as ImageFile
+        val yellow_f = h.register_file( yellow.toString() ).file as ImageFile
 
-        self.assertIsNotNone( red.get_root_stream(),
-                'Red: No root stream' )
-        self.assertIsNotNone( yellow.get_root_stream(),
-                'Yellow: No root stream' )
-        self.assertIsNone( red.get_stream( 'tb:4' ),
-                'Red: Thumb exists before created' )
-        self.assertIsNone( yellow.get_stream( 'tb:4' ),
-                'Yellow: Thumb exists before created' )
+        assertNotNull( red_f.get_root_stream(), "Red: No root stream" )
+        assertNotNull( yellow_f.get_root_stream(), "Yellow: No root stream" )
+        assertNull( red_f.get_stream( "tb:4" ), "Red: Thumb exists before created" )
+        assertNull( yellow_f.get_stream( "tb:4" ), "Yellow: Thumb exists before created" )
 
-        self.assertIsNotNone( red.get_thumb_stream( 4 ),
-                'Red: Thumb not created' )
-        self.assertIsNotNone( yellow.get_thumb_stream( 4 ),
-                'Yellow: Thumb not created' )
+        assertNotNull( red_f.get_thumb_stream( 4 ), "Red: Thumb not created" )
+        assertNotNull( yellow_f.get_thumb_stream( 4 ), "Yellow: Thumb not created" )
 
-        self.assertIsNotNone( red.get_stream( 'tb:4' ),
-                'Red: Thumb name lookup fail' )
-        self.assertIsNotNone( yellow.get_stream( 'tb:4' ),
-                'Yellow: Thumb name lookup fail' )
+        assertNotNull( red_f.get_stream( "tb:4" ), "Red: Thumb name lookup fail" )
+        assertNotNull( yellow_f.get_stream( "tb:4" ), "Yellow: Thumb name lookup fail" )
 
-        red.get_thumb_stream( 4 )['test_meta'] = 5
-        yellow.get_thumb_stream( 4 )['test_meta'] = 5
+        red_f.get_thumb_stream( 4 )?.setItem( "test_meta", 5 )
+        yellow_f.get_thumb_stream( 4 )?.setItem( "test_meta", 5 )
 
-        self.assertEqual( red.get_thumb_stream( 4 )['test_meta'], 5,
-                'Red: Thumb test_meta not set' )
-        self.assertEqual( yellow.get_thumb_stream( 4 )['test_meta'], 5,
-                'Yellow: Thumb test_meta not set' )
+        assertEquals( red_f.get_thumb_stream( 4 )?.getItem( "test_meta" ), 5,
+                "Red: Thumb test_meta not set" )
+        assertEquals( yellow_f.get_thumb_stream( 4 )?.getItem( "test_meta" ), 5,
+                "Yellow: Thumb test_meta not set" )
 
-        yellow.drop_expendable_streams()
+        yellow_f.drop_expendable_streams()
 
-        self.assertIsNotNone( red.get_root_stream(),
-                'Red: No root stream' )
-        self.assertIsNotNone( yellow.get_root_stream(),
-                'Yellow: No root stream' )
-        self.assertIsNotNone( red.get_stream( 'tb:4' ),
-                'Red: Thumb was lost' )
-        self.assertIsNone( yellow.get_stream( 'tb:4' ),
-                'Yellow: Thumb was not dropped' )
-        self.assertEqual( red.get_thumb_stream( 4 )['test_meta'], 5,
-                'Red: Thumb test_meta lost' )
+        assertNotNull( red_f.get_root_stream(), "Red: No root stream" )
+        assertNotNull( yellow_f.get_root_stream(), "Yellow: No root stream" )
+        assertNotNull( red_f.get_stream( "tb:4" ), "Red: Thumb was lost" )
+        assertNull( yellow_f.get_stream( "tb:4" ), "Yellow: Thumb was not dropped" )
+        assertEquals( red_f.get_thumb_stream( 4 )?.getItem( "test_meta" ), 5,
+                "Red: Thumb test_meta lost" )
+    }
 
-    def test_timestamp( self ):
+    @Test
+    fun test_timestamp() {
 
-        blue = self._load_data( self.blue )
+        val blue = this.utils._load_data( TestUtils.blue )
 
-        h = hdbfs.Database()
+        val h = Database()
         h.enable_write_access()
 
-        obj_id = h.register_file( blue, False ).get_id()
+        val obj_id = h.register_file( blue.toString(), NAME_POLICY_DONT_REGISTER ).file.get_id()
 
-        time.sleep( 5 )
-        obj = h.get_object_by_id( obj_id )
+        Thread.sleep( 5_000 )
+        val obj = h.get_object_by_id( obj_id )!!
 
-        now = datetime.datetime.utcnow()
-        d_5sec = datetime.timedelta( seconds = 5 )
-        d_10sec = datetime.timedelta( seconds = 10 )
+        val now = Instant.now().getEpochSecond()
 
-        self.assertTrue( now - obj.get_creation_time_utc() < d_10sec,
-                'Unexpected timestamp > 10secs away' )
-        self.assertTrue( now - obj.get_creation_time_utc() > d_5sec,
-                'Unexpected timestamp < 5secs away' )
+        assertTrue( now - obj.get_creation_time_utc() <= 10,
+                "Unexpected timestamp > 10secs away" )
+        assertTrue( now - obj.get_creation_time_utc() >= 5,
+                "Unexpected timestamp < 5secs away" )
+    }
 
-    def test_double_add( self ):
+    @Test
+    fun test_double_add() {
 
-        green = self._load_data( self.green )
+        // Add the file
+        Database().let { h ->
+            val green = this.utils._load_data( TestUtils.green )
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+            h.enable_write_access()
 
-        obj = h.register_file( green, False )
+            val result = h.register_file( green.toString(), NAME_POLICY_DONT_REGISTER )
+            assertFalse( result.was_known, "File known prior to first add" )
 
-        self.assertFalse( os.path.exists( green ),
-                'Old image was not removed' )
+            assertFalse( green.isFile(), "Old image was not removed" )
 
-        img_fd = obj.get_root_stream().read()
-        self.assertIsNotNone( img_fd, 'Failed opening image' )
-        img_fd.close()
+            val img_fd = result.file.get_root_stream()?.read()
+            assertNotNull( img_fd, "Failed opening image" )
+            img_fd.close()
+        }
 
-        green = self._load_data( self.green )
+        // Add it again
+        Database().let { h ->
+            val green = this.utils._load_data( TestUtils.green )
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+            h.enable_write_access()
 
-        obj = h.register_file( green, False )
+            val result = h.register_file( green.toString(), NAME_POLICY_DONT_REGISTER )
+            assertTrue( result.was_known, "File not known on second add" )
 
-        self.assertTrue( os.path.exists( green ),
-                'Double image was removed' )
+            assertTrue( green.isFile(), "Double image was removed" )
 
-        img_fd = obj.get_root_stream().read()
-        self.assertIsNotNone( img_fd, 'Invalid image returned after double-add' )
-        img_fd.close()
+            val img_fd = result.file.get_root_stream()?.read()
+            assertNotNull( img_fd, "Invalid image returned after double-add" )
+            img_fd.close()
+        }
+    }
 
-    def test_recover_missing( self ):
+    @Test
+    fun test_recover_missing() {
 
-        cyan = self._load_data( self.cyan )
+        // Add the file, and delete it
+        Database().let { h ->
+            val cyan = this.utils._load_data( TestUtils.cyan )
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+            h.enable_write_access()
 
-        obj = h.register_file( cyan, False )
-        
-        img_fd = obj.get_root_stream().read()
-        self.assertIsNotNone( img_fd, 'Failed opening image' )
-        img_fd.close()
+            val obj = h.register_file( cyan.toString(), NAME_POLICY_DONT_REGISTER ).file
 
-        s = obj.get_root_stream()
-        h.imgdb.delete( s.get_stream_id(),
-                        s.get_priority(),
-                        s.get_extension() )
-        h.imgdb.commit()
-
-        img_fd = obj.get_root_stream().read()
-        self.assertIsNone( img_fd, 'Remove failed' )
-
-        cyan = self._load_data( self.cyan )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( cyan, False )
-        
-        img_fd = obj.get_root_stream().read()
-        self.assertTrue( self._diff_data( img_fd, self.cyan ),
-                'Image not recovered' )
-
-    def test_recover_corrupted( self ):
-
-        magenta = self._load_data( self.magenta )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( magenta, False )
-        
-        img_fd = obj.get_root_stream().read()
-        self.assertIsNotNone( img_fd, 'Failed opening image' )
-        img_fd.close()
-
-        s = obj.get_root_stream()
-        img_fd = h.imgdb._debug_write( s.get_stream_id(),
-                                       s.get_priority(),
-                                       s.get_extension() )
-
-        try:
-            img_fd.write( 'this is junk' )
-        finally:
+            var img_fd = obj.get_root_stream()?.read()
+            assertNotNull( img_fd, "Failed opening image" )
             img_fd.close()
 
-        self.assertFalse( self._diff_data( obj.get_root_stream().read(),
-                                           self.magenta ),
-                'Corruption failed' )
+            // Hack delete
+            val s = obj.get_root_stream()!!
+            h.imgdb.delete( s.get_stream_id(),
+                            s.get_priority(),
+                            s.get_extension() )
+            h.imgdb.commit()
 
-        magenta = self._load_data( self.magenta )
+            img_fd = obj.get_root_stream()?.read()
+            assertNull( img_fd, "Remove failed" )
+        }
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+        // Start a new session and recover the file
+        Database().let { h ->
+            val cyan = this.utils._load_data( TestUtils.cyan )
 
-        obj = h.register_file( magenta, False )
-        
-        self.assertTrue( self._diff_data( obj.get_root_stream().read(),
-                                          self.magenta ),
-                'Image not recovered' )
+            h.enable_write_access()
 
+            val obj = h.register_file( cyan.toString(), NAME_POLICY_DONT_REGISTER ).file
+
+            val img_fd = obj.get_root_stream()?.read()
+            assertTrue( this.utils._diff_data( img_fd!!, TestUtils.cyan ),
+                    "Image not recovered" )
+        }
+    }
+
+    @Test
+    fun test_recover_corrupted() {
+
+        // Add the file, and corrupt it
+        Database().let { h ->
+            val magenta = this.utils._load_data( TestUtils.magenta )
+
+            h.enable_write_access()
+
+            val obj = h.register_file( magenta.toString(), NAME_POLICY_DONT_REGISTER ).file
+
+            val img_fd = obj.get_root_stream()?.read()
+            assertNotNull( img_fd, "Failed opening image" )
+            img_fd.close()
+
+            val s = obj.get_root_stream()!!
+            h.imgdb._debug_write( s.get_stream_id(),
+                                  s.get_priority(),
+                                  s.get_extension() )?.use {
+                                        it.write( "this is junk".toByteArray() )
+                                  }
+
+
+            assertFalse( this.utils._diff_data( obj.get_root_stream()!!.read()!!,
+                                                TestUtils.magenta ),
+                "Corruption failed" )
+        }
+
+        // Add the file, and corrupt it
+        Database().let { h ->
+            val magenta = this.utils._load_data( TestUtils.magenta )
+
+            h.enable_write_access()
+
+            val obj = h.register_file( magenta.toString(), NAME_POLICY_DONT_REGISTER ).file
+
+            assertTrue( this.utils._diff_data( obj.get_root_stream()!!.read()!!,
+                                               TestUtils.magenta ),
+                "Image not recovered" )
+        }
+    }
+
+    /* TODO
     def test_name( self ):
 
         white = self._load_data( self.white )
@@ -302,13 +310,13 @@ class DatabaseTest {
 
         obj = h.register_file( white )
 
-        self.assertEqual( obj.get_name(), self.white,
+        assertEquals( obj.get_name(), self.white,
                 'Name not loaded' )
 
         origin_names = obj.get_origin_names()
-        self.assertEqual( len( origin_names ), 1,
+        assertEquals( len( origin_names ), 1,
                 'Name count does not match' )
-        self.assertEqual( origin_names[0], self.white,
+        assertEquals( origin_names[0], self.white,
                 'Unexpected name in origin list' )
 
     def test_repr( self ):
@@ -322,9 +330,9 @@ class DatabaseTest {
         w_f = h.register_file( white )
         k_f = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
 
-        self.assertEqual( w_f.get_repr(), self.white,
+        assertEquals( w_f.get_repr(), self.white,
                 'Repr on white did not return name' )
-        self.assertEqual( k_f.get_repr(),
+        assertEquals( k_f.get_repr(),
                 '%016x.%s' % ( k_f.get_id(),
                                k_f.get_root_stream().get_extension() ),
                 'Repr on black did not return default name' )
@@ -363,7 +371,7 @@ class DatabaseTest {
                 'Name list did not return white' )
         self.assertTrue( self.black in names,
                 'Name list did not return black' )
-        self.assertEqual( len( names ), 2,
+        assertEquals( len( names ), 2,
                 'Name list had an unexpected number of names' )
 
     def test_duplicate_name( self ):
@@ -385,7 +393,7 @@ class DatabaseTest {
         names = obj.get_origin_names()
         self.assertTrue( self.grey in names,
                 'Name not loaded' )
-        self.assertEqual( len( names ), 1,
+        assertEquals( len( names ), 1,
                 'Name count does not match' )
 
     def test_different_names( self ):
@@ -409,7 +417,7 @@ class DatabaseTest {
                 'First name not loaded' )
         self.assertTrue( 'altname.png' in names,
                 'Second name not loaded' )
-        self.assertEqual( len( names ), 2,
+        assertEquals( len( names ), 2,
                 'Name count does not match' )
 
     def test_load_name( self ):
@@ -421,9 +429,9 @@ class DatabaseTest {
 
         obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_REGISTER )
 
-        self.assertIsNone( obj.get_name(),
+        assertNull( obj.get_name(),
                 'Name set when it shouldn\'t have been' )
-        self.assertEqual( len( obj.get_origin_names() ), 0,
+        assertEquals( len( obj.get_origin_names() ), 0,
                 'Name registered when it shouldn\'t have been' )
 
         black = self._load_data( self.black )
@@ -433,11 +441,11 @@ class DatabaseTest {
 
         obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
 
-        self.assertIsNone( obj.get_name(),
+        assertNull( obj.get_name(),
                 'Name set when it shouldn\'t have been' )
-        self.assertEqual( len( obj.get_origin_names() ), 1,
+        assertEquals( len( obj.get_origin_names() ), 1,
                 'Name not registered when it should\'ve been' )
-        self.assertEqual( obj.get_origin_names()[0], self.black,
+        assertEquals( obj.get_origin_names()[0], self.black,
                 'Name not registered when it should\'ve been' )
 
         black = self._load_data( self.black )
@@ -447,7 +455,7 @@ class DatabaseTest {
 
         obj = h.register_file( black )
 
-        self.assertEqual( obj.get_name(), self.black,
+        assertEquals( obj.get_name(), self.black,
                 'Name not set when it should\'ve been' )
 
     def test_fetch_missing_tag( self ):
@@ -468,7 +476,7 @@ class DatabaseTest {
         tag = h.make_tag( 'a_tag' )
         tag2 = h.get_tag( 'a_tag' )
 
-        self.assertEqual( tag.get_id(), tag2.get_id(),
+        assertEquals( tag.get_id(), tag2.get_id(),
                 'Tag ID mismatch' )
 
     def test_tag_file( self ):
@@ -483,9 +491,9 @@ class DatabaseTest {
         obj.assign( tag )
 
         files = tag.get_files()
-        self.assertEqual( len( files ), 1,
+        assertEquals( len( files ), 1,
                 'Unexpected number of files' )
-        self.assertEqual( files[0].get_id(), obj.get_id(),
+        assertEquals( files[0].get_id(), obj.get_id(),
                 'Incorrect file returned' )
 
     def test_file_has_tag( self ):
@@ -500,9 +508,9 @@ class DatabaseTest {
         obj.assign( tag )
 
         tags = obj.get_tags()
-        self.assertEqual( len( tags ), 1,
+        assertEquals( len( tags ), 1,
                 'Unexpected number of tags' )
-        self.assertEqual( tags[0].get_id(), tag.get_id(),
+        assertEquals( tags[0].get_id(), tag.get_id(),
                 'Incorrect tag returned' )
 
     def test_tag_multi_file( self ):
@@ -535,11 +543,11 @@ class DatabaseTest {
         yellow = yt.get_files()
         cyan = ct.get_files()
 
-        self.assertEqual( len( magenta ), 2,
+        assertEquals( len( magenta ), 2,
                 'Unexpected number of files (magenta)' )
-        self.assertEqual( len( yellow ), 2,
+        assertEquals( len( yellow ), 2,
                 'Unexpected number of files (yellow)' )
-        self.assertEqual( len( cyan ), 2,
+        assertEquals( len( cyan ), 2,
                 'Unexpected number of files (cyan)' )
 
         self.assertTrue( ro in magenta, 
@@ -561,11 +569,11 @@ class DatabaseTest {
         green_in = go.get_tags()
         blue_in = bo.get_tags()
 
-        self.assertEqual( len( red_in ), 2,
+        assertEquals( len( red_in ), 2,
                 'Unexpected number of tags (red)' )
-        self.assertEqual( len( green_in ), 2,
+        assertEquals( len( green_in ), 2,
                 'Unexpected number of tags (green)' )
-        self.assertEqual( len( blue_in ), 2,
+        assertEquals( len( blue_in ), 2,
                 'Unexpected number of tags (blue)' )
 
         self.assertTrue( mt in red_in, 
@@ -591,7 +599,7 @@ class DatabaseTest {
         obj_id = h.create_album().get_id()
 
         album = h.get_object_by_id( obj_id )
-        self.assertIsNotNone( album,
+        assertNotNull( album,
                 'Unable to get album after creation' )
         self.assertTrue( isinstance( album, hdbfs.Group ),
                 'Created album is not a group' )
@@ -604,7 +612,7 @@ class DatabaseTest {
         obj_id = h.create_album( text = 'This is some test text' ).get_id()
 
         album = h.get_object_by_id( obj_id )
-        self.assertEqual( album.get_text(), 'This is some test text',
+        assertEquals( album.get_text(), 'This is some test text',
                 'Album text not properly returned' )
 
     def test_album_set_text( self ):
@@ -619,7 +627,7 @@ class DatabaseTest {
         h = hdbfs.Database()
         album = h.get_object_by_id( obj_id )
 
-        self.assertEqual( album.get_text(), 'This is some test text',
+        assertEquals( album.get_text(), 'This is some test text',
                 'Album text not properly returned' )
 
     def test_add_files_to_album( self ):
@@ -668,9 +676,9 @@ class DatabaseTest {
 
         files = album.get_files()
 
-        self.assertEqual( files[0], go, 'Green not in first position after add with order' )
-        self.assertEqual( files[1], bo, 'Blue not in second position after add with order' )
-        self.assertEqual( files[2], ro, 'Red not in third position after add with order' )
+        assertEquals( files[0], go, 'Green not in first position after add with order' )
+        assertEquals( files[1], bo, 'Blue not in second position after add with order' )
+        assertEquals( files[2], ro, 'Red not in third position after add with order' )
 
         ro.reorder( album, 2 )
         go.reorder( album, 1 )
@@ -678,9 +686,9 @@ class DatabaseTest {
 
         files = album.get_files()
 
-        self.assertEqual( files[0], bo, 'Blue not in first position after reorder' )
-        self.assertEqual( files[1], go, 'Green not in second position after reorder' )
-        self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
+        assertEquals( files[0], bo, 'Blue not in first position after reorder' )
+        assertEquals( files[1], go, 'Green not in second position after reorder' )
+        assertEquals( files[2], ro, 'Red not in third position after reorder' )
 
     def test_set_order_in_album( self ):
 
@@ -703,16 +711,16 @@ class DatabaseTest {
 
         files = album.get_files()
 
-        self.assertEqual( files[0], go, 'Green not in first position after add with order' )
-        self.assertEqual( files[1], bo, 'Blue not in second position after add with order' )
-        self.assertEqual( files[2], ro, 'Red not in third position after add with order' )
+        assertEquals( files[0], go, 'Green not in first position after add with order' )
+        assertEquals( files[1], bo, 'Blue not in second position after add with order' )
+        assertEquals( files[2], ro, 'Red not in third position after add with order' )
 
         album.set_order( [ bo, go, ro, ] )
         files = album.get_files()
 
-        self.assertEqual( files[0], bo, 'Blue not in first position after reorder' )
-        self.assertEqual( files[1], go, 'Green not in second position after reorder' )
-        self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
+        assertEquals( files[0], bo, 'Blue not in first position after reorder' )
+        assertEquals( files[1], go, 'Green not in second position after reorder' )
+        assertEquals( files[2], ro, 'Red not in third position after reorder' )
 
     def test_set_duplicate( self ):
 
@@ -730,12 +738,12 @@ class DatabaseTest {
 
         h.merge_objects( wo, ko )
 
-        self.assertEqual( wo, ko, 'White and black are not duplicates' )
-        self.assertEqual( h.get_object_by_id( ko_id ), None, 'Blacks ID still exists' )
+        assertEquals( wo, ko, 'White and black are not duplicates' )
+        assertEquals( h.get_object_by_id( ko_id ), None, 'Blacks ID still exists' )
 
         dups = wo.get_duplicate_streams()
-        self.assertEqual( len( dups ), 1, 'Unexpected number of dups on white' )
-        self.assertEqual( dups[0].get_hash(),
+        assertEquals( len( dups ), 1, 'Unexpected number of dups on white' )
+        assertEquals( dups[0].get_hash(),
                           ko_hash, 'Black not in duplicate list of white' )
 
     def test_set_root( self ):
@@ -765,8 +773,8 @@ class DatabaseTest {
         h.merge_objects( ro, bo )
 
         dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
-        self.assertEqual( len( dups ), 3, 'Unexpected number of dups on red' )
-        self.assertEqual( ro.get_root_stream().get_hash(),
+        assertEquals( len( dups ), 3, 'Unexpected number of dups on red' )
+        assertEquals( ro.get_root_stream().get_hash(),
                           ro_hash, 'Red not primary stream after merge' )
         self.assertTrue( yo_hash in dups,
                          'Yellow not in duplicate list of red' )
@@ -790,8 +798,8 @@ class DatabaseTest {
         ro.set_root_stream( ro.get_stream( 'dup:' + go_hash ) )
 
         dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
-        self.assertEqual( len( dups ), 3, 'Unexpected number of dups on red after set' )
-        self.assertEqual( ro.get_root_stream().get_hash(),
+        assertEquals( len( dups ), 3, 'Unexpected number of dups on red after set' )
+        assertEquals( ro.get_root_stream().get_hash(),
                           go_hash, 'Green not primary stream after set' )
         self.assertTrue( ro_hash in dups,
                          'Red not in duplicate list of red after set' )
@@ -801,7 +809,7 @@ class DatabaseTest {
                          'Blue not in duplicate list of red after set' )
 
         dups = map( lambda x: x.get_name(), ro.get_duplicate_streams() )
-        self.assertEqual( ro.get_root_stream().get_name(),
+        assertEquals( ro.get_root_stream().get_name(),
                           '.', 'Incorrect name for primary stream after set' )
         self.assertFalse( '.' in dups,
                           'Root name in duplicate list after set' )
@@ -825,20 +833,20 @@ class DatabaseTest {
         h.merge_objects( ro, yo )
         h.merge_objects( go, bo )
 
-        self.assertEqual( ro, yo, 'Yellow not equal to red' )
-        self.assertEqual( go, bo, 'Blue not equal to green' )
+        assertEquals( ro, yo, 'Yellow not equal to red' )
+        assertEquals( go, bo, 'Blue not equal to green' )
         self.assertTrue( go in ro.get_variants(), 'Green not variant of red' )
 
-        self.assertEqual( len( ro.get_duplicate_streams() ),
+        assertEquals( len( ro.get_duplicate_streams() ),
                           1, 'Red duplicate list mismatch' )
-        self.assertEqual( len( go.get_duplicate_streams() ),
+        assertEquals( len( go.get_duplicate_streams() ),
                           1, 'Green duplicate list mismatch' )
 
-        self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
-        self.assertEqual( len( go.get_variants_of() ), 1, 'Green is not a variant' )
+        assertEquals( len( ro.get_variants_of() ), 0, 'Red is a variant' )
+        assertEquals( len( go.get_variants_of() ), 1, 'Green is not a variant' )
 
-        self.assertEqual( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
-        self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
+        assertEquals( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
+        assertEquals( len( go.get_variants() ), 0, 'Green variant list mismatch' )
 
     def test_duplicates_moved( self ):
 
@@ -869,10 +877,10 @@ class DatabaseTest {
         h.merge_objects( go, bo )
         h.merge_objects( ro, go )
 
-        self.assertEqual( ro.get_id(), ro_id, 'Red was removed' )
-        self.assertEqual( h.get_object_by_id( yo_id ), None, 'Yellow was not removed' )
-        self.assertEqual( h.get_object_by_id( go_id ), None, 'Green was not removed' )
-        self.assertEqual( h.get_object_by_id( bo_id ), None, 'Blue was not removed' )
+        assertEquals( ro.get_id(), ro_id, 'Red was removed' )
+        assertEquals( h.get_object_by_id( yo_id ), None, 'Yellow was not removed' )
+        assertEquals( h.get_object_by_id( go_id ), None, 'Green was not removed' )
+        assertEquals( h.get_object_by_id( bo_id ), None, 'Blue was not removed' )
 
         dups = map( lambda x: x.get_stream_id(), ro.get_duplicate_streams() )
         self.assertFalse( ro_s_id in dups, 'Red in dup list' )
@@ -899,12 +907,12 @@ class DatabaseTest {
         bo.set_variant_of( go )
         h.merge_objects( ro, go )
 
-        self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
-        self.assertEqual( len( yo.get_variants_of() ), 1, 'Yellow is not a variant' )
-        self.assertEqual( len( bo.get_variants_of() ), 1, 'Blue is not a variant' )
+        assertEquals( len( ro.get_variants_of() ), 0, 'Red is a variant' )
+        assertEquals( len( yo.get_variants_of() ), 1, 'Yellow is not a variant' )
+        assertEquals( len( bo.get_variants_of() ), 1, 'Blue is not a variant' )
 
-        self.assertEqual( len( ro.get_duplicate_streams() ), 1, 'Red duplicate list mismatch' )
-        self.assertEqual( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
+        assertEquals( len( ro.get_duplicate_streams() ), 1, 'Red duplicate list mismatch' )
+        assertEquals( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
 
         variants = ro.get_variants()
         self.assertTrue( yo in variants, 'Yellow not in variant list' )
@@ -934,10 +942,10 @@ class DatabaseTest {
         h.merge_objects( go, yo )
 
         files = album.get_files()
-        self.assertEqual( len( files ), 3, 'Album size mismatch' )
-        self.assertEqual( files[0], ro, 'Red not first in album' )
-        self.assertEqual( files[1], go, 'Green not second in album' )
-        self.assertEqual( files[2], bo, 'Blue not third in album' )
+        assertEquals( len( files ), 3, 'Album size mismatch' )
+        assertEquals( files[0], ro, 'Red not first in album' )
+        assertEquals( files[1], go, 'Green not second in album' )
+        assertEquals( files[2], bo, 'Blue not third in album' )
 
     def test_tags_moved( self ):
 
@@ -966,7 +974,7 @@ class DatabaseTest {
         h.merge_objects( ro, go )
         h.merge_objects( ro, bo )
 
-        self.assertEqual( len( ro.get_tags() ), 3, 'Red tag list mismatch' )
+        assertEquals( len( ro.get_tags() ), 3, 'Red tag list mismatch' )
 
         tags = ro.get_tags()
         self.assertTrue( tag1 in tags, 'tag1 not in dup list' )

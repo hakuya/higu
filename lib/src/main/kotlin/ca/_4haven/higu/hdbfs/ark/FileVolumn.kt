@@ -2,8 +2,7 @@ package ca._4haven.higu.hdbfs.ark
 
 import ca._4haven.higu.hdbfs.imgdb.Config
 import ca._4haven.higu.hdbfs.model.Id
-import java.io.IOException
-import java.io.InputStream
+import java.io.*
 import java.nio.file.*
 
 class FileVolume( val data_config: Config, val vol_id: Id ) : Volume {
@@ -29,15 +28,14 @@ class FileVolume( val data_config: Config, val vol_id: Id ) : Volume {
         }
     }
 
-    /* TODO
-    def _debug_write( self, id, priority, extension ):
-
-        p = self.__get_path( id, priority, extension )
-
-        try:
-            return open( p, 'wb' )
-        except IndexError:
-            return None*/
+    override fun _debug_write( id: Id, priority: Int, extension: String? ): OutputStream? {
+        val p = this.__get_path( id, priority, extension )
+        return if( !p.toFile().isFile() ) {
+            null
+        } else {
+            p.toFile().outputStream()
+        }
+    }
 
     override fun get_state(): Volume.State = this.state
 
@@ -56,13 +54,13 @@ class FileVolume( val data_config: Config, val vol_id: Id ) : Volume {
 
         try {
             this.to_commit.forEach {
-                Files.move( it.first, it.second )
+                Files.move( it.first, it.second, StandardCopyOption.REPLACE_EXISTING )
                 moved.add( it )
             }
         } catch( ex: Exception ) {
             // Something went wrong, rollback
             moved.forEach {
-                Files.move( it.second, it.first )
+                Files.move( it.second, it.first, StandardCopyOption.REPLACE_EXISTING )
             }
 
             // Sometimes move() seems to leave files behind
@@ -88,7 +86,7 @@ class FileVolume( val data_config: Config, val vol_id: Id ) : Volume {
             this.state = Volume.State.CLEAN
         } else if( this.state == Volume.State.COMITTED ) {
             this.to_commit.forEach {
-                Files.move( it.second, it.first )
+                Files.move( it.second, it.first, StandardCopyOption.REPLACE_EXISTING )
             }
 
             // Sometimes move() seems to leave files behind

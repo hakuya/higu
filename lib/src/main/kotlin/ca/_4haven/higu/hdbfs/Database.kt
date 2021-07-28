@@ -5,9 +5,8 @@ import ca._4haven.higu.hdbfs.basic_objects.*
 import ca._4haven.higu.hdbfs.imgdb.*
 import ca._4haven.higu.hdbfs.model.*
 import ca._4haven.higu.hdbfs.dbutils.Session
-import java.nio.file.Paths
-import java.nio.file.Path
-import java.nio.file.Files
+import java.nio.file.*
+import java.time.Instant
 import kotlin.io.path.isDirectory
 import org.ktorm.entity.*
 import org.ktorm.database.*
@@ -85,17 +84,21 @@ class Database( library_path: String? = null ) {
             if( this.__accesses.size == 1 ) {
                 if( this.__locked ) {
                     var committed = false
+                    var except: Exception? = null
 
                     if( !is_except ) {
                         try {
                             this.__db._commit()
                             committed = true
-                        } catch( ex: Exception ) {}
+                        } catch( ex: Exception ) {
+                            except = ex
+                        }
                     }
 
                     if( !committed ) {
                         this.__db._rollback()
                     }
+                    except?.let { throw except }
                 }
 
                 this.__locked = false
@@ -167,13 +170,15 @@ class Database( library_path: String? = null ) {
             self.session.close()*/
 
     fun _begin() {
-        if( this.transaction != null ) throw RuntimeException()
+        Log.debug( "Starting transaction" )
+        if( this.transaction != null ) throw IllegalStateException()
         this.transaction = this.session.transactionManager
                                .newTransaction( TransactionIsolation.SERIALIZABLE )
     }
 
     fun _commit() {
-        val transaction = this.transaction ?: throw RuntimeException()
+        Log.debug( "Comitting transaction" )
+        val transaction = this.transaction ?: throw IllegalStateException()
 
         this.imgdb.prepare_commit()
 
@@ -182,6 +187,7 @@ class Database( library_path: String? = null ) {
             transaction.commit()
             this.imgdb.complete_commit()
         } catch( ex: Exception ) {
+            Log.warning( "Exception ${ex} occurred during commit, rolling back..." )
             this.imgdb.unprepare_commit()
             throw ex
         }
@@ -194,6 +200,7 @@ class Database( library_path: String? = null ) {
     }
 
     fun _rollback() {
+        Log.debug( "Rolling back transaction" )
         val transaction = this.transaction ?: throw RuntimeException()
 
         this.hooks.trigger_pre_commit_hooks( true )
@@ -465,7 +472,7 @@ class Database( library_path: String? = null ) {
 
     private fun __register_file( path: String, name_policy: NamePolicy ): RegistrationResult
     {
-        val _timestamp = System.currentTimeMillis() / 1000
+        val _timestamp = Instant.now().getEpochSecond()
 
         val _path = Paths.get( path )
         val _file = _path.toFile()
@@ -571,7 +578,7 @@ class Database( library_path: String? = null ) {
 
     private fun __register_thumb( path: String, obj: Obj, origin: Stream, _name: String ): Stream {
 
-        val _timestamp = System.currentTimeMillis() / 1000
+        val _timestamp = Instant.now().getEpochSecond()
 
         val _path = Paths.get( path )
         val _file = _path.toFile()

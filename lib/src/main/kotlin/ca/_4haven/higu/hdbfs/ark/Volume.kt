@@ -1,7 +1,7 @@
 package ca._4haven.higu.hdbfs.ark
 
 import ca._4haven.higu.hdbfs.model.Id
-import java.io.InputStream
+import java.io.*
 
 interface Volume {
     enum class State {
@@ -18,4 +18,6 @@ interface Volume {
     fun rollback()
     fun load_data( path: String, id: Id, priority: Int, extension: String? )
     fun delete( id: Id, priority: Int, extension: String? )
+
+    fun _debug_write( id: Id, priority: Int, extension: String? ): OutputStream?
 }

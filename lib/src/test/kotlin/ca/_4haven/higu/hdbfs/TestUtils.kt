@@ -40,6 +40,7 @@ class TestUtils {
     fun init_env( do_init: Boolean = true, web_init: Boolean = false ) {
 
         ThumbCache.minThumbExp = 4
+        Log.enableDebug = true
 
         this.work_dir = Files.createTempDirectory( "higuTest" )
         this.cfg_file_path = this.work_dir.resolve( "test.cfg" )
