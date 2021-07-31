@@ -544,7 +544,7 @@ class Database( library_path: String? = null ) {
                     timestamp = _timestamp
                     origin_method = "hdbfs:register"
                     origin_stream_id = null
-                    origin_name = null
+                    origin_name = _name
                 }
             }
 
@@ -649,40 +649,39 @@ class Database( library_path: String? = null ) {
                     for t in taglist:
                         x._assign( t, None )
         }
-    }
+    }*/
 
-    fun _merge_objects( primary_obj, merge_obj ) {
+    fun _merge_objects( primary_obj: File, merge_obj: File ) {
 
-        from sqlalchemy import and_, or_
-        from sqlalchemy.orm import aliased
+        val obj_p = primary_obj.obj
+        val obj_m = merge_obj.obj
 
-        assert isinstance( primary_obj, File ), 'Expected File got %r' % ( merge_obj )
-        assert isinstance( merge_obj, File ), 'Expected File got %r' % ( merge_obj )
-
-        obj_p = primary_obj.obj
-        obj_m = merge_obj.obj
-
-        assert obj_p != obj_m
+        if( obj_p.object_id == obj_m.object_id ) return
 
         merge_obj._drop_expendable_streams()
 
         // Rename the root stream of the object to be merged so that it
         // appears as a duplicate stream
-        stream = obj_m.root_stream
-        stream.name = 'dup:' + stream.hash_sha1
+        val stream = this.session.streams.find { Streams.stream_id eq obj_m.root_stream_id!! }!!
+        stream.name = "dup:${stream.hash_sha1}"
+        stream.flushChanges()
 
         // Move all streams from the object to be merged to the 
-        this.session.query( model.Stream ) \
-            .filter( model.Stream.object_id == obj_m.object_id ) \
-            .update( { 'object_id' : obj_p.object_id } )
+        this.session.update( Streams ) {
+            set( Streams.object_id, obj_p.object_id )
+            where {
+                Streams.object_id eq obj_m.object_id
+            }
+        }
 
         // Delete the metadata on the object to be merged, it will not be
         // persisted
-        this.session.query( model.ObjectMetadata ) \
-            .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
-            .delete()
+        this.session.object_metadata.removeIf {
+            ObjectMetadata.object_id eq obj_m.object_id
+        }
 
         // Drop relationships with duplicate
+        /* TODO
         this.session.query( model.Relation ) \
             .filter( and_( model.Relation.parent_id == obj_p.object_id,
                            model.Relation.child_id == obj_m.object_id ) ) \
@@ -749,18 +748,18 @@ class Database( library_path: String? = null ) {
                     .filter( or_( model.Relation.parent_id == obj_m.object_id,
                                   model.Relation.child_id == obj_m.object_id ) ) \
                     .delete()
+        */
 
-        merge_obj.obj = primary_obj.obj
-        this.session.query( model.Object ) \
-            .filter( model.Object.object_id == obj_m.object_id ) \
-            .delete()
+        this.session.objects.removeIf {
+            Objects.object_id eq obj_m.object_id
+        }
     }
 
-    fun merge_objects( primary_obj, merge_obj ) {
-        this._access( write = True ) {
+    fun merge_objects( primary_obj: File, merge_obj: File ) {
+        this._access( write = true ).with {
             this._merge_objects( primary_obj, merge_obj )
         }
-    }*/
+    }
 
     fun delete_object( obj: Obj ) {
 

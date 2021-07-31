@@ -66,40 +66,33 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun get_origin_names( all_streams: Boolean = false ): List<String> {
-        /* TODO
-        from sqlalchemy import and_
-
-        with self.db._access():
-            if( all_streams ):
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .join( model.Stream,
-                            model.Stream.stream_id == model.StreamLog.stream_id )
-                        .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                    model.StreamLog.origin_name != None ) )
-                        .distinct() ]
-            else:
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
-                                    model.StreamLog.origin_name != None ) )
-                        .distinct() ]*/
-        return listOf<String>()
+        return this.db._access().with {
+            if( all_streams ) {
+                this.db.session
+                    .from( StreamLog )
+                    .innerJoin( Streams, Streams.stream_id eq StreamLog.stream_id )
+                    .selectDistinct( StreamLog.origin_name )
+                    .where {
+                        (Streams.object_id eq this.obj.object_id) and
+                        (StreamLog.origin_name.isNotNull())
+                    }.map { it[StreamLog.origin_name]!! }
+            } else {
+                this.obj.root_stream_id?.let { root_stream_id ->
+                    this@File.db.session.stream_log.filter {
+                        (StreamLog.stream_id eq root_stream_id) and
+                        (StreamLog.origin_name.isNotNull())
+                    }.mapColumnsNotNull( isDistinct = true ) { it.origin_name }
+                } ?: listOf()
+            }
+        }
     }
 
     override fun get_repr(): String {
-        return this.get_name() ?: this.db._access().with {
-            var obj_id = this.obj.object_id
-            /*stream_id = this.obj.root_stream.stream_id
-            priority = this.obj.root_stream.priority
-            extension = this.obj.root_stream.extension*/
-            var extension: String? = null
-
-            return@with if( extension == null )
-                "%016x".format( obj_id )
-            else
-                "%016x.%s".format( obj_id, extension )
-        }
+        return this.get_name()
+            ?: this.get_root_stream()?.let {
+                    it.stream.extension
+                }?.let { "%016x.%s".format( this.obj.object_id, it ) }
+            ?: "%016x".format( this.obj.object_id )
     }
 
     fun _get_stream( name: String ): Stream? {

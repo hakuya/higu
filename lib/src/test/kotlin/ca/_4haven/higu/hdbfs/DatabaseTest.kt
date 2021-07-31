@@ -116,7 +116,7 @@ class DatabaseTest {
         h.delete_object( yellow_f )
 
         assertNotNull( red_f.get_root_stream(), "Red: No root stream" )
-        assertEquals( red_f.get_root_stream()?.getItem( "test_meta" ), 5,
+        assertEquals( 5, red_f.get_root_stream()?.getItem( "test_meta" ),
                 "Red: test_meta lost" )
     }
 
@@ -146,9 +146,9 @@ class DatabaseTest {
         red_f.get_thumb_stream( 4 )?.setItem( "test_meta", 5 )
         yellow_f.get_thumb_stream( 4 )?.setItem( "test_meta", 5 )
 
-        assertEquals( red_f.get_thumb_stream( 4 )?.getItem( "test_meta" ), 5,
+        assertEquals( 5, red_f.get_thumb_stream( 4 )?.getItem( "test_meta" ),
                 "Red: Thumb test_meta not set" )
-        assertEquals( yellow_f.get_thumb_stream( 4 )?.getItem( "test_meta" ), 5,
+        assertEquals( 5, yellow_f.get_thumb_stream( 4 )?.getItem( "test_meta" ),
                 "Yellow: Thumb test_meta not set" )
 
         yellow_f.drop_expendable_streams()
@@ -157,7 +157,7 @@ class DatabaseTest {
         assertNotNull( yellow_f.get_root_stream(), "Yellow: No root stream" )
         assertNotNull( red_f.get_stream( "tb:4" ), "Red: Thumb was lost" )
         assertNull( yellow_f.get_stream( "tb:4" ), "Yellow: Thumb was not dropped" )
-        assertEquals( red_f.get_thumb_stream( 4 )?.getItem( "test_meta" ), 5,
+        assertEquals( 5, red_f.get_thumb_stream( 4 )?.getItem( "test_meta" ),
                 "Red: Thumb test_meta lost" )
     }
 
@@ -186,10 +186,10 @@ class DatabaseTest {
     fun test_double_add() {
 
         // Add the file
-        Database().let { h ->
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
             val green = this.utils._load_data( TestUtils.green )
-
-            h.enable_write_access()
 
             val result = h.register_file( green.toString(), NAME_POLICY_DONT_REGISTER )
             assertFalse( result.was_known, "File known prior to first add" )
@@ -202,10 +202,10 @@ class DatabaseTest {
         }
 
         // Add it again
-        Database().let { h ->
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
             val green = this.utils._load_data( TestUtils.green )
-
-            h.enable_write_access()
 
             val result = h.register_file( green.toString(), NAME_POLICY_DONT_REGISTER )
             assertTrue( result.was_known, "File not known on second add" )
@@ -222,11 +222,10 @@ class DatabaseTest {
     fun test_recover_missing() {
 
         // Add the file, and delete it
-        Database().let { h ->
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
             val cyan = this.utils._load_data( TestUtils.cyan )
-
-            h.enable_write_access()
-
             val obj = h.register_file( cyan.toString(), NAME_POLICY_DONT_REGISTER ).file
 
             var img_fd = obj.get_root_stream()?.read()
@@ -245,11 +244,10 @@ class DatabaseTest {
         }
 
         // Start a new session and recover the file
-        Database().let { h ->
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
             val cyan = this.utils._load_data( TestUtils.cyan )
-
-            h.enable_write_access()
-
             val obj = h.register_file( cyan.toString(), NAME_POLICY_DONT_REGISTER ).file
 
             val img_fd = obj.get_root_stream()?.read()
@@ -262,11 +260,10 @@ class DatabaseTest {
     fun test_recover_corrupted() {
 
         // Add the file, and corrupt it
-        Database().let { h ->
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
             val magenta = this.utils._load_data( TestUtils.magenta )
-
-            h.enable_write_access()
-
             val obj = h.register_file( magenta.toString(), NAME_POLICY_DONT_REGISTER ).file
 
             val img_fd = obj.get_root_stream()?.read()
@@ -287,10 +284,10 @@ class DatabaseTest {
         }
 
         // Add the file, and corrupt it
-        Database().let { h ->
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
             val magenta = this.utils._load_data( TestUtils.magenta )
-
-            h.enable_write_access()
 
             val obj = h.register_file( magenta.toString(), NAME_POLICY_DONT_REGISTER ).file
 
@@ -300,164 +297,172 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    fun test_name() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val white = this.utils._load_data( TestUtils.white )
+
+            val obj = h.register_file( white.toString() ).file
+
+            assertEquals( TestUtils.white, obj.get_name(), "Name not loaded" )
+
+            val origin_names = obj.get_origin_names()
+            assertEquals( 1, origin_names.size, "Name count does not match" )
+            assertEquals( TestUtils.white, origin_names[0],
+                    "Unexpected name in origin list" )
+        }
+    }
+
+    @Test
+    fun test_repr() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+
+            val white = this.utils._load_data( TestUtils.white )
+            val black = this.utils._load_data( TestUtils.black )
+
+            val w_f = h.register_file( white.toString() ).file
+            val k_f = h.register_file( black.toString(), NAME_POLICY_DONT_SET ).file
+
+            assertEquals( TestUtils.white, w_f.get_repr(),
+                    "Repr on white did not return name" )
+            assertEquals( "%016x.%s".format( k_f.get_id(), k_f.get_root_stream()?.get_extension() ),
+                    k_f.get_repr(), "Repr on black did not return default name" )
+        }
+    }
+
+    @Test
+    fun test_log_names_single() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+
+            val white = this.utils._load_data( TestUtils.white )
+            val black = this.utils._load_data( TestUtils.black )
+
+            val w_f = h.register_file( white.toString() ).file
+            val k_f = h.register_file( black.toString(), NAME_POLICY_DONT_REGISTER ).file
+
+            assertTrue( TestUtils.white in w_f.get_origin_names(),
+                    "Name list on white did not return single name" )
+            assertTrue( k_f.get_origin_names().isEmpty(),
+                    "Name list on black did not return empty" )
+        }
+    }
+
+    @Test
+    fun test_log_all_names() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+
+            val white = this.utils._load_data( TestUtils.white )
+            val black = this.utils._load_data( TestUtils.black )
+
+            val w_f = h.register_file( white.toString() ).file
+            val k_f = h.register_file( black.toString() ).file
+
+            h.merge_objects( w_f, k_f )
+
+            val names = w_f.get_origin_names( true )
+            assertTrue( TestUtils.white in names,
+                    "Name list did not return white" )
+            assertTrue( TestUtils.black in names,
+                    "Name list did not return black" )
+            assertEquals( 2, names.size,
+                    "Name list had an unexpected number of names" )
+        }
+    }
+
+    @Test
+    fun test_duplicate_name() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val grey = this.utils._load_data( TestUtils.grey )
+            h.register_file( grey.toString() )
+        }
+
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val grey2 = this.utils._load_data( TestUtils.grey )
+            val obj = h.register_file( grey2.toString() ).file
+
+            val names = obj.get_origin_names()
+            assertTrue( TestUtils.grey in names, "Name not loaded" )
+            assertEquals( 1, names.size, "Name count does not match" )
+        }
+    }
+
+    @Test
+    fun test_different_names() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val grey = this.utils._load_data( TestUtils.grey )
+            h.register_file( grey.toString() )
+        }
+
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val grey2 = this.utils._load_data( TestUtils.grey, "altname.png" )
+            val obj = h.register_file( grey2.toString() ).file
+
+            val names = obj.get_origin_names()
+            assertTrue( TestUtils.grey in names, "First name not loaded" )
+            assertTrue( "altname.png" in names, "Second name not loaded" )
+            assertEquals( 2, names.size, "Name count does not match" )
+        }
+    }
+
+    @Test
+    fun test_load_name() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+
+            val black = this.utils._load_data( TestUtils.black )
+            val obj = h.register_file( black.toString(), NAME_POLICY_DONT_REGISTER ).file
+
+            assertNull( obj.get_name(),
+                    "Name set when it shouldn\'t have been" )
+            assertTrue( obj.get_origin_names().isEmpty(),
+                    "Name registered when it shouldn\'t have been" )
+        }
+
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+
+            val black = this.utils._load_data( TestUtils.black )
+            val obj = h.register_file( black.toString(), NAME_POLICY_DONT_SET ).file
+
+            assertNull( obj.get_name(),
+                    "Name set when it shouldn\'t have been" )
+            assertEquals( 1, obj.get_origin_names().size,
+                    "Name not registered when it should\'ve been" )
+            assertTrue( TestUtils.black in obj.get_origin_names(),
+                    "Name not registered when it should\'ve been" )
+        }
+
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+
+            val black = this.utils._load_data( TestUtils.black )
+            val obj = h.register_file( black.toString() ).file
+
+            assertEquals( TestUtils.black, obj.get_name(),
+                    "Name not set when it should\'ve been" )
+        }
+    }
+
     /* TODO
-    def test_name( self ):
-
-        white = self._load_data( self.white )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( white )
-
-        assertEquals( obj.get_name(), self.white,
-                'Name not loaded' )
-
-        origin_names = obj.get_origin_names()
-        assertEquals( len( origin_names ), 1,
-                'Name count does not match' )
-        assertEquals( origin_names[0], self.white,
-                'Unexpected name in origin list' )
-
-    def test_repr( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        w_f = h.register_file( white )
-        k_f = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
-
-        assertEquals( w_f.get_repr(), self.white,
-                'Repr on white did not return name' )
-        assertEquals( k_f.get_repr(),
-                '%016x.%s' % ( k_f.get_id(),
-                               k_f.get_root_stream().get_extension() ),
-                'Repr on black did not return default name' )
-
-    def test_log_names_single( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        w_f = h.register_file( white )
-        k_f = h.register_file( black, hdbfs.NAME_POLICY_DONT_REGISTER )
-
-        self.assertTrue( self.white in w_f.get_origin_names(),
-                'Name list on white did not return single name' )
-        self.assertTrue( len( k_f.get_origin_names() ) == 0,
-                'Name list on black did not return empty' )
-
-    def test_log_all_names( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        w_f = h.register_file( white )
-        k_f = h.register_file( black )
-
-        h.merge_objects( w_f, k_f )
-
-        names = w_f.get_origin_names( True )
-        self.assertTrue( self.white in names,
-                'Name list did not return white' )
-        self.assertTrue( self.black in names,
-                'Name list did not return black' )
-        assertEquals( len( names ), 2,
-                'Name list had an unexpected number of names' )
-
-    def test_duplicate_name( self ):
-
-        grey = self._load_data( self.grey )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( grey )
-
-        grey2 = self._load_data( self.grey )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( grey2 )
-
-        names = obj.get_origin_names()
-        self.assertTrue( self.grey in names,
-                'Name not loaded' )
-        assertEquals( len( names ), 1,
-                'Name count does not match' )
-
-    def test_different_names( self ):
-
-        grey = self._load_data( self.grey )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( grey )
-
-        grey2 = self._load_data( self.grey, 'altname.png' )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( grey2 )
-
-        names = obj.get_origin_names()
-        self.assertTrue( self.grey in names,
-                'First name not loaded' )
-        self.assertTrue( 'altname.png' in names,
-                'Second name not loaded' )
-        assertEquals( len( names ), 2,
-                'Name count does not match' )
-
-    def test_load_name( self ):
-
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_REGISTER )
-
-        assertNull( obj.get_name(),
-                'Name set when it shouldn\'t have been' )
-        assertEquals( len( obj.get_origin_names() ), 0,
-                'Name registered when it shouldn\'t have been' )
-
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( black, hdbfs.NAME_POLICY_DONT_SET )
-
-        assertNull( obj.get_name(),
-                'Name set when it shouldn\'t have been' )
-        assertEquals( len( obj.get_origin_names() ), 1,
-                'Name not registered when it should\'ve been' )
-        assertEquals( obj.get_origin_names()[0], self.black,
-                'Name not registered when it should\'ve been' )
-
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( black )
-
-        assertEquals( obj.get_name(), self.black,
-                'Name not set when it should\'ve been' )
-
     def test_fetch_missing_tag( self ):
 
         h = hdbfs.Database()
