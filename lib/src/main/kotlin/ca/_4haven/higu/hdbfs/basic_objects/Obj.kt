@@ -56,35 +56,38 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     }
 
     fun get_tags(): List<Tag> {
-        /* TODO
-        from sqlalchemy import and_
-
-        this.db._access().with {
-            tag_objs = [
-                obj for obj in
-                self.db.session.query( model.Object )
-                    .filter(
-                        and_( model.Object.object_type == TYPE_CLASSIFIER,
-                              model.Object.children.contains( self.obj ) ) )
-                             .order_by( model.Object.name ) ]
-            return map( lambda x: Tag( self.db, x ), tag_objs )
-        }*/
-        return listOf<Tag>()
+        return this.db._access().with {
+            this.db.session.objects.filter {
+                (Objects.object_id inList this.db.session.from( Relations )
+                                            .select( Relations.parent_id )
+                                            .where {
+                                                Relations.child_id eq this.obj.object_id
+                                            }) and
+                (Objects.object_type eq TYPE_CLASSIFIER)
+            }.map {
+                ObjectFactory.model_obj_to_higu_obj( this.db, it ) as Tag
+            }
+        }
     }
 
     fun _assign( group: Obj, order: Int? ) {
-        /* TODO
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ).first()
-        if( rel is not None ):
+        var rel = this.db.session.relations.find {
+                (Relations.parent_id eq group.obj.object_id) and
+                (Relations.child_id eq this.obj.object_id)
+        }
+        if( rel != null ) {
             rel.sort = order
-            return
-        rel = model.Relation( order )
-        rel.parent_obj = group.obj
-        rel.child_obj = self.obj
+            rel.flushChanges()
+        } else {
+            rel = Relation {
+                this.parent_id = group.obj.object_id
+                this.child_id = this@Obj.obj.object_id
+                this.sort = order
+            }
+            this.db.session.relations.add( rel )
+        }
 
-        group._on_children_changed()*/
+        group._on_children_changed()
     }
 
     fun assign( group: Obj, order: Int? = null ) {

@@ -2,6 +2,8 @@ package ca._4haven.higu.hdbfs.basic_objects
 
 import ca._4haven.higu.hdbfs.*
 import ca._4haven.higu.hdbfs.model.*
+import org.ktorm.dsl.*
+import org.ktorm.entity.*
 
 open class Group( db: Database, obj: ModelObject ) : Obj( db, obj ) {
 
@@ -10,11 +12,16 @@ open class Group( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _get_files(): List<File> {
-        /* TODO
-        objs = [ obj for obj in self.obj.children
-                             if obj.object_type == TYPE_FILE ]
-        return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )*/
-        return listOf<File>();
+        return this.db.session.objects.filter {
+            (Objects.object_id inList this.db.session.from( Relations )
+                                        .select( Relations.child_id )
+                                        .where {
+                                            Relations.parent_id eq this.obj.object_id
+                                        }) and
+            (Objects.object_type eq TYPE_FILE)
+        }.map {
+            ObjectFactory.model_obj_to_higu_obj( this.db, it ) as File
+        }
     }
 
     fun get_files(): List<File> {
@@ -55,7 +62,7 @@ open class OrderedGroup( db: Database, obj: ModelObject ) : Group( db, obj ) {
     }
 }
 
-class Tag( db: Database, obj: ModelObject) : Obj( db, obj ) {
+class Tag( db: Database, obj: ModelObject) : Group( db, obj ) {
 
     fun _get_objs(): List<Obj> {
         /* TODO

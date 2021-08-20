@@ -18,6 +18,7 @@ class HDBFSMigrator : Migrator {
         session.useTransaction {
             Objects.create( session )
             Streams.create( session )
+            Relations.create( session )
             ObjectMetadata.create( session )
             StreamMetadata.create( session )
             StreamLog.create( session )

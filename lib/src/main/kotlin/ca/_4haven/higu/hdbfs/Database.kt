@@ -322,38 +322,42 @@ class Database( library_path: String? = null ) {
                         .order_by( model.Object.name )
 
         return ModelObjToHiguObjIterator( this, objs )
+    }*/
+
+    fun get_tag( name: String ): Tag {
+        val obj = this.session.objects.find {
+            (Objects.name eq name) and
+            (Objects.object_type eq TYPE_CLASSIFIER)
+        } ?: throw NoSuchElementException( "No such tag ${name}" )
+
+        return ObjectFactory.model_obj_to_higu_obj( this, obj ) as Tag
     }
 
-    fun get_tag( name: String ) {
-
-        var obj = this.session.query( model.Object ) \
-                    .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
-                    .filter( model.Object.name == name ).first()
-        if( obj == null ) {
-            raise KeyError, 'No such tag "%s"' % ( name, )
-        }
-
-        return model_obj_to_higu_obj( this, obj )
-    }
-
-    fun _make_tag( name: String ) {
+    fun _make_tag( name: String ): Tag {
 
         check_tag_name( name )
         try {
             return this.get_tag( name )
-        } catch( ex: KeyError ) {
-            obj = model.Object( TYPE_CLASSIFIER, name )
-            self.session.add( obj )
-            return model_obj_to_higu_obj( this, obj )
+        } catch( ex: NoSuchElementException ) {
+            val _timestamp = Instant.now().getEpochSecond()
+
+            val mobj = ModelObject {
+                this.object_type = TYPE_CLASSIFIER
+                this.create_ts = _timestamp
+                this.name = name
+            }
+            this.session.objects.add( mobj )
+            return ObjectFactory.model_obj_to_higu_obj( this, mobj ) as Tag
         }
     }
 
-    fun make_tag( name: String ) {
-        this._access( write = True ).use {
-            return this._make_tag( name )
+    fun make_tag( name: String ): Tag {
+        return this._access( write = true ).with {
+            this._make_tag( name )
         }
     }
 
+    /* TODO
     fun delete_tag( tag: String ) {
         val obj = this.get_tag( tag )
         self.delete_object( obj )
@@ -831,5 +835,10 @@ class Database( library_path: String? = null ) {
                 && str( a[2] ) == str( b[2] ) \
                 && str( a[3] ) == str( b[3] )
         }*/
+
+        fun check_tag_name( name: String ) {
+            "^[\\w\\-_:]+$".toRegex().matchEntire( name )
+                    ?: throw IllegalArgumentException( "\"${name}\" is not a valid tag name" )
+        }
     }
 }

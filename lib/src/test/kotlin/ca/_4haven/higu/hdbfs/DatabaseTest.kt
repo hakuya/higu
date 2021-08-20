@@ -462,140 +462,146 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    fun test_fetch_missing_tag() {
+        Database().let { h ->
+            assertFailsWith<NoSuchElementException>( "Did not except on missing tag" ) {
+                h.get_tag( "tag_that_doesnt_exist" )
+            }
+        }
+    }
+
+    @Test
+    fun test_create_bad_tag() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            assertFailsWith<IllegalArgumentException>( "Did not except on bad tag name" ) {
+                h.make_tag( "a/tag" )
+            }
+        }
+    }
+
+    @Test
+    fun test_create_tag() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val tag = h.make_tag( "a_tag" )
+            val tag2 = h.get_tag( "a_tag" )
+
+            assertEquals( tag.get_id(), tag2.get_id(),
+                    "Tag ID mismatch" )
+        }
+    }
+
+    @Test
+    fun test_tag_file() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val black = this.utils._load_data( TestUtils.black )
+
+            val obj = h.register_file( black.toString(), NAME_POLICY_DONT_SET ).file
+            val tag = h.make_tag( "black" )
+            obj.assign( tag )
+
+            val files = tag.get_files()
+            assertEquals( 1, files.size,
+                    "Unexpected number of files" )
+            assertEquals( obj.get_id(), files[0].get_id(),
+                    "Incorrect file returned" )
+        }
+    }
+
+    @Test
+    fun test_file_has_tag() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val black = this.utils._load_data( TestUtils.black )
+
+            val obj = h.register_file( black.toString(), NAME_POLICY_DONT_SET ).file
+            val tag = h.make_tag( "black" )
+            obj.assign( tag )
+
+            val tags = obj.get_tags()
+            assertEquals( 1, tags.size,
+                    "Unexpected number of tags" )
+            assertEquals( tag.get_id(), tags[0].get_id(),
+                    "Incorrect tag returned" )
+        }
+    }
+
+    @Test
+    fun test_tag_multi_file() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
+
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
+
+            val mt = h.make_tag( "magenta" )
+            val yt = h.make_tag( "yellow" )
+            val ct = h.make_tag( "cyan" )
+
+            ro.assign( mt )
+            bo.assign( mt )
+
+            ro.assign( yt )
+            go.assign( yt )
+
+            go.assign( ct )
+            bo.assign( ct )
+
+            val magenta = mt.get_files()
+            val yellow = yt.get_files()
+            val cyan = ct.get_files()
+
+            assertEquals( 2, magenta.size,
+                    "Unexpected number of files (magenta)" )
+            assertEquals( 2, yellow.size,
+                    "Unexpected number of files (yellow)" )
+            assertEquals( 2, cyan.size,
+                    "Unexpected number of files (cyan)" )
+
+            assertTrue( ro in magenta, "Red not in magenta" )
+            assertTrue( bo in magenta, "Blue not in magenta" )
+
+            assertTrue( ro in yellow, "Red not in yellow" )
+            assertTrue( go in yellow, "Green not in yellow" )
+
+            assertTrue( go in cyan, "Green not in cyan" )
+            assertTrue( bo in cyan, "Blue not in cyan" )
+
+            val red_in = ro.get_tags()
+            val green_in = go.get_tags()
+            val blue_in = bo.get_tags()
+
+            assertEquals( 2, red_in.size,
+                    "Unexpected number of tags (red)" )
+            assertEquals( 2, green_in.size,
+                    "Unexpected number of tags (green)" )
+            assertEquals( 2, blue_in.size,
+                    "Unexpected number of tags (blue)" )
+
+            assertTrue( mt in red_in, "Red does not have magenta" )
+            assertTrue( yt in red_in, "Red does not have yellow" )
+
+            assertTrue( yt in green_in, "Green does not have yellow" )
+            assertTrue( ct in green_in, "Green does not have cyan" )
+
+            assertTrue( mt in blue_in, "Blue does not have magenta" )
+            assertTrue( ct in blue_in, "Blue does not have cyan" )
+        }
+    }
+
     /* TODO
-    def test_fetch_missing_tag( self ):
-
-        h = hdbfs.Database()
-
-        try:
-            h.get_tag( 'tag_that_doesnt_exist' )
-            self.fail( 'Did not except on missing tag' )
-        except KeyError:
-            pass
-
-    def test_create_tag( self ):
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        tag = h.make_tag( 'a_tag' )
-        tag2 = h.get_tag( 'a_tag' )
-
-        assertEquals( tag.get_id(), tag2.get_id(),
-                'Tag ID mismatch' )
-
-    def test_tag_file( self ):
-
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( black, False )
-        tag = h.make_tag( 'black' )
-        obj.assign( tag )
-
-        files = tag.get_files()
-        assertEquals( len( files ), 1,
-                'Unexpected number of files' )
-        assertEquals( files[0].get_id(), obj.get_id(),
-                'Incorrect file returned' )
-
-    def test_file_has_tag( self ):
-
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj = h.register_file( black, False )
-        tag = h.make_tag( 'black' )
-        obj.assign( tag )
-
-        tags = obj.get_tags()
-        assertEquals( len( tags ), 1,
-                'Unexpected number of tags' )
-        assertEquals( tags[0].get_id(), tag.get_id(),
-                'Incorrect tag returned' )
-
-    def test_tag_multi_file( self ):
-
-        red = self._load_data( self.red )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        ro = h.register_file( red, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        mt = h.make_tag( 'magenta' )
-        yt = h.make_tag( 'yellow' )
-        ct = h.make_tag( 'cyan' )
-
-        ro.assign( mt )
-        bo.assign( mt )
-
-        ro.assign( yt )
-        go.assign( yt )
-
-        go.assign( ct )
-        bo.assign( ct )
-
-        magenta = mt.get_files()
-        yellow = yt.get_files()
-        cyan = ct.get_files()
-
-        assertEquals( len( magenta ), 2,
-                'Unexpected number of files (magenta)' )
-        assertEquals( len( yellow ), 2,
-                'Unexpected number of files (yellow)' )
-        assertEquals( len( cyan ), 2,
-                'Unexpected number of files (cyan)' )
-
-        self.assertTrue( ro in magenta, 
-                'Red not in magenta' )
-        self.assertTrue( bo in magenta, 
-                'Blue not in magenta' )
-
-        self.assertTrue( ro in yellow, 
-                'Red not in yellow' )
-        self.assertTrue( go in yellow, 
-                'Green not in yellow' )
-
-        self.assertTrue( go in cyan, 
-                'Green not in cyan' )
-        self.assertTrue( bo in cyan, 
-                'Blue not in cyan' )
-
-        red_in = ro.get_tags()
-        green_in = go.get_tags()
-        blue_in = bo.get_tags()
-
-        assertEquals( len( red_in ), 2,
-                'Unexpected number of tags (red)' )
-        assertEquals( len( green_in ), 2,
-                'Unexpected number of tags (green)' )
-        assertEquals( len( blue_in ), 2,
-                'Unexpected number of tags (blue)' )
-
-        self.assertTrue( mt in red_in, 
-                'Red does not have magenta' )
-        self.assertTrue( yt in red_in, 
-                'Red does not have yellow' )
-
-        self.assertTrue( yt in green_in, 
-                'Green does not have yellow' )
-        self.assertTrue( ct in green_in, 
-                'Green does not have cyan' )
-
-        self.assertTrue( mt in blue_in, 
-                'Blue does not have magenta' )
-        self.assertTrue( ct in blue_in, 
-                'Blue does not have cyan' )
-
     def test_create_album( self ):
 
         h = hdbfs.Database()

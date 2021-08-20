@@ -1,18 +1,18 @@
 package ca._4haven.higu.hdbfs.model
 
+import ca._4haven.higu.hdbfs.dbutils.Session
 import org.ktorm.schema.*
 import org.ktorm.entity.Entity
-
-object Relations : Table<Nothing>( "relations" ) {
-    val child_id = int( "child_id" ).primaryKey()
-    val parent_id = int( "parent_id" ).primaryKey()
-    val sort = int( "sort" )
-}
+import org.ktorm.entity.sequenceOf
 
 interface Relation : Entity<Relation> {
-    val child_id: Int
-    val parent_id: Int
+
+    companion object : Entity.Factory<Relation>()
+
+    var child_id: Id
+    var parent_id: Id
     var sort: Int?
+
     /* TODO
     __tablename__ = 'relations'
     __table_args__ = (
@@ -32,3 +32,32 @@ interface Relation : Entity<Relation> {
         return 'Relation( %r, %r, %r )' % (
                 self.child_id, self.parent_id, self.sort )*/
 }
+
+object Relations : Table<Relation>( "relations" ) {
+    val child_id = long( "child_id" ).primaryKey().bindTo { it.child_id }
+    val parent_id = long( "parent_id" ).primaryKey().bindTo { it.parent_id }
+    val sort = int( "sort" ).bindTo { it.sort }
+
+    fun create( session: Session ) {
+        session.useConnection { conn ->
+            val sql = """
+                CREATE TABLE IF NOT EXISTS relations (
+                    child_id          INTEGER NOT NULL,
+                    parent_id         INTEGER NOT NULL,
+                    sort              INTEGER,
+                    PRIMARY KEY ( child_id, parent_id ),
+                    FOREIGN KEY ( child_id )
+                      REFERENCES objects( object_id ),
+                    FOREIGN KEY ( parent_id )
+                      REFERENCES objects( object_id )
+                )
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.execute()
+            }
+        }
+    }
+}
+
+val Session.relations get() = this.sequenceOf( Relations )
