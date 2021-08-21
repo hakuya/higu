@@ -24,19 +24,17 @@ class Album( db: Database, obj: ModelObject ) : OrderedGroup( db, obj ) {
             return datetime.datetime\
                     .utcfromtimestamp( self['origin_time'] )
         except:
-            return None
+            return None*/
 
-    def set_text( self, text ):
+    fun set_text( text: String? ) {
+        setItem( "text", text )
+    }
 
-        self['text'] = text
+    fun get_text(): String? {
+        return getItem( "text" ) as String
+    }
 
-    def get_text( self ):
-
-        try:
-            return self['text']
-        except KeyError:
-            return None
-
+    /* TODO
     def check_metadata( self ):
 
         try:

@@ -1,6 +1,8 @@
 package ca._4haven.higu.hdbfs
 
+import ca._4haven.higu.hdbfs.basic_objects.*
 import ca._4haven.higu.hdbfs.imgdb.*
+import ca._4haven.higu.hdbfs.model.*
 import kotlin.test.*
 import kotlin.test.assertTrue
 import kotlin.io.path.isRegularFile
@@ -601,138 +603,154 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    fun test_create_album() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val obj_id = h.create_album().get_id()
+
+            val album = h.get_object_by_id( obj_id )
+            assertNotNull( album, "Unable to get album after creation" )
+            assertTrue( album is Group, "Created album is not a group" )
+        }
+    }
+
+    @Test
+    fun test_create_album_with_text() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val obj_id = h.create_album( text = "This is some test text" ).get_id()
+
+            val album = h.get_object_by_id( obj_id ) as? Album
+            assertNotNull( album, "Unable to get album after creation" )
+            assertEquals( "This is some test text", album.get_text(),
+                    "Album text not properly returned" )
+        }
+    }
+
+    @Test
+    fun test_album_set_text() {
+        var obj_id: Id = 0
+
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val album = h.create_album().apply {
+                set_text( "This is some test text" )
+            }
+            obj_id = album.get_id()
+        }
+
+        Database().let { h ->
+            val album = h.get_object_by_id( obj_id ) as? Album
+
+            assertNotNull( album, "Unable to get album after creation" )
+            assertEquals( "This is some test text", album.get_text(),
+                    "Album text not properly returned" )
+        }
+    }
+
+    @Test
+    fun test_add_files_to_album() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
+
+            val album = h.create_album()
+
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
+
+            ro.assign( album )
+            go.assign( album )
+            bo.assign( album )
+
+            val files = album.get_files()
+
+            assertTrue( ro in files, "Red not in album" )
+            assertTrue( go in files, "Green not in album" )
+            assertTrue( bo in files, "Blue not in album" )
+        }
+    }
+
+    @Test
+    fun test_order_then_reorder() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
+
+            val album = h.create_album()
+
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
+
+            ro.assign( album, 2 )
+            go.assign( album, 0 )
+            bo.assign( album, 1 )
+
+            var files = album.get_files()
+
+            assertEquals( go, files[0], "Green not in first position after add with order" )
+            assertEquals( bo, files[1], "Blue not in second position after add with order" )
+            assertEquals( ro, files[2], "Red not in third position after add with order" )
+
+            ro.reorder( album, 2 )
+            go.reorder( album, 1 )
+            bo.reorder( album, 0 )
+
+            files = album.get_files()
+
+            assertEquals( bo, files[0], "Blue not in first position after reorder" )
+            assertEquals( go, files[1], "Green not in second position after reorder" )
+            assertEquals( ro, files[2], "Red not in third position after reorder" )
+        }
+    }
+
+    @Test
+    fun test_set_order_in_album() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
+
+            val album = h.create_album()
+
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
+
+            ro.assign( album, 2 )
+            go.assign( album, 0 )
+            bo.assign( album, 1 )
+
+            var files = album.get_files()
+
+            assertEquals( go, files[0], "Green not in first position after add with order" )
+            assertEquals( bo, files[1], "Blue not in second position after add with order" )
+            assertEquals( ro, files[2], "Red not in third position after add with order" )
+
+            album.set_order( listOf( bo, go, ro ) )
+            files = album.get_files()
+
+            assertEquals( bo, files[0], "Blue not in first position after reorder" )
+            assertEquals( go, files[1], "Green not in second position after reorder" )
+            assertEquals( ro, files[2], "Red not in third position after reorder" )
+        }
+    }
+
     /* TODO
-    def test_create_album( self ):
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj_id = h.create_album().get_id()
-
-        album = h.get_object_by_id( obj_id )
-        assertNotNull( album,
-                'Unable to get album after creation' )
-        self.assertTrue( isinstance( album, hdbfs.Group ),
-                'Created album is not a group' )
-
-    def test_create_album_with_text( self ):
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        obj_id = h.create_album( text = 'This is some test text' ).get_id()
-
-        album = h.get_object_by_id( obj_id )
-        assertEquals( album.get_text(), 'This is some test text',
-                'Album text not properly returned' )
-
-    def test_album_set_text( self ):
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        album = h.create_album()
-        album.set_text( 'This is some test text' )
-        obj_id = album.get_id()
-
-        h = hdbfs.Database()
-        album = h.get_object_by_id( obj_id )
-
-        assertEquals( album.get_text(), 'This is some test text',
-                'Album text not properly returned' )
-
-    def test_add_files_to_album( self ):
-
-        red = self._load_data( self.red )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        album = h.create_album()
-
-        ro = h.register_file( red, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        ro.assign( album )
-        go.assign( album )
-        bo.assign( album )
-
-        files = album.get_files()
-
-        self.assertTrue( ro in files, 'Red not in album' )
-        self.assertTrue( go in files, 'Green not in album' )
-        self.assertTrue( bo in files, 'Blue not in album' )
-
-    def test_order_then_reorder( self ):
-
-        red = self._load_data( self.red )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        album = h.create_album()
-
-        ro = h.register_file( red, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        ro.assign( album, 2 )
-        go.assign( album, 0 )
-        bo.assign( album, 1 )
-
-        files = album.get_files()
-
-        assertEquals( files[0], go, 'Green not in first position after add with order' )
-        assertEquals( files[1], bo, 'Blue not in second position after add with order' )
-        assertEquals( files[2], ro, 'Red not in third position after add with order' )
-
-        ro.reorder( album, 2 )
-        go.reorder( album, 1 )
-        bo.reorder( album, 0 )
-
-        files = album.get_files()
-
-        assertEquals( files[0], bo, 'Blue not in first position after reorder' )
-        assertEquals( files[1], go, 'Green not in second position after reorder' )
-        assertEquals( files[2], ro, 'Red not in third position after reorder' )
-
-    def test_set_order_in_album( self ):
-
-        red = self._load_data( self.red )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        album = h.create_album()
-
-        ro = h.register_file( red, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        ro.assign( album, 2 )
-        go.assign( album, 0 )
-        bo.assign( album, 1 )
-
-        files = album.get_files()
-
-        assertEquals( files[0], go, 'Green not in first position after add with order' )
-        assertEquals( files[1], bo, 'Blue not in second position after add with order' )
-        assertEquals( files[2], ro, 'Red not in third position after add with order' )
-
-        album.set_order( [ bo, go, ro, ] )
-        files = album.get_files()
-
-        assertEquals( files[0], bo, 'Blue not in first position after reorder' )
-        assertEquals( files[1], go, 'Green not in second position after reorder' )
-        assertEquals( files[2], ro, 'Red not in third position after reorder' )
-
     def test_set_duplicate( self ):
 
         white = self._load_data( self.white )

@@ -444,33 +444,36 @@ class Database( library_path: String? = null ) {
                     #log.warn( '%s was not found in the db and was ignored', f )
                     pass
         }
-    }
+    }*/
 
-    fun __create_album( tags = [], name = None, text = None ) {
-        album = model.Object( TYPE_ALBUM )
-        self.session.add( album )
-        album = model_obj_to_higu_obj( this, album )
+    fun __create_album( tags: List<Tag>, name: String?, text: String? ): Album {
+        val _timestamp = Instant.now().getEpochSecond()
 
-        if( name is not None ) {
-            album.obj.name = make_unicode( name )
+        val mobj = ModelObject {
+            this.object_type = TYPE_ALBUM
+            this.create_ts = _timestamp
+            this.name = name
+        }
+        this.session.objects.add( mobj )
+
+        val album = ObjectFactory.model_obj_to_higu_obj( this, mobj ) as Album
+
+        if( text != null ) {
+            album.set_text( text )
         }
 
-        if( text is not None ) {
-            album.obj['text'] = make_unicode( text )
+        tags.forEach { t ->
+            album._assign( t, null )
         }
-
-        for t in tags:
-            album._assign( t, None )
 
         return album
     }
 
-    fun create_album( tags = [], name = None, text = None ) {
-
-        this._access( write = True ).use {
-            return this.__create_album( tags, name, text )
+    fun create_album( tags: List<Tag> = listOf(), name: String? = null, text: String? = null ): Album {
+        return this._access( write = true ).with {
+            this.__create_album( tags, name, text )
         }
-    }*/
+    }
 
     data class RegistrationResult( val file: File, val stream: Stream, val was_known: Boolean )
 

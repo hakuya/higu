@@ -115,14 +115,12 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     }
 
     fun _reorder( group: Group, order: Int? ) {
-        /* TODO
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ) \
-                .first()
-        if( rel is None ):
-            raise ValueError, str( self ) + ' is not in ' + str( group )
-        rel.sort = order*/
+        val rel = this.db.session.relations.find {
+            (Relations.parent_id eq group.obj.object_id) and
+            (Relations.child_id eq this.obj.object_id)
+        } ?: throw IllegalArgumentException( "${this.get_repr()} is not in ${group.get_repr()}" )
+        rel.sort = order
+        rel.flushChanges()
     }
 
     fun reorder( group: OrderedGroup, order: Int? = null ) {
@@ -196,6 +194,6 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     override fun equals( o: Any? ): Boolean {
         if( o == null ) return false
         if( o !is Obj ) return false
-        return this.db == o.db && this.obj == o.obj
+        return this.db == o.db && this.obj.object_id == o.obj.object_id
     }
 }

@@ -12,16 +12,16 @@ open class Group( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _get_files(): List<File> {
-        return this.db.session.objects.filter {
-            (Objects.object_id inList this.db.session.from( Relations )
-                                        .select( Relations.child_id )
-                                        .where {
-                                            Relations.parent_id eq this.obj.object_id
-                                        }) and
-            (Objects.object_type eq TYPE_FILE)
-        }.map {
-            ObjectFactory.model_obj_to_higu_obj( this.db, it ) as File
-        }
+        return this.db.session.from( Objects )
+                .innerJoin( Relations, Objects.object_id eq Relations.child_id )
+                .select( Objects.columns )
+                .where {
+                    (Relations.parent_id eq this.obj.object_id) and
+                    (Objects.object_type eq TYPE_FILE)
+                }.orderBy( Relations.sort.asc() )
+                .map { row ->
+                    ObjectFactory.model_obj_to_higu_obj( this.db, Objects.createEntity( row ) ) as File
+                }
     }
 
     fun get_files(): List<File> {
@@ -43,21 +43,24 @@ open class OrderedGroup( db: Database, obj: ModelObject ) : Group( db, obj ) {
         }
     }
 
-    fun set_order( children: Obj ) {
+    fun set_order( children: List<Obj> ) {
         this.db._access( write = true ).with {
-            /* TODO
-            all_objs = self._get_files()
+            val all_objs = this._get_files().toMutableList()
             
-            for child in enumerate( children ):
-                assert( child[1] in all_objs )
-                all_objs.remove( child[1] )
-                
-                child[1]._reorder( self, child[0] )
+            children.forEachIndexed { i, v ->
+                if( v !in all_objs ) {
+                    throw IllegalArgumentException( "${v} is not a child of ${this}" )
+                }
 
-            offset = len( children )
+                all_objs.remove( v )
+                v._reorder( this, i )
+            }
 
-            for child in enumerate( all_objs ):
-                child[1]._reorder( self, offset + child[0] )*/
+            val offset = children.size
+
+            all_objs.forEachIndexed { i, v ->
+                v._reorder( this, offset + i )
+            }
         }
     }
 }
