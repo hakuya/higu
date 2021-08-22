@@ -12,16 +12,7 @@ open class Group( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _get_files(): List<File> {
-        return this.db.session.from( Objects )
-                .innerJoin( Relations, Objects.object_id eq Relations.child_id )
-                .select( Objects.columns )
-                .where {
-                    (Relations.parent_id eq this.obj.object_id) and
-                    (Objects.object_type eq TYPE_FILE)
-                }.orderBy( Relations.sort.asc() )
-                .map { row ->
-                    ObjectFactory.model_obj_to_higu_obj( this.db, Objects.createEntity( row ) ) as File
-                }
+        return this._get_children( TYPE_FILE ).map { it as File }
     }
 
     fun get_files(): List<File> {

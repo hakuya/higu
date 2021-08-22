@@ -15,8 +15,7 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     fun get_variants() = this.get_children( TYPE_FILE )
 
     fun _set_variant_of( parent: File ) {
-        if( parent.obj == this.obj ) throw RuntimeException()
-
+        if( parent.obj == this.obj ) throw IllegalArgumentException()
         this._assign( parent, null )
     }
 
@@ -35,15 +34,13 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _get_duplicate_streams(): List<Stream> {
-        /* TODO
-        from sqlalchemy import and_
-
-        return [ model_stream_to_higu_stream( self.db, s ) for s in
-            self.db.session.query( model.Stream )
-                        .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                        model.Stream.name.like( 'dup:%' ) ) )
-                        .order_by( model.Stream.stream_id ) ]*/
-        return listOf<Stream>()
+        return this.db.session.streams.filter {
+            (Streams.object_id eq this.obj.object_id) and
+            (Streams.name like "dup:%")
+        }.sortedBy { Streams.stream_id.asc() }
+        .map {
+            ObjectFactory.model_stream_to_higu_stream( this.db, it )
+        }
     }
 
     fun get_duplicate_streams(): List<Stream> {
@@ -51,14 +48,23 @@ open class File( db: Database, obj: ModelObject ) : Obj( db, obj ) {
     }
 
     fun _set_root_stream( stream: Stream ) {
-        /* TODO
-        if( stream.stream.object_id != this.obj.object_id ) throw RuntimeException()
-        if( !stream.stream.name.startsWith( "dup:" ) ) throw RuntimeException()
-        this.obj.root_stream.name = 'dup:' + this.obj.root_stream.hash_sha1
-        this.db.session.flush()
-        stream.stream.name = '.'
-        this.obj.root_stream = stream.stream
-        this.db.session.flush()*/
+        if( stream.stream.object_id != this.obj.object_id ) throw IllegalArgumentException()
+        if( !stream.stream.name.startsWith( "dup:" ) ) throw IllegalArgumentException()
+
+        this.obj.root_stream_id?.let { root_stream_id ->
+            this.db.session.streams.find {
+                (Streams.stream_id eq root_stream_id)
+            }
+        }?.let { root_stream ->
+            root_stream.name = "dup:${root_stream.hash_sha1}"
+            root_stream.flushChanges()
+
+        }
+
+        stream.stream.name = "."
+        stream.stream.flushChanges()
+        this.obj.root_stream_id = stream.stream.stream_id
+        this.obj.flushChanges()
     }
 
     fun set_root_stream( stream: Stream ) {

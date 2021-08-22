@@ -22,10 +22,15 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     }
 
     fun _get_parents( obj_type: ObjType ): List<Obj> {
-        /* TODO
-        objs = [ obj for obj in self.obj.parents if obj.object_type == obj_type ]
-        return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )*/
-        return listOf<Obj>()
+        return this.db.session.from( Objects )
+                .innerJoin( Relations, Objects.object_id eq Relations.parent_id )
+                .select( Objects.columns )
+                .where {
+                    (Relations.child_id eq this.obj.object_id) and
+                    (Objects.object_type eq obj_type)
+                }.map { row ->
+                    ObjectFactory.model_obj_to_higu_obj( this.db, Objects.createEntity( row ) )
+                }
     }
 
     fun get_parents( obj_type: ObjType ): List<Obj> {
@@ -33,10 +38,16 @@ open class Obj( val db: Database, val obj: ModelObject ) {
     }
 
     fun _get_children( obj_type: ObjType ): List<Obj> {
-        /* TODO
-        objs = [ obj for obj in self.obj.children if obj.object_type == obj_type ]
-        return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )*/
-        return listOf<Obj>()
+        return this.db.session.from( Objects )
+                .innerJoin( Relations, Objects.object_id eq Relations.child_id )
+                .select( Objects.columns )
+                .where {
+                    (Relations.parent_id eq this.obj.object_id) and
+                    (Objects.object_type eq obj_type)
+                }.orderBy( Relations.sort.asc() )
+                .map { row ->
+                    ObjectFactory.model_obj_to_higu_obj( this.db, Objects.createEntity( row ) )
+                }
     }
 
     fun get_children( obj_type: ObjType ): List<Obj> {

@@ -750,133 +750,122 @@ class DatabaseTest {
         }
     }
 
+    @Test
+    fun test_set_duplicate() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val white = this.utils._load_data( TestUtils.white )
+            val black = this.utils._load_data( TestUtils.black )
+
+            val wo = h.register_file( white.toString(), NAME_POLICY_DONT_SET ).file
+            val ko = h.register_file( black.toString(), NAME_POLICY_DONT_SET ).file
+
+            val ko_id = ko.get_id()
+            val ko_hash = ko.get_root_stream()?.get_hash()
+
+            h.merge_objects( wo, ko )
+
+            assertNull( h.get_object_by_id( ko_id ), "Blacks ID still exists" )
+
+            val dups = wo.get_duplicate_streams()
+            assertEquals( 1, dups.size, "Unexpected number of dups on white" )
+            assertEquals( ko_hash, dups[0].get_hash(),
+                                "Black not in duplicate list of white" )
+        }
+    }
+
+    @Test
+    fun test_set_root() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val yellow = this.utils._load_data( TestUtils.yellow )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
+            val black = this.utils._load_data( TestUtils.black )
+
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val yo = h.register_file( yellow.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
+            val ko = h.register_file( black.toString(), NAME_POLICY_DONT_SET ).file
+
+            val ro_hash = ro.get_root_stream()?.get_hash()
+            val yo_hash = yo.get_root_stream()?.get_hash()
+            val go_hash = go.get_root_stream()?.get_hash()
+            val bo_hash = bo.get_root_stream()?.get_hash()
+
+            h.merge_objects( ro, yo )
+            h.merge_objects( ro, go )
+            h.merge_objects( ro, bo )
+
+            var dups = ro.get_duplicate_streams().map { it.get_hash() }
+            assertEquals( 3, dups.size, "Unexpected number of dups on red" )
+            assertEquals( ro_hash, ro.get_root_stream()?.get_hash(),
+                                "Red not primary stream after merge" )
+            assertTrue( yo_hash in dups, "Yellow not in duplicate list of red" )
+            assertTrue( go_hash in dups, "Green not in duplicate list of red" )
+            assertTrue( bo_hash in dups, "Blue not in duplicate list of red" )
+
+            assertFailsWith<IllegalArgumentException>( "Attempt to set black as root stream succeeded" ) {
+                ro.set_root_stream( ko.get_root_stream()!! )
+            }
+
+            assertFailsWith<IllegalArgumentException>( "Attempt to set root to root succeeded" ) {
+                ro.set_root_stream( ro.get_root_stream()!! )
+            }
+
+            ro.set_root_stream( ro.get_stream( "dup:${go_hash}" )!! )
+
+            dups = ro.get_duplicate_streams().map { it.get_hash() }
+            assertEquals( 3, dups.size, "Unexpected number of dups on red after set" )
+            assertEquals( go_hash, ro.get_root_stream()?.get_hash(),
+                                "Green not primary stream after set" )
+            assertTrue( ro_hash in dups, "Red not in duplicate list of red after set" )
+            assertTrue( yo_hash in dups, "Yellow not in duplicate list of red after set" )
+            assertTrue( bo_hash in dups, "Blue not in duplicate list of red after set" )
+
+            dups = ro.get_duplicate_streams().map { it.get_name() }
+            assertEquals( ".", ro.get_root_stream()?.get_name(), "Incorrect name for primary stream after set" )
+            assertFalse( "." in dups, "Root name in duplicate list after set" )
+        }
+    }
+
+    @Test
+    fun test_set_duplicate_of_variant() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val yellow = this.utils._load_data( TestUtils.yellow )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
+
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val yo = h.register_file( yellow.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
+
+            go.set_variant_of( ro )
+            h.merge_objects( ro, yo )
+            h.merge_objects( go, bo )
+
+            assertTrue( go in ro.get_variants(), "Green not variant of red" )
+
+            assertEquals( 1, ro.get_duplicate_streams().size, "Red duplicate list mismatch" )
+            assertEquals( 1, go.get_duplicate_streams().size, "Green duplicate list mismatch" )
+
+            assertEquals( 0, ro.get_variants_of().size, "Red is a variant" )
+            assertEquals( 1, go.get_variants_of().size, "Green is not a variant" )
+
+            assertEquals( 1, ro.get_variants().size, "Red variant list mismatch" )
+            assertEquals( 0, go.get_variants().size, "Green variant list mismatch" )
+        }
+    }
+
     /* TODO
-    def test_set_duplicate( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        wo = h.register_file( white, False )
-        ko = h.register_file( black, False )
-
-        ko_id = ko.get_id()
-        ko_hash = ko.get_root_stream().get_hash()
-
-        h.merge_objects( wo, ko )
-
-        assertEquals( wo, ko, 'White and black are not duplicates' )
-        assertEquals( h.get_object_by_id( ko_id ), None, 'Blacks ID still exists' )
-
-        dups = wo.get_duplicate_streams()
-        assertEquals( len( dups ), 1, 'Unexpected number of dups on white' )
-        assertEquals( dups[0].get_hash(),
-                          ko_hash, 'Black not in duplicate list of white' )
-
-    def test_set_root( self ):
-
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-        ko = h.register_file( black, False )
-
-        ro_hash = ro.get_root_stream().get_hash()
-        yo_hash = yo.get_root_stream().get_hash()
-        go_hash = go.get_root_stream().get_hash()
-        bo_hash = bo.get_root_stream().get_hash()
-
-        h.merge_objects( ro, yo )
-        h.merge_objects( ro, go )
-        h.merge_objects( ro, bo )
-
-        dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
-        assertEquals( len( dups ), 3, 'Unexpected number of dups on red' )
-        assertEquals( ro.get_root_stream().get_hash(),
-                          ro_hash, 'Red not primary stream after merge' )
-        self.assertTrue( yo_hash in dups,
-                         'Yellow not in duplicate list of red' )
-        self.assertTrue( go_hash in dups,
-                         'Green not in duplicate list of red' )
-        self.assertTrue( bo_hash in dups,
-                         'Blue not in duplicate list of red' )
-
-        try:
-            ro.set_root_stream( wo.get_root_stream() )
-            self.fail( 'Attempt to set white as root stream succeeded' )
-        except:
-            pass
-
-        try:
-            ro.set_root_stream( ro.get_root_stream() )
-            self.fail( 'Attempt to set root to root succeeded' )
-        except:
-            pass
-
-        ro.set_root_stream( ro.get_stream( 'dup:' + go_hash ) )
-
-        dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
-        assertEquals( len( dups ), 3, 'Unexpected number of dups on red after set' )
-        assertEquals( ro.get_root_stream().get_hash(),
-                          go_hash, 'Green not primary stream after set' )
-        self.assertTrue( ro_hash in dups,
-                         'Red not in duplicate list of red after set' )
-        self.assertTrue( yo_hash in dups,
-                         'Yellow not in duplicate list of red after set' )
-        self.assertTrue( bo_hash in dups,
-                         'Blue not in duplicate list of red after set' )
-
-        dups = map( lambda x: x.get_name(), ro.get_duplicate_streams() )
-        assertEquals( ro.get_root_stream().get_name(),
-                          '.', 'Incorrect name for primary stream after set' )
-        self.assertFalse( '.' in dups,
-                          'Root name in duplicate list after set' )
-
-    def test_set_duplicate_of_variant( self ):
-
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        go.set_variant_of( ro )
-        h.merge_objects( ro, yo )
-        h.merge_objects( go, bo )
-
-        assertEquals( ro, yo, 'Yellow not equal to red' )
-        assertEquals( go, bo, 'Blue not equal to green' )
-        self.assertTrue( go in ro.get_variants(), 'Green not variant of red' )
-
-        assertEquals( len( ro.get_duplicate_streams() ),
-                          1, 'Red duplicate list mismatch' )
-        assertEquals( len( go.get_duplicate_streams() ),
-                          1, 'Green duplicate list mismatch' )
-
-        assertEquals( len( ro.get_variants_of() ), 0, 'Red is a variant' )
-        assertEquals( len( go.get_variants_of() ), 1, 'Green is not a variant' )
-
-        assertEquals( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
-        assertEquals( len( go.get_variants() ), 0, 'Green variant list mismatch' )
-
     def test_duplicates_moved( self ):
 
         red = self._load_data( self.red )
