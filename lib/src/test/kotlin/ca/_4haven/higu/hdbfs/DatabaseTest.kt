@@ -865,137 +865,144 @@ class DatabaseTest {
         }
     }
 
-    /* TODO
-    def test_duplicates_moved( self ):
+    @Test
+    fun test_duplicates_moved() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val yellow = this.utils._load_data( TestUtils.yellow )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
 
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val yo = h.register_file( yellow.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+            val ro_id = ro.get_id()
+            val yo_id = yo.get_id()
+            val go_id = go.get_id()
+            val bo_id = bo.get_id()
 
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
+            val ro_s_id = ro.get_root_stream()!!.get_stream_id()
+            val yo_s_id = yo.get_root_stream()!!.get_stream_id()
+            val go_s_id = go.get_root_stream()!!.get_stream_id()
+            val bo_s_id = go.get_root_stream()!!.get_stream_id()
 
-        ro_id = ro.get_id()
-        yo_id = yo.get_id()
-        go_id = go.get_id()
-        bo_id = bo.get_id()
+            h.merge_objects( ro, yo )
+            h.merge_objects( go, bo )
+            h.merge_objects( ro, go )
 
-        ro_s_id = ro.get_root_stream().get_stream_id()
-        yo_s_id = yo.get_root_stream().get_stream_id()
-        go_s_id = go.get_root_stream().get_stream_id()
-        bo_s_id = go.get_root_stream().get_stream_id()
+            assertNotNull( h.get_object_by_id( ro_id ), "Red was removed" )
+            assertNull( h.get_object_by_id( yo_id ), "Yellow was not removed" )
+            assertNull( h.get_object_by_id( go_id ), "Green was not removed" )
+            assertNull( h.get_object_by_id( bo_id ), "Blue was not removed" )
 
-        h.merge_objects( ro, yo )
-        h.merge_objects( go, bo )
-        h.merge_objects( ro, go )
+            val dups = ro.get_duplicate_streams().map { it.get_stream_id() }
+            assertFalse( ro_s_id in dups, "Red in dup list" )
+            assertTrue( yo_s_id in dups, "Yellow not in dup list" )
+            assertTrue( go_s_id in dups, "Green not in dup list" )
+            assertTrue( bo_s_id in dups, "Blue not in dup list" )
+        }
+    }
 
-        assertEquals( ro.get_id(), ro_id, 'Red was removed' )
-        assertEquals( h.get_object_by_id( yo_id ), None, 'Yellow was not removed' )
-        assertEquals( h.get_object_by_id( go_id ), None, 'Green was not removed' )
-        assertEquals( h.get_object_by_id( bo_id ), None, 'Blue was not removed' )
+    @Test
+    fun test_variants_moved() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val yellow = this.utils._load_data( TestUtils.yellow )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
 
-        dups = map( lambda x: x.get_stream_id(), ro.get_duplicate_streams() )
-        self.assertFalse( ro_s_id in dups, 'Red in dup list' )
-        self.assertTrue( yo_s_id in dups, 'Yellow not in dup list' )
-        self.assertTrue( go_s_id in dups, 'Green not in dup list' )
-        self.assertTrue( bo_s_id in dups, 'Blue not in dup list' )
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val yo = h.register_file( yellow.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
 
-    def test_variants_moved( self ):
+            yo.set_variant_of( ro )
+            bo.set_variant_of( go )
+            h.merge_objects( ro, go )
 
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
+            assertEquals( 0, ro.get_variants_of().size, "Red is a variant" )
+            assertEquals( 1, yo.get_variants_of().size, "Yellow is not a variant" )
+            assertEquals( 1, bo.get_variants_of().size, "Blue is not a variant" )
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+            assertEquals( 1, ro.get_duplicate_streams().size, "Red duplicate list mismatch" )
+            assertEquals( 2, ro.get_variants().size, "Red variant list mismatch" )
 
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
+            val variants = ro.get_variants()
+            assertTrue( yo in variants, "Yellow not in variant list" )
+            assertTrue( bo in variants, "Blue not in variant list" )
+        }
+    }
 
-        yo.set_variant_of( ro )
-        bo.set_variant_of( go )
-        h.merge_objects( ro, go )
+    @Test
+    fun test_albums_moved() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val yellow = this.utils._load_data( TestUtils.yellow )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
 
-        assertEquals( len( ro.get_variants_of() ), 0, 'Red is a variant' )
-        assertEquals( len( yo.get_variants_of() ), 1, 'Yellow is not a variant' )
-        assertEquals( len( bo.get_variants_of() ), 1, 'Blue is not a variant' )
+            val album = h.create_album()
 
-        assertEquals( len( ro.get_duplicate_streams() ), 1, 'Red duplicate list mismatch' )
-        assertEquals( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val yo = h.register_file( yellow.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
 
-        variants = ro.get_variants()
-        self.assertTrue( yo in variants, 'Yellow not in variant list' )
-        self.assertTrue( bo in variants, 'Blue not in variant list' )
+            yo.assign( album, 2 )
+            bo.assign( album, 3 )
+            ro.assign( album, 1 )
 
-    def test_albums_moved( self ):
+            h.merge_objects( go, yo )
 
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
+            val files = album.get_files()
+            assertEquals( 3, files.size, "Album size mismatch" )
+            assertEquals( ro, files[0], "Red not first in album" )
+            assertEquals( go, files[1], "Green not second in album" )
+            assertEquals( bo, files[2], "Blue not third in album" )
+        }
+    }
 
-        h = hdbfs.Database()
-        h.enable_write_access()
+    @Test
+    fun test_tags_moved() {
+        Database().apply {
+            enable_write_access()
+        }.let { h ->
+            val red = this.utils._load_data( TestUtils.red )
+            val green = this.utils._load_data( TestUtils.green )
+            val blue = this.utils._load_data( TestUtils.blue )
 
-        album = h.create_album()
+            val tag1 = h.make_tag( "a_tag" )
+            val tag2 = h.make_tag( "b_tag" )
+            val tag3 = h.make_tag( "c_tag" )
 
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
+            val ro = h.register_file( red.toString(), NAME_POLICY_DONT_SET ).file
+            val go = h.register_file( green.toString(), NAME_POLICY_DONT_SET ).file
+            val bo = h.register_file( blue.toString(), NAME_POLICY_DONT_SET ).file
 
-        yo.assign( album, 2 )
-        bo.assign( album, 3 )
-        ro.assign( album, 1 )
-
-        h.merge_objects( go, yo )
-
-        files = album.get_files()
-        assertEquals( len( files ), 3, 'Album size mismatch' )
-        assertEquals( files[0], ro, 'Red not first in album' )
-        assertEquals( files[1], go, 'Green not second in album' )
-        assertEquals( files[2], bo, 'Blue not third in album' )
-
-    def test_tags_moved( self ):
-
-        red = self._load_data( self.red )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        tag1 = h.make_tag( 'a_tag' )
-        tag2 = h.make_tag( 'b_tag' )
-        tag3 = h.make_tag( 'c_tag' )
-
-        ro = h.register_file( red, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        ro.assign( tag1 )
+            ro.assign( tag1 )
         
-        go.assign( tag1 )
-        go.assign( tag2 )
+            go.assign( tag1 )
+            go.assign( tag2 )
 
-        bo.assign( tag3 )
+            bo.assign( tag3 )
 
-        h.merge_objects( ro, go )
-        h.merge_objects( ro, bo )
+            h.merge_objects( ro, go )
+            h.merge_objects( ro, bo )
 
-        assertEquals( len( ro.get_tags() ), 3, 'Red tag list mismatch' )
+            assertEquals( 3, ro.get_tags().size, "Red tag list mismatch" )
 
-        tags = ro.get_tags()
-        self.assertTrue( tag1 in tags, 'tag1 not in dup list' )
-        self.assertTrue( tag2 in tags, 'tag2 not in dup list' )
-        self.assertTrue( tag3 in tags, 'tag3 not in dup list' )*/
+            val tags = ro.get_tags()
+            assertTrue( tag1 in tags, "tag1 not in dup list" )
+            assertTrue( tag2 in tags, "tag2 not in dup list" )
+            assertTrue( tag3 in tags, "tag3 not in dup list" )
+        }
+    }
 }

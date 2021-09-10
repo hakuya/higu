@@ -688,59 +688,67 @@ class Database( library_path: String? = null ) {
         }
 
         // Drop relationships with duplicate
-        /* TODO
-        this.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_p.object_id,
-                           model.Relation.child_id == obj_m.object_id ) ) \
-            .delete()
-        this.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_m.object_id,
-                           model.Relation.child_id == obj_p.object_id ) ) \
-            .delete()
+        this.session.relations.removeIf {
+            (Relations.parent_id eq obj_p.object_id) and
+            (Relations.child_id eq obj_m.object_id)
+        }
+        this.session.relations.removeIf {
+            (Relations.parent_id eq obj_m.object_id) and
+            (Relations.child_id eq obj_p.object_id)
+        }
 
         // Move relationships which do not conflict
-        r_i = aliased( model.Relation )
-
-        this.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_m.object_id,
-                           ~this.session.query( r_i )
-                                .filter( and_( r_i.parent_id == obj_p.object_id,
-                                               r_i.child_id == model.Relation.child_id ) )
-                               .exists() ) ) \
-            .update( { 'parent_id' : obj_p.object_id },
-                     synchronize_session = 'fetch' )
-        this.session.query( model.Relation ) \
-            .filter( and_( model.Relation.child_id == obj_m.object_id,
-                           ~this.session.query( r_i )
-                                .filter( and_( r_i.parent_id == model.Relation.parent_id,
-                                               r_i.child_id == obj_p.object_id ) )
-                               .exists() ) ) \
-            .update( { 'child_id' : obj_p.object_id },
-                     synchronize_session = 'fetch' )
+        this.session.update( Relations ) {
+            set( Relations.parent_id, obj_p.object_id )
+            where {
+                (Relations.parent_id eq obj_m.object_id) and
+                (Relations.child_id notInList
+                    this@Database.session.from( Relations ).select( Relations.child_id ).where {
+                        Relations.parent_id eq obj_p.object_id
+                    }
+                )
+            }
+        }
+        this.session.update( Relations ) {
+            set( Relations.child_id, obj_p.object_id )
+            where {
+                (Relations.child_id eq obj_m.object_id) and
+                (Relations.parent_id notInList
+                    this@Database.session.from( Relations ).select( Relations.parent_id ).where {
+                        Relations.child_id eq obj_p.object_id
+                    }
+                )
+            }
+        }
 
         // Copy sort from relationships that conflict
-        for r_m in this.session.query( model.Relation ) \
-                       .filter( model.Relation.parent_id == obj_m.object_id ):
-
-            r_p = this.session.query( model.Relation ) \
-                      .filter( and_( model.Relation.parent_id == obj_p.object_id,
-                                     model.Relation.child_id == r_m.child_id ) ) \
-                      .first()
-
-            if( r_p.sort is None ):
-                r_p.sort = r_m.sort
-
-        for r_m in this.session.query( model.Relation ) \
-                       .filter( model.Relation.child_id == obj_m.object_id ):
-
-            r_p = this.session.query( model.Relation ) \
-                      .filter( and_( model.Relation.child_id == obj_p.object_id,
-                                     model.Relation.parent_id == r_m.parent_id ) ) \
-                      .first()
-
-            if( r_p.sort is None ):
-                r_p.sort = r_m.sort
-
+        this.session.relations.filter {
+            Relations.parent_id eq obj_m.object_id
+        }.forEach { r_m ->
+            this.session.relations.find {
+                (Relations.parent_id eq obj_p.object_id) and
+                (Relations.child_id eq r_m.child_id)
+            }?.let { r_p ->
+                if( r_p.sort == null && r_m.sort != null ) {
+                    r_p.sort = r_m.sort
+                    r_p.flushChanges()
+                }
+            }
+        }
+        this.session.relations.filter {
+            Relations.child_id eq obj_m.object_id
+        }.forEach { r_m ->
+            this.session.relations.find {
+                (Relations.child_id eq obj_p.object_id) and
+                (Relations.parent_id eq r_m.parent_id)
+            }?.let { r_p ->
+                if( r_p.sort == null && r_m.sort != null ) {
+                    r_p.sort = r_m.sort
+                    r_p.flushChanges()
+                }
+            }
+        }
+        /* TODO: no clue what this was doing, looks wrong
         this.session.query( model.Relation ) \
             .filter( and_( model.Relation.parent_id == obj_m.object_id,
                            this.session.query( r_i )
@@ -749,14 +757,15 @@ class Database( library_path: String? = null ) {
                                .exists() ) ) \
             .update( { 'sort' : obj_p.object_id },
                      synchronize_session = 'fetch' )
-
-        // Drop remaining relationships
-        this.session.query( model.Relation ) \
-                    .filter( or_( model.Relation.parent_id == obj_m.object_id,
-                                  model.Relation.child_id == obj_m.object_id ) ) \
-                    .delete()
         */
 
+        // Drop remaining relationships
+        this.session.relations.removeIf {
+            (Relations.parent_id eq obj_m.object_id) or
+            (Relations.child_id eq obj_m.object_id)
+        }
+
+        // Drop the object
         this.session.objects.removeIf {
             Objects.object_id eq obj_m.object_id
         }
@@ -780,13 +789,10 @@ class Database( library_path: String? = null ) {
             }
 
             this.session.object_metadata.removeIf { ObjectMetadata.object_id eq object_id }
-            /* TODO
-            this.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == object_id ) \
-                .delete()
-            this.session.query( model.Relation ) \
-                .filter( model.Relation.child_id == object_id ) \
-                .delete()*/
+            this.session.relations.removeIf {
+                (Relations.parent_id eq object_id) or
+                (Relations.child_id eq object_id)
+            }
             this.session.objects.removeIf { Objects.object_id eq object_id }
         }
     }
