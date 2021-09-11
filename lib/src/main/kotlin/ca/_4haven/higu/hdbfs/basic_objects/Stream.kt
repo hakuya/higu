@@ -51,14 +51,15 @@ open class Stream( val db: Database, val stream: ModelStream ) {
     }
 
     fun get_origin_stream(): Stream? {
-        /* TODO
         return this.db._access().with {
-            if( this.stream.origin_stream != null )
-                model_stream_to_higu_stream( this.db, this.stream.origin_stream )
-            else
-                null
-        }*/
-        return null
+            this.stream.origin_stream_id?.let { origin_stream_id ->
+                this.db.session.streams.find {
+                    Streams.stream_id eq origin_stream_id
+                }?.let {
+                    ObjectFactory.model_stream_to_higu_stream( this.db, it )
+                }
+            }
+        }
     }
 
     fun get_origin_method(): String? {

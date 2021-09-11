@@ -38,50 +38,42 @@ class ImageFile( db: Database, obj: ModelObject ) : File( db, obj ) {
         try:
             return self['text']
         except KeyError:
-            return None
+            return None*/
 
-    def __reorient( self, remap ):
+    private fun __reorient( remap: List<Int> ) {
 
-        with self.db._access( write = True ):
-            if( self.obj.root_stream is None ):
-                return
+        this.db._access( write = true ).with {
+            val root_stream = this.get_root_stream() ?: return@with
 
-            try:
-                orientation = self.obj.root_stream['orientation']
-            except:
-                orientation = 1
+            var orientation = (root_stream.getItem( "orientation" ) as? Int) ?: 1
 
             orientation = remap[orientation-1]
-            self.obj.root_stream['orientation'] = orientation
+            root_stream.setItem( "orientation", orientation )
 
-            # We need to purge the size
-            try:
-                del self.obj['width']
-            except KeyError:
-                pass
+            // We need to purge the size
+            this.delItem( "width" )
+            this.delItem( "height" )
 
-            try:
-                del self.obj['height']
-            except KeyError:
-                pass
+            this.db.tbcache.purge_thumbs( this )
+        }
+    }
 
-        self.db.tbcache.purge_thumbs( self )
+    fun rotate_cw() {
+        val CW_REMAP = listOf( 6, 5, 8, 7, 4, 3, 2, 1 )
+        this.__reorient( CW_REMAP )
+    }
 
-    def rotate_cw( self ):
+    fun rotate_ccw() {
+        val CCW_REMAP = listOf( 8, 7, 6, 5, 2, 1, 4, 3 )
+        this.__reorient( CCW_REMAP )
+    }
 
-        CW_REMAP = [ 6, 5, 8, 7, 4, 3, 2, 1 ]
-        self.__reorient( CW_REMAP )
+    fun mirror() {
+        val MIRROR_REMAP = listOf( 2, 1, 4, 3, 8, 7, 6, 5 )
+        this.__reorient( MIRROR_REMAP )
+    }
 
-    def rotate_ccw( self ):
-
-        CCW_REMAP = [ 8, 7, 6, 5, 2, 1, 4, 3 ]
-        self.__reorient( CCW_REMAP )
-
-    def mirror( self ):
-
-        MIRROR_REMAP = [ 2, 1, 4, 3, 8, 7, 6, 5 ]
-        self.__reorient( MIRROR_REMAP )
-
+    /* TODO
     def auto_orientation( self ):
 
         with self.db._access( write = True ):

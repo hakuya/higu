@@ -145,10 +145,10 @@ class ThumbCache( val fsdb: Database, val imgdb: StreamDatabase ) {
             return imginfo.get_root_stream()
         }
 
-        val t_stream = obj.get_stream( "tb:${exp}" ) as? ImageStream
+        val t_stream = obj.get_stream( "tb:${_exp}" ) as? ImageStream
         if( t_stream != null ) return t_stream
 
-        val target_sz = (1 shl exp)
+        val target_sz = (1 shl _exp)
 
         // If we're here, we need to produce a thumb
         val work_file = Files.createTempFile( "higu", ".tb" )
@@ -199,11 +199,10 @@ class ThumbCache( val fsdb: Database, val imgdb: StreamDatabase ) {
         }
     }
 
-    /* TODO
-    def purge_thumbs( self, obj ):
-
+    fun purge_thumbs( obj: ImageFile ) {
         obj.drop_expendable_streams()
-        ImageInfo( self.imgdb, obj ).get_tb_info( True )*/
+        ImageInfo( this.imgdb, obj ).get_tb_info( true )
+    }
 
     companion object {
         var minThumbExp = 7
