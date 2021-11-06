@@ -101,7 +101,7 @@ class ObjectLabel extends React.Component
         var d = this.props.display;
         return (
             <div className='objitem'>
-                <div className='objlabel' ref={ ( el ) => { this.el = el; } }>
+                <div className='objlabel objitem' ref={ ( el ) => { this.el = el; } }>
                     <ObjectLink label={ d.info.repr } target={ d.obj_id }/>
                 </div>
                 <div className='objinfo'>
@@ -276,7 +276,7 @@ class ObjectInfoPane extends React.Component
                 <ObjectLabel display={ this.props.display }/> <br/>
                 <h1>Tags</h1>
                 <ul className='infotaglist'>
-                    {
+                    { info.tags &&
                         info.tags.map( ( it ) => (
                             <li key={ it }><TagLink tag={ it }/></li>
                         ) )
@@ -284,7 +284,7 @@ class ObjectInfoPane extends React.Component
                 </ul>
                 <h1>Names</h1>
                 <ul className='infonamlist'>
-                    {
+                    { info.names &&
                         info.names.map( ( it ) => (
                             <li key={ it }>{ it }</li>
                         ) )
@@ -328,6 +328,11 @@ class SelectionInfoPane extends React.Component
                                         this.props.display.sort_by_name();
                                     } }>
                         { 'Sort by Name' }
+                    </a></li>
+                    <li><a href='#' onClick={ () => {
+                                        this.props.display.reverse_sort();
+                                    } }>
+                        { 'Reverse Sort' }
                     </a></li>
                     <li><a href='#' onClick={ () => {
                                         this.props.display.make_group();
@@ -890,14 +895,28 @@ class TaglistTab extends React.Component {
     }
     render() {
         if( this.state.tags ) {
-            var rendered_tags = this.state.tags.map( ( it ) => (
-                <li key={ it }><TagLink tag={ it }/></li>
+            var tags = this.state.tags.map( it => {
+                        var m = it.match( /(.*):(.*)/ );
+                        return (m == null) ? [ null, it ] : [ m[1], it ];
+                    } );
+            var groups = [];
+            while( tags.length > 0 ) {
+                var group = tags[0][0];
+                var gtags = tags.filter( it => it[0] == group ).map( it => it[1] );
+                tags = tags.filter( it => it[0] != group );
+                groups.push( [ group, gtags ] );
+            }
+            var rendered_tags = groups.map( ( it ) => (
+                <div key={ it[0] } className='taggroup'>
+                  { it[0] != null && <h1>{ it[0] }</h1> }
+                  <ul className='taglist'>
+                    { it[1].map( jt => ( <li key={ jt }><TagLink tag={ jt }/></li> ) ) }
+                  </ul>
+                </div>
             ) );
             return (
                 <div className='tab'>
-                    <ul className='taglist'>
-                        { rendered_tags }
-                    </ul>
+                    { rendered_tags }
                 </div>
             );
         } else {

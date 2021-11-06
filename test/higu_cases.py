@@ -797,6 +797,78 @@ class HiguLibCases( testutil.TestCase ):
         self.assertFalse( '.' in dups,
                           'Root name in duplicate list after set' )
 
+    def test_forward_merge( self ):
+
+        red = self._load_data( self.red )
+        blue = self._load_data( self.blue )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red )
+        bo = h.register_file( blue )
+
+        rid = ro.get_id()
+        bid = bo.get_id()
+        stmid = ro.get_root_stream().get_stream_id()
+
+        self.assertTrue( rid < bid, 'Red not before blue' )
+
+        ro['test'] = 123
+        ro['test_red'] = 123
+        bo['test'] = 456
+        bo['test_blue'] = 456
+
+        h.merge_objects( ro, bo )
+
+        self.assertEqual( ro.get_id(), rid, 'Red ID changed' )
+        self.assertEqual( ro.get_name(), 'red_sq.png', 'Red name changed' )
+        self.assertEqual( ro.get_root_stream().get_stream_id(), stmid, 'Red stream changed' )
+        self.assertEqual( ro['test'], 123, 'Red metadata changed' )
+        self.assertEqual( ro['test_red'], 123, 'Red metadata changed' )
+
+        try:
+            ro['test_blue']
+            self.fail( 'Did not expect to read blue' )
+        except:
+            pass
+
+    def test_reverse_merge( self ):
+
+        red = self._load_data( self.red )
+        blue = self._load_data( self.blue )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        bo = h.register_file( blue )
+        ro = h.register_file( red )
+
+        rid = ro.get_id()
+        bid = bo.get_id()
+        stmid = ro.get_root_stream().get_stream_id()
+
+        self.assertTrue( rid > bid, 'Red not after blue' )
+
+        ro['test'] = 123
+        ro['test_red'] = 123
+        bo['test'] = 456
+        bo['test_blue'] = 456
+
+        h.merge_objects( ro, bo )
+
+        self.assertEqual( ro.get_id(), bid, 'Red did not take Blue ID' )
+        self.assertEqual( ro.get_name(), 'red_sq.png', 'Red name changed' )
+        self.assertEqual( ro.get_root_stream().get_stream_id(), stmid, 'Red stream changed' )
+        self.assertEqual( ro['test'], 123, 'Red metadata changed' )
+        self.assertEqual( ro['test_red'], 123, 'Red metadata changed' )
+
+        try:
+            ro['test_blue']
+            self.fail( 'Did not expect to read blue' )
+        except:
+            pass
+
     def test_set_duplicate_of_variant( self ):
 
         red = self._load_data( self.red )

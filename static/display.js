@@ -387,8 +387,12 @@ DisplayableObject = function( obj_id, info )
         };
 
         load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected: [ original ] } );
         tabs.on_event( { type: 'removed', affected: [ duplicate ] } );
+        if( original < duplicate ) {
+            tabs.on_event( { type: 'info_changed', affected: [ original ] } );
+        } else {
+            tabs.on_event( { type: 'replaced', affected: [ original ], new_id: duplicate } );
+        }
     };
 
     DisplayableObject.prototype.transform = function( xform )
@@ -540,6 +544,8 @@ DisplayableObject = function( obj_id, info )
                 tabs.on_event( { type: 'info_changed', affected:
                         [ obj_id ].concat( targets ) } );
             }
+        } else if( e.type == 'replaced' ) {
+            this.obj_id = e.new_id;
         } else if( e.type == 'info_changed' ) {
             this.refresh_info( e );
         } else if( e.type == 'files_changed' ) {
@@ -707,6 +713,12 @@ DisplayableSelection = function()
             return a[1].localeCompare( b[0] );
         });
 
+        this.notify_change( null );
+    };
+
+    DisplayableSelection.prototype.reverse_sort = function()
+    {
+        this.objs.reverse();
         this.notify_change( null );
     };
 

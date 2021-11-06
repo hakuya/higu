@@ -104,7 +104,7 @@ ImageViewer = function( pane, image_info )
     {
         s = '/img?id=' + this.image_info.obj_id;
 
-        if( this.image_info.sizes ) {
+        if( this.image_info.sizes && this.image_info.sizes.length > 0 ) {
             var dims = this.choose_image_dims();
             var size = null;
             for( var i = 0; i < this.image_info.sizes.length; i++ ) {
@@ -129,7 +129,7 @@ ImageViewer = function( pane, image_info )
 
     this.attach_image = function()
     {
-        if( this.image_info.sizes ) {
+        if( this.image_info.sizes && this.image_info.sizes.length > 0 ) {
             this.im_width = this.image_info.sizes[ this.image_info.sizes.length - 1][1];
             this.im_height = this.image_info.sizes[ this.image_info.sizes.length - 1][2];
         }

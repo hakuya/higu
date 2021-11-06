@@ -432,11 +432,13 @@ class Database:
         with self._access( write = True ):
             return self.__create_album( tags, name, text )
 
-    def __register_file( self, path, name_policy ):
+    def __register_file( self, path, name_policy, name = None ):
 
         import mimetypes
 
-        name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
+        if( name is None ):
+            name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
+
         ext = os.path.splitext( name )[1]
         assert ext[0] == '.'
         ext = ext[1:]
@@ -475,7 +477,6 @@ class Database:
         else:
             log = model.StreamLog( stream.stream, 'hdbfs:register',
                                    None, name )
-
         self.session.add( log )
 
         if( name_policy == NAME_POLICY_SET_ALWAYS
@@ -491,10 +492,10 @@ class Database:
 
         return f, stream, new_stream
 
-    def register_file( self, path, name_policy = NAME_POLICY_SET_IF_UNDEF ):
+    def register_file( self, path, name_policy = NAME_POLICY_SET_IF_UNDEF, name = None ):
 
         with self._access( write = True ):
-            f, stream, is_new = self.__register_file( path, name_policy )
+            f, stream, is_new = self.__register_file( path, name_policy, name )
 
         return f
 
@@ -570,21 +571,51 @@ class Database:
 
         merge_obj._drop_expendable_streams()
 
-        # Rename the root stream of the object to be merged so that it
-        # appears as a duplicate stream
-        stream = obj_m.root_stream
-        stream.name = 'dup:' + stream.hash_sha1
+        if( obj_p.object_id < obj_m.object_id ):
+            # Use the secondary name if the primary had none
+            if( obj_p.name is None and obj_m.name is not None ):
+                obj_p.name = obj_m.name
+
+            # Rename the root stream of the object to be merged so that it
+            # appears as a duplicate stream
+            stream = obj_m.root_stream
+            stream.name = 'dup:' + stream.hash_sha1
+
+            # Delete the metadata on the object to be merged, it will not be
+            # persisted
+            self.session.query( model.ObjectMetadata ) \
+                .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
+                .delete()
+
+            obj_p_is_primary = True
+
+        else:
+            # Always keep the lower ID
+            obj_p, obj_m = obj_m, obj_p
+
+            # Copy the name since obj_m used to be the primary
+            if( obj_m.name is not None ):
+                obj_p.name = obj_m.name
+
+            # Our merge is swapped, so obj_p is the duplicate
+            stream = obj_p.root_stream
+            stream.name = 'dup:' + stream.hash_sha1
+            obj_p.root_stream = obj_m.root_stream
+
+            # We need to move all the metadata over, since our primary is obj_m
+            self.session.query( model.ObjectMetadata ) \
+                .filter( model.ObjectMetadata.object_id == obj_p.object_id ) \
+                .delete()
+            self.session.query( model.ObjectMetadata ) \
+                .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
+                .update( { 'object_id' : obj_p.object_id } )
+
+            obj_p_is_primary = False
 
         # Move all streams from the object to be merged to the 
         self.session.query( model.Stream ) \
             .filter( model.Stream.object_id == obj_m.object_id ) \
             .update( { 'object_id' : obj_p.object_id } )
-
-        # Delete the metadata on the object to be merged, it will not be
-        # persisted
-        self.session.query( model.ObjectMetadata ) \
-            .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
-            .delete()
 
         # Drop relationships with duplicate
         self.session.query( model.Relation ) \
@@ -625,8 +656,12 @@ class Database:
                                      model.Relation.child_id == r_m.child_id ) ) \
                       .first()
 
-            if( r_p.sort is None ):
-                r_p.sort = r_m.sort
+            if( obj_p_is_primary ):
+                if( r_p.sort is None ):
+                    r_p.sort = r_m.sort
+            else:
+                if( r_m.sort is None ):
+                    r_m.sort = r_p.sort
 
         for r_m in self.session.query( model.Relation ) \
                        .filter( model.Relation.child_id == obj_m.object_id ):
@@ -636,8 +671,12 @@ class Database:
                                      model.Relation.parent_id == r_m.parent_id ) ) \
                       .first()
 
-            if( r_p.sort is None ):
-                r_p.sort = r_m.sort
+            if( obj_p_is_primary ):
+                if( r_p.sort is None ):
+                    r_p.sort = r_m.sort
+            else:
+                if( r_m.sort is None ):
+                    r_m.sort = r_p.sort
 
         self.session.query( model.Relation ) \
             .filter( and_( model.Relation.parent_id == obj_m.object_id,
@@ -654,7 +693,11 @@ class Database:
                                   model.Relation.child_id == obj_m.object_id ) ) \
                     .delete()
 
-        merge_obj.obj = primary_obj.obj
+        # Update our top-level objects
+        primary_obj.obj = obj_p
+        merge_obj.obj = obj_p
+
+        # And blow away the merge object from the DB
         self.session.query( model.Object ) \
             .filter( model.Object.object_id == obj_m.object_id ) \
             .delete()
