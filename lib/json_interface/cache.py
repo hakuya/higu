@@ -60,9 +60,10 @@ class CacheSet:
 
 class Selection( Cacheable ):
 
-    def __init__( self, results ):
+    def __init__( self, results, state ):
 
         Cacheable.__init__( self, uuid.uuid4().hex )
+        self.state = state
 
         if( isinstance( results, list ) ):
             self.loaded = results
@@ -105,9 +106,9 @@ class Session( Cacheable ):
 
         self.selections.flush()
 
-    def register_selection( self, selection ):
+    def register_selection( self, rs, state ):
 
-        sel = Selection( selection )
+        sel = Selection( rs, state )
         self.selections.register( sel )
 
         return sel
@@ -140,7 +141,7 @@ class SessionCache:
             except KeyError:
                 pass
 
-    def register_selection( self, session_id, selection ):
+    def register_selection( self, session_id, rs, state ):
 
         with self.lock:
             try:
@@ -149,7 +150,7 @@ class SessionCache:
                 session = Session( session_id )
                 self.sessions.register( session )
 
-            return session.register_selection( selection )
+            return session.register_selection( rs, state )
 
     def fetch_selection( self, session_id, selection_id ):
 

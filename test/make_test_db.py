@@ -3,32 +3,10 @@
 import sys
 import os
 
-if( __name__ == '__main__' ):
+ver = None
+hdbfs = None
 
-    ver = tuple( map( int, sys.argv[1].split( '.' ) ) )
-
-    hdbfs = None
-    if( ver[0] > 8 or ver[0] == 8 and ver[1] > 0 ):
-        import hdbfs
-    else:
-        import higu
-        hdbfs = higu
-
-    if( ver[0] >= 5 ):
-        hdbfs.ark.MIN_THUMB_EXP = 2
-
-    if( ver[0] < 5 ):
-        hdbfs.DEFAULT_ENVIRON = os.environ['MKDB_LIB_PATH']
-        h = hdbfs.init_default()
-    elif( ver[0] < 8 or ver[0] == 8 and ver[1] == 0 ):
-        hdbfs.init( 'build_dbs.cfg' )
-        h = hdbfs.Database()
-    else:
-        hdbfs.init( os.environ['MKDB_LIB_PATH'] )
-        h = hdbfs.Database()
-
-    if( ver[0] >= 8 ):
-        h.enable_write_access()
+def make_db( h ):
 
     mo = h.register_file( 'magenta_sq.png' )
     ro = h.register_file( 'red_sq.png' )
@@ -38,13 +16,17 @@ if( __name__ == '__main__' ):
     bo = h.register_file( 'blue_sq.png' )
     if( ver == ( 1, 0, ) ):
         wo = h.register_file( 'white_sq.png' )
-    else:
+    elif( ver[0] < 10 ):
         wo = h.register_file( 'white_sq.png', add_name = False )
+    else:
+        wo = h.register_file( 'white_sq.png', name_policy = hdbfs.NAME_POLICY_DONT_REGISTER )
     lo = h.register_file( 'grey_sq.png' )
     lo = h.register_file( 'grey_sq2.png' )
     ko = h.register_file( 'black_sq.png' )
 
-    if( ver[0] > 7 ):
+    if( ver[0] >= 10 ):
+        wo.rotate_cw()
+    elif( ver[0] > 7 ):
         wo.rotate( 1 )
 
     if( ver[0] < 5 ):
@@ -169,14 +151,22 @@ if( __name__ == '__main__' ):
         co.assign( al, 1 )
         bo.assign( al, 0 )
 
-        al.add_name( 'colours' )
+        if( ver[0] >= 10 ):
+            al.set_name( 'colours' )
+        else:
+            al.add_name( 'colours' )
+
         al.assign( h.make_tag( 'colour_album' ) )
 
         al = h.create_album()
         wo.assign( al )
         bo.assign( al )
 
-        al.add_name( 'white_and_blue' )
+        if( ver[0] >= 10 ):
+            al.set_name( 'white_and_blue' )
+        else:
+            al.add_name( 'white_and_blue' )
+
         al.assign( h.make_tag( 'white_blue_album' ) )
         al.set_text( 'White & Blue' )
 
@@ -187,9 +177,47 @@ if( __name__ == '__main__' ):
         lo.set_varient_of( wo )
         bo.set_varient_of( ko )
 
-    ko.set_duplicate_of( lo )
+    if( ver[0] >= 10 ):
+        h.merge_objects( lo, ko )
+    else:
+        ko.set_duplicate_of( lo )
 
-    if( ver[0] < 8 ):
+if( __name__ == '__main__' ):
+
+    ver = tuple( map( int, sys.argv[1].split( '.' ) ) )
+
+    if( ver[0] > 8 or ver[0] == 8 and ver[1] > 0 ):
+        import hdbfs as higu
+    else:
+        import higu
+
+    hdbfs = higu
+
+    if( ver[0] >= 10 ):
+        hdbfs.imgdb.MIN_THUMB_EXP = 2
+    elif( ver[0] >= 5 ):
+        hdbfs.ark.MIN_THUMB_EXP = 2
+
+    if( ver[0] < 5 ):
+        hdbfs.DEFAULT_ENVIRON = os.environ['MKDB_LIB_PATH']
+        h = hdbfs.init_default()
+    elif( ver[0] < 8 or ver[0] == 8 and ver[1] == 0 ):
+        hdbfs.init( 'build_dbs.cfg' )
+        h = hdbfs.Database()
+    else:
+        hdbfs.init( os.environ['MKDB_LIB_PATH'] )
+        h = hdbfs.Database()
+
+    if( ver[0] >= 8 ):
+        h.enable_write_access()
+
+    if( ver[0] >= 11 ):
+        with h.transaction():
+            make_db( h )
+    elif( ver[0] >= 8 ):
+        make_db( h )
+    else:
+        make_db( h )
         h.commit()
 
 # vim:sts=4:et:sw=4

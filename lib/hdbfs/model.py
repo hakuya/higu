@@ -20,7 +20,7 @@ SP_EXPENDABLE = 1000
 SP_NORMAL     = 2000
 SP_PRIORITY   = 3000
 
-VERSION = 10
+VERSION = 11
 REVISION = 0
 
 IMGDB_VERSION = 1
@@ -81,6 +81,10 @@ class Relation( Base ):
     child_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
     parent_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
     sort = Column( Integer )
+    child_name = Column( Text )
+    child_stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ) )
+
+    child_stream = relation( 'Stream', foreign_keys = [ child_stream_id ] )
 
     def __init__( self, sort = None ):
 

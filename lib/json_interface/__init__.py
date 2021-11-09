@@ -58,118 +58,6 @@ def json_err( err, emsg = None ):
             'msg'    : emsg,
         }
 
-def fetch_info( items, target, stream = None ):
-
-    if( target is None ):
-        return { 'type' : 'invalid' }
-
-    info = {}
-    target.check_metadata()
-    if( stream is not None ):
-        stream.check_metadata()
-
-    if( 'type' in items ):
-        info['type'] = get_type_str( target )
-    if( 'text' in items ):
-        info['text'] = target.get_text()
-    if( 'repr' in items ):
-        info['repr'] = target.get_repr()
-    if( 'tags' in items ):
-        tags = target.get_tags()
-        info['tags'] = map( lambda x: x.get_name(), tags )
-    if( 'names' in items ):
-        if( isinstance( target, hdbfs.File ) ):
-            info['names'] = target.get_origin_names( all_streams = True )
-        else:
-            name = target.get_name()
-            if( name is not None ):
-                info['names'] = [ target.get_name(), ]
-            else:
-                info['names'] = []
-    if( isinstance( target, hdbfs.File ) and 'variants' in items ):
-        variants = target.get_variants()
-        info['variants'] = map( make_obj_tuple, variants )
-    if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
-        variants_of = target.get_variants_of()
-        info['variants_of'] = map( make_obj_tuple, variants_of )
-    if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
-        dups = target.get_duplicate_streams()
-        info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
-    if( isinstance( target, hdbfs.File ) and 'albums' in items ):
-        albums = target.get_albums()
-        info['albums'] = map( make_obj_tuple, albums )
-    if( isinstance( target, hdbfs.Album ) and 'files' in items ):
-        files = target.get_files()
-        info['files'] = map( make_obj_tuple, files )
-    if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
-        try:
-            info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
-        except:
-            info['thumb_gen'] = 0
-    if( 'width' in items
-     or 'height' in items
-     or 'sizes' in items ):
-
-        w = None
-        h = None
-
-        if( stream is not None ):
-            if( isinstance( stream, hdbfs.ImageStream ) ):
-                try:
-                    w, h = stream.get_dimensions()
-                except:
-                    pass
-        elif( isinstance( target, hdbfs.ImageFile ) ):
-            try:
-                w, h = target.get_dimensions()
-            except:
-                pass
-        
-        info['width'] = w
-        info['height'] = h
-
-        if( 'sizes' in items and w is not None ):
-            maxdim = w if( w > h ) else h
-            sizes = [ 1 << hdbfs.imgdb.MIN_THUMB_EXP ]
-            exps = [ hdbfs.imgdb.MIN_THUMB_EXP ]
-
-            while( sizes[-1] < maxdim ):
-                sizes.append( sizes[-1] * 2 )
-                exps.append( exps[-1] + 1 )
-
-            sizes[-1] = maxdim
-
-            if( w > h ):
-                sizes = map( lambda x, e: ( e, x, x * h / w ), sizes, exps )
-            else:
-                sizes = map( lambda y, e: ( e, y * w / h, y ), sizes, exps )
-
-            info['sizes'] = sizes
-
-        elif( 'sizes' in items ):
-            info['sizes'] = []
-
-    if( 'origin_time' in items ):
-        if( stream is not None ):
-            origin_ts = stream.get_origin_time()
-        else:
-            origin_ts = target.get_origin_time()
-        if( origin_ts is not None ):
-            info['origin_time'] = origin_ts.strftime( '%Y/%m/%d %H:%M:%S' )
-        else:
-            info['origin_time'] = None
-    if( 'creation_time' in items ):
-        if( stream is not None ):
-            creation_ts = stream.get_creation_time()
-        else:
-            creation_ts = target.get_creation_time()
-        if( creation_ts is not None ):
-            info['creation_time'] = creation_ts.strftime( '%Y/%m/%d %H:%M:%S' )
-        else:
-            info['creation_time'] = None
-
-    return info
-
 class JsonInterface:
 
     def __init__( self, db, session_id ):
@@ -177,6 +65,136 @@ class JsonInterface:
         self.__cache = cache.get_default_cache()
         self.__db = db
         self.__session_id = session_id
+
+    def __fetch_info( self, items, target, album = None, stream = None ):
+
+        if( target is None ):
+            return { 'type' : 'invalid' }
+
+        if( isinstance( target, int ) ):
+            target = self.__db.get_object_by_id( target )
+
+        if( album is not None and isinstance( album, int ) ):
+            album = self.__db.get_object_by_id( album )
+
+        info = {}
+        target.check_metadata()
+        if( stream is not None ):
+            stream.check_metadata()
+        else:
+            #if( isinstance( target, hdbfs.File ) ):
+            #    stream = target.get_root_stream( album )
+            pass
+
+        info['object_id'] = target.get_id()
+
+        if( stream is not None ):
+            info['stream_id'] = stream.get_stream_id()
+
+        if( album is not None ):
+            info['album'] = make_obj_tuple( album )
+
+        if( 'type' in items ):
+            info['type'] = get_type_str( target )
+        if( 'text' in items ):
+            info['text'] = target.get_text()
+        if( 'repr' in items ):
+            info['repr'] = target.get_repr( album )
+        if( 'tags' in items ):
+            tags = target.get_tags()
+            info['tags'] = map( lambda x: x.get_name(), tags )
+        if( 'names' in items ):
+            if( isinstance( target, hdbfs.File ) ):
+                info['names'] = target.get_origin_names( all_streams = True )
+            else:
+                name = target.get_name()
+                if( name is not None ):
+                    info['names'] = [ target.get_name(), ]
+                else:
+                    info['names'] = []
+        if( isinstance( target, hdbfs.File ) and 'variants' in items ):
+            variants = target.get_variants()
+            info['variants'] = map( make_obj_tuple, variants )
+        if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
+            variants_of = target.get_variants_of()
+            info['variants_of'] = map( make_obj_tuple, variants_of )
+        if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
+            dups = target.get_duplicate_streams()
+            info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
+        if( isinstance( target, hdbfs.File ) and 'albums' in items ):
+            albums = target.get_albums()
+            info['albums'] = map( make_obj_tuple, albums )
+        if( isinstance( target, hdbfs.Album ) and 'files' in items ):
+            files = target.get_files()
+            info['files'] = map( make_obj_tuple, files )
+        if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
+            try:
+                info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
+            except:
+                info['thumb_gen'] = 0
+        if( 'width' in items
+         or 'height' in items
+         or 'sizes' in items ):
+
+            w = None
+            h = None
+
+            if( stream is not None ):
+                if( isinstance( stream, hdbfs.ImageStream ) ):
+                    try:
+                        w, h = stream.get_dimensions()
+                    except:
+                        pass
+            elif( isinstance( target, hdbfs.ImageFile ) ):
+                try:
+                    w, h = target.get_dimensions()
+                except:
+                    pass
+            
+            info['width'] = w
+            info['height'] = h
+
+            if( 'sizes' in items and w is not None ):
+                maxdim = w if( w > h ) else h
+                sizes = [ 1 << hdbfs.imgdb.MIN_THUMB_EXP ]
+                exps = [ hdbfs.imgdb.MIN_THUMB_EXP ]
+
+                while( sizes[-1] < maxdim ):
+                    sizes.append( sizes[-1] * 2 )
+                    exps.append( exps[-1] + 1 )
+
+                sizes[-1] = maxdim
+
+                if( w > h ):
+                    sizes = map( lambda x, e: ( e, x, x * h / w ), sizes, exps )
+                else:
+                    sizes = map( lambda y, e: ( e, y * w / h, y ), sizes, exps )
+
+                info['sizes'] = sizes
+
+            elif( 'sizes' in items ):
+                info['sizes'] = []
+
+        if( 'origin_time' in items ):
+            if( stream is not None ):
+                origin_ts = stream.get_origin_time()
+            else:
+                origin_ts = target.get_origin_time()
+            if( origin_ts is not None ):
+                info['origin_time'] = origin_ts.strftime( '%Y/%m/%d %H:%M:%S' )
+            else:
+                info['origin_time'] = None
+        if( 'creation_time' in items ):
+            if( stream is not None ):
+                creation_ts = stream.get_creation_time()
+            else:
+                creation_ts = target.get_creation_time()
+            if( creation_ts is not None ):
+                info['creation_time'] = creation_ts.strftime( '%Y/%m/%d %H:%M:%S' )
+            else:
+                info['creation_time'] = None
+
+        return info
 
     def close( self ):
 
@@ -241,7 +259,7 @@ class JsonInterface:
         db = self.__db
 
         def fetch_info_fn( target ):
-            return fetch_info( items, target )
+            return self.__fetch_info( items, target )
 
         targets = map( db.get_object_by_id, targets )
         results = map( fetch_info_fn, targets )
@@ -255,7 +273,7 @@ class JsonInterface:
         if( stream is not None ):
             stream = db.get_stream_by_id( stream )
 
-        results = fetch_info( items, target, stream )
+        results = self.__fetch_info( items, target, stream = stream )
         return json_ok( info = results )
 
     def cmd_tag( self, targets, **args ):
@@ -339,12 +357,13 @@ class JsonInterface:
         if( data.has_key( 'mode' ) ):
             # Search by directive
             if( data['mode'] == 'all' ):
-                return db.all_albums_or_free_files()
+                return db.all_albums_or_free_files(), {}
             elif( data['mode'] == 'untagged' ):
-                return db.unowned_files()
+                return db.unowned_files(), {}
             elif( data['mode'] == 'album' ):
                 album = db.get_object_by_id( data['album'] )
-                return map( lambda x: x.get_id(), album.get_files() )
+                return map( lambda x: x.get_id(), album.get_files() ), \
+                       { 'album' : data['album'] }
 
         else:
             if( data.has_key( 'query' ) ):
@@ -379,17 +398,17 @@ class JsonInterface:
                     add = map( higu.query.create_constraint, req )
                     sub = map( higu.query.create_constraint, req )
                 except ( KeyError, ValueError, ), e:
-                    return json_err( e )
+                    return json_err( e ), {}
 
-            return query.execute( db )
+            return query.execute( db ), {}
 
     def cmd_search( self, data ):
 
-        rs = self.__exec_search( data )
+        rs, ctx = self.__exec_search( data )
 
         # Register the result set
         sel = self.__cache.register_selection(
-                        self.__session_id, rs )
+                        self.__session_id, rs, ctx )
         selid = sel.get_id()
         results = len( sel )
 
@@ -401,6 +420,7 @@ class JsonInterface:
 
         idx = data['index'] if( 'index' in data ) else 0
         count = data['count'] if( 'count' in data ) else None
+        info = data['info'] if( 'info' in data ) else None
 
         if( idx < 0 or idx >= results ):
             idx = 0
@@ -408,23 +428,33 @@ class JsonInterface:
         if( count is not None and (idx + count) > results ):
             count = results - idx
 
-        if( count is None ):
-            return json_ok(
-                selection = selid,
-                results = results,
-                index = idx,
-                first = sel[idx], )
+        result = {
+            'selection' : selid,
+            'results' : results,
+            'index' : idx,
+        }
 
+        if( count is None ):
+            if( info is not None ):
+                target = self.__db.get_object_by_id( sel[idx] )
+                result['first'] = self.__fetch_info( info, target, **ctx )
+            else:
+                result['first'] = sel[idx]
         else:
-            return json_ok(
-                selection = selid,
-                results = results,
-                index = idx,
-                items = sel[idx:idx+count], )
+            if( info is not None ):
+                def fetch_info_fn( target ):
+                    return self.__fetch_info( items, target, **ctx )
+
+                targets = map( self.__db.get_object_by_id, sel[idx:idx+count] )
+                result['items'] = map( fetch_info_fn, targets )
+            else:
+                result['items'] = sel[idx:idx+count]
+
+        return json_ok( **result )
 
     def cmd_bulk( self, data ):
 
-        rs = self.__exec_search( data )
+        rs, ctx = self.__exec_search( data )
         count = 0
 
         if( 'exec' not in data ):
@@ -509,7 +539,7 @@ class JsonInterface:
         else:
             return json_err( 'argument', 'Unsupported execution action' )
 
-    def cmd_selection_fetch( self, selection, index ):
+    def cmd_selection_fetch( self, selection, index, info = None ):
 
         sel_id = selection
         idx = index
@@ -520,7 +550,11 @@ class JsonInterface:
         except IndexError:
             return json_err( 'index', 'Invalid index' )
 
-        return json_ok( object_id = obj_id )
+        if( info is not None ):
+            target = self.__db.get_object_by_id( obj_id )
+            return json_ok( **self.__fetch_info( info, target, **sel.state ) )
+        else:
+            return json_ok( object_id = obj_id )
 
     def cmd_selection_close( self, selection ):
 

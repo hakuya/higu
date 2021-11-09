@@ -11,6 +11,9 @@ from basic_objs import *
 from hooks import *
 from obj_factory import add_obj_factory
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 IMGDB_DATA_PATH = 'imgdat'
 IMGDB_THUMB_PATH = 'tbdat'
 
@@ -72,7 +75,7 @@ class StreamInfo:
 
             try:
                 self.img = Image.open( f )
-            except IOError:
+            except:
                 LOG.warning(
                         'Failed opening image for "%s": %s',
                         self.stream.get_repr(), str( sys.exc_info()[1] ) )
@@ -199,7 +202,8 @@ class StreamInfo:
                                         '%Y:%m:%dT%H:%M:%S' )
                         self.origin_time = calendar.timegm( dt.timetuple() )
                     except:
-                        raise ValueError, 'Bad date <%r>: %r' % ( original_date, sys.exc_info()[1] )
+                        pass
+                        #raise ValueError, 'Bad date <%r>: %r' % ( original_date, sys.exc_info()[1] )
                     break
 
             if( self.origin_time is not None ):
@@ -338,22 +342,26 @@ class ImageInfo:
             w, h = self.get_dims()
             orientation = self.get_orientation()
 
-            if( self.tb_gen is not None ):
-                self.tb_gen += 1
-            else:
-                self.tb_gen = 0
+            if( w is not None
+            and h is not None
+            and orientation is not None ):
 
-            self.max_e = 0
-            if( orientation == 1 ):
-                self.use_root = 1
-            else:
-                self.use_root = 0
+                if( self.tb_gen is not None ):
+                    self.tb_gen += 1
+                else:
+                    self.tb_gen = 0
 
-            while( 2**self.max_e < w or 2**self.max_e < h ):
-                self.max_e += 1
+                self.max_e = 0
+                if( orientation == 1 ):
+                    self.use_root = 1
+                else:
+                    self.use_root = 0
 
-            tb_info = [ self.tb_gen, self.max_e, self.use_root ]
-            self.obj['.tbinfo'] = ':'.join( map( str, tb_info ) )
+                while( 2**self.max_e < w or 2**self.max_e < h ):
+                    self.max_e += 1
+
+                tb_info = [ self.tb_gen, self.max_e, self.use_root ]
+                self.obj['.tbinfo'] = ':'.join( map( str, tb_info ) )
 
         return self.tb_gen, self.max_e, self.use_root
 
@@ -395,11 +403,13 @@ class ImageFile( File ):
 
         File.__init__( self, db, obj )
 
-    def set_root_stream( self, stream ):
+    def set_root_stream( self, stream, group = None ):
 
-        File.set_root_stream( self, stream )
-        self.db.tbcache.purge_thumbs( self )
-        self.db.tbcache.init_object_metadata( self )
+        File.set_root_stream( self, stream, group )
+
+        if( group is not None ):
+            self.db.tbcache.purge_thumbs( self )
+            self.db.tbcache.init_object_metadata( self )
 
         # Trigger a metadata update on the albums
         for album in self.get_albums():
@@ -521,11 +531,8 @@ class Album( OrderedGroup ):
 
     def get_origin_time( self ):
 
-        print 'GO1'
         self.check_metadata()
-        print 'GO2'
         try:
-            print 'GO3'
             return datetime.datetime\
                     .utcfromtimestamp( self['origin_time'] )
         except:

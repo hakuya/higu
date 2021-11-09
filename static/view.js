@@ -14,6 +14,11 @@ var all_tabs = [];
 var active_tab_id = null;
 var tabs_listeners = [];
 
+var info_set = [ 'object_id', 'type', 'repr', 'tags',
+    'names', 'variants', 'variants_of',
+    'dup_streams', 'albums', 'files', 'text', 'thumb_gen',
+    'width', 'height', 'sizes', 'origin_time', 'creation_time' ];
+
 /**
  * create_tab( title ) - creates a tab with the given title
  */
@@ -272,6 +277,7 @@ public_SingleProvider = function( obj_id )
     // Constructor
     {
         this.obj_id = obj_id;
+        this.info = null;
         this.index = null;
         this.count = 1;
     };
@@ -283,8 +289,24 @@ public_SingleProvider = function( obj_id )
     // Member functions
     public_SingleProvider.prototype.init = function( obj, callback )
     {
-        display = displib.make_object_display( this.obj_id );
-        eval( 'obj.' + callback + '( display )' );
+        var request = {
+            action:     'stream_info',
+            target:     this.obj_id,
+            stream:     null,
+            items:      info_set,
+        };
+
+        load_async( request, this, 'on_init_load', {
+            obj: obj,
+            callback: callback,
+        });
+    };
+
+    public_SingleProvider.prototype.on_init_load = function( data, response )
+    {
+        this.info = response.info;
+        display = displib.make_object_display( this.info );
+        eval( 'data.obj.' + data.callback + '( display )' );
     };
 
     public_SingleProvider.prototype.repr = function()
@@ -295,7 +317,7 @@ public_SingleProvider = function( obj_id )
     public_SingleProvider.prototype.fetch = function( idx )
     {
         if( idx == 0 ) {
-            return displib.make_object_display( this.obj_id );
+            return displib.make_object_display( this.info );
         } else {
             return null;
         }
@@ -330,7 +352,10 @@ public_SearchProvider = function( query )
             return this.fetch( this.index );
         }
 
-        var request = { action: 'search' };
+        var request = {
+            action: 'search',
+            info: info_set,
+         };
 
         if( this.query.mode ) {
             if( this.query.mode == 'album' ) {
@@ -406,6 +431,7 @@ public_SearchProvider = function( query )
             action:     'selection_fetch',
             selection:  this.sid,
             index:      idx,
+            info:       info_set,
         };
         response = load_sync( request );
 
@@ -414,7 +440,7 @@ public_SearchProvider = function( query )
         }
 
         this.index = idx;
-        display = displib.make_object_display( response.object_id );
+        display = displib.make_object_display( response );
         return display;
     };
 
@@ -464,8 +490,23 @@ public_ListProvider = function( list )
 
         this.obj_id = this.list[this.index][0];
 
-        display = displib.make_object_display( this.obj_id );
-        eval( 'obj.' + callback + '( display )' );
+        var request = {
+            action:     'stream_info',
+            target:     this.obj_id,
+            stream:     null,
+            items:      info_set,
+        };
+
+        load_async( request, this, 'on_init_load', {
+            obj: obj,
+            callback: callback,
+        });
+    };
+
+    public_ListProvider.prototype.on_init_load = function( data, response )
+    {
+        display = displib.make_object_display( response.info );
+        eval( 'data.obj.' + data.callback + '( display )' );
     };
 
     public_ListProvider.prototype.repr = function()
@@ -482,7 +523,16 @@ public_ListProvider = function( list )
         this.index = idx;
 
         this.obj_id = this.list[this.index][0];
-        return displib.make_object_display( this.obj_id );
+
+        var request = {
+            action:     'stream_info',
+            target:     this.obj_id,
+            stream:     null,
+            items:      info_set,
+        };
+        response = load_sync( request );
+
+        return displib.make_object_display( response.info );
     };
 
     public_ListProvider.prototype.offset = function( off )

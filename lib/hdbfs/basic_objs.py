@@ -13,14 +13,10 @@ class Stream:
         self.db = db
         self.stream = stream
 
-    def _get_file( self ):
-
-        return model_obj_to_higu_obj( self.db, self.stream.obj )
-
     def get_file( self ):
 
         with self.db._access():
-            return self.get_file()
+            return model_obj_to_higu_obj( self.db, self.stream.obj )
 
     def get_stream_id( self ):
 
@@ -86,41 +82,33 @@ class Stream:
         with self.db._access():
             return self.stream.mime_type
 
-    def _read( self ):
-
-        return self.db.imgdb.read( self.stream.stream_id,
-                                   self.stream.priority,
-                                   self.stream.extension  )
-
     def read( self ):
 
         with self.db._access():
-            return self._read()
-
-    def _verify( self ):
-
-        fd = self._read()
-
-        if( fd is None ):
-            return False
-
-        details = calculate_details( fd )
-
-        if( details[0] != self.stream.stream_length ):
-            return False
-        if( details[1] != self.stream.hash_crc32 ):
-            return False
-        if( details[2] != self.stream.hash_md5 ):
-            return False
-        if( details[3] != self.stream.hash_sha1 ):
-            return False
-
-        return True
+            return self.db.imgdb.read( self.stream.stream_id,
+                                       self.stream.priority,
+                                       self.stream.extension  )
 
     def verify( self ):
 
-        with self._access():
-            return self._verify()
+        with self.db._access():
+            fd = self.read()
+
+            if( fd is None ):
+                return False
+
+            details = calculate_details( fd )
+
+            if( details[0] != self.stream.stream_length ):
+                return False
+            if( details[1] != self.stream.hash_crc32 ):
+                return False
+            if( details[2] != self.stream.hash_md5 ):
+                return False
+            if( details[3] != self.stream.hash_sha1 ):
+                return False
+
+            return True
 
     def _drop_data( self ):
 
@@ -130,8 +118,19 @@ class Stream:
 
     def get_repr( self ):
 
-        return 's%016x.%s' % ( self.get_stream_id(),
-                               self.get_extension() )
+        return str( self )
+
+    def __str__( self ):
+
+        return '{0!s}:{1}'.format( self.get_file(), self.get_name() )
+
+    def __repr__( self ):
+
+        return 'Stream( {0}, id={1}, obj={2}, mime={3} )'.format(
+                    self.get_name(),
+                    self.get_stream_id(),
+                    self.stream.object_id,
+                    self.stream.mime_type )
 
     def __getitem__( self, key ):
 
@@ -220,24 +219,38 @@ class Obj:
                              .order_by( model.Object.name ) ]
             return map( lambda x: Tag( self.db, x ), tag_objs )
 
-    def _assign( self, group, order ):
+    def _assign( self, group,
+                 order = None,
+                 name = None,
+                 stream_id = None ):
     
         rel = self.db.session.query( model.Relation ) \
                 .filter( model.Relation.parent_id == group.obj.object_id ) \
                 .filter( model.Relation.child_id == self.obj.object_id ).first()
+
         if( rel is not None ):
-            rel.sort = order
+            if( order is not None ):
+                rel.sort = order
+            if( name is not None ):
+                rel.child_name = name
+            if( stream_id is not None ):
+                rel.stream_id = stream_id
             return
+
         rel = model.Relation( order )
         rel.parent_obj = group.obj
         rel.child_obj = self.obj
+        rel.child_name = name
+        rel.child_stream_id = stream_id
 
         group._on_children_changed()
 
-    def assign( self, group, order = None ):
+    def assign( self, group,
+                order = None,
+                name = None ):
 
         with self.db._access( write = True ):
-            self._assign( group, order )
+            self._assign( group, order, name )
 
     def _unassign( self, group ):
 
@@ -262,7 +275,7 @@ class Obj:
                 .filter( model.Relation.child_id == self.obj.object_id ) \
                 .first()
         if( rel is None ):
-            raise ValueError, str( self ) + ' is not in ' + str( group )
+            raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
         rel.sort = order
 
     def reorder( self, group, order = None ):
@@ -274,29 +287,61 @@ class Obj:
 
         with self.db._access():
             rel = self.db.session.query( model.Relation ) \
-                    .filter( model.Relation.parent_id == group.obj.id ) \
-                    .filter( model.Relation.child_id == self.obj.id ).first()
+                    .filter( model.Relation.parent_id == group.obj.object_id ) \
+                    .filter( model.Relation.child_id == self.obj.object_id ).first()
             if( rel is None ):
-                raise ValueError, str( self ) + ' is not in ' + str( group )
+                raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
             return rel.sort
         
-    def get_name( self ):
+    def get_name( self, group = None ):
 
         with self.db._access():
+            if( group is not None ):
+                rel = self.db.session.query( model.Relation ) \
+                        .filter( model.Relation.parent_id == group.obj.object_id ) \
+                        .filter( model.Relation.child_id == self.obj.object_id ).first()
+                if( rel is not None and rel.child_name is not None ):
+                    return rel.child_name
+
             return self.obj.name
 
-    def set_name( self, name ):
+    def set_name( self, name, group = None ):
 
         with self.db._access( write = True ):
-            self.obj.name = name
+            if( group is not None ):
+                rel = self.db.session.query( model.Relation ) \
+                        .filter( model.Relation.parent_id == group.obj.object_id ) \
+                        .filter( model.Relation.child_id == self.obj.object_id ).first()
+                if( rel is None ):
+                    raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
+                else:
+                    rel.child_name = name
+            else:
+                self.obj.name = name
 
-    def get_repr( self ):
+    def get_repr( self, group = None ):
+
+        name = self.get_name( group )
+        if( name is not None ):
+            return name
+        else:
+            return '%016x' % ( self.get_id() )
+
+    def __str__( self ):
 
         name = self.get_name()
         if( name is not None ):
             return name
         else:
             return '%016x' % ( self.get_id() )
+
+    def __repr__( self ):
+
+        name = self.get_name()
+        if( name is not None ):
+            return 'Object( id={0} )'.format( self.obj.object_id )
+        else:
+            return 'Object( "{0}", id={1} )'.format( self.get_name(), self.obj.object_id )
 
     def __getitem__( self, key ):
 
@@ -449,20 +494,26 @@ class File( Obj ):
         with self.db._access():
             return self._get_duplicate_streams()
 
-    def _set_root_stream( self, stream ):
-
-        assert stream.stream.object_id == self.obj.object_id
-        assert stream.stream.name.startswith( 'dup:' )
-        self.obj.root_stream.name = 'dup:' + self.obj.root_stream.hash_sha1
-        self.db.session.flush()
-        stream.stream.name = '.'
-        self.obj.root_stream = stream.stream
-        self.db.session.flush()
-
-    def set_root_stream( self, stream ):
+    def set_root_stream( self, stream, group = None ):
 
         with self.db._access( write = True ):
-            self._set_root_stream( stream )
+            assert stream.stream.object_id == self.obj.object_id
+            assert stream.stream.priority >= model.SP_NORMAL
+
+            if( group is not None ):
+                rel = self.db.session.query( model.Relation ) \
+                        .filter( model.Relation.parent_id == group.obj.object_id ) \
+                        .filter( model.Relation.child_id == self.obj.object_id ).first()
+                if( rel is None ):
+                    raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
+                rel.child_stream = stream.stream
+            else:
+                assert stream.stream.name.startswith( 'dup:' )
+                self.obj.root_stream.name = 'dup:' + self.obj.root_stream.hash_sha1
+                self.db.session.flush()
+                stream.stream.name = '.'
+                self.obj.root_stream = stream.stream
+                self.db.session.flush()
 
     def get_origin_names( self, all_streams = False ):
 
@@ -484,9 +535,9 @@ class File( Obj ):
                                        model.StreamLog.origin_name != None ) )
                         .distinct() ]
 
-    def get_repr( self ):
+    def get_repr( self, group = None ):
 
-        name = self.get_name()
+        name = self.get_name( group )
         if( name is not None ):
             return name
         else:
@@ -573,19 +624,48 @@ class File( Obj ):
         with self.db._access( write = True ):
             self._drop_expendable_streams()
 
-    def _get_root_stream( self ):
-
-        return model_stream_to_higu_stream( self.db, self.obj.root_stream )
-
-    def get_root_stream( self ):
+    def get_root_stream( self, group = None ):
 
         with self.db._access():
-            return self._get_root_stream()
+            stream = self.obj.root_stream
 
-    def _verify( self ):
+            if( group is not None ):
+                rel = self.db.session.query( model.Relation ) \
+                        .filter( model.Relation.parent_id == group.obj.object_id ) \
+                        .filter( model.Relation.child_id == self.obj.object_id ).first()
+                if( rel is not None and rel.child_stream is not None ):
+                    stream = rel.child_stream
 
-        for s in self._get_streams():
-            s._verify()
+            return model_stream_to_higu_stream( self.db, stream )
+
+    def verify( self ):
+
+        with self.db._access():
+            for s in self.get_streams():
+                s.verify()
+
+    def assign( self, group,
+                order = None,
+                name = None,
+                stream = None,
+                lock_stream = None ):
+
+        with self.db._access( write = True ):
+            stream_id = None
+
+            if( stream is not None ):
+                sids = [s.stream_id for s in self.db.session.query( model.Stream ) \
+                             .filter( model.Stream.object_id == self.obj.object_id ) \
+                             .filter( model.Stream.priority >= model.SP_NORMAL )]
+                if( stream.get_stream_id() not in sids ):
+                    raise ValueError, '{0} is not a non-expendable stream of {1}'.format( \
+                                            stream.stream, self )
+                stream_id = stream.get_stream_id()
+
+            elif( lock_stream is not None and lock_stream ):
+                stream_id = self.obj.root_stream.stream_id
+
+            self._assign( group, order, name, stream_id )
 
 def _basic_stream_factory( db, stream ):
 

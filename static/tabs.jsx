@@ -101,6 +101,8 @@ class ObjectLabel extends React.Component
         var d = this.props.display;
         return (
             <div className='objitem'>
+                { d.info.album &&
+                  <div className='alblabel'>{ d.info.album[1] + ' /' }</div> }
                 <div className='objlabel objitem' ref={ ( el ) => { this.el = el; } }>
                     <ObjectLink label={ d.info.repr } target={ d.obj_id }/>
                 </div>

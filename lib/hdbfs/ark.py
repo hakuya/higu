@@ -71,6 +71,12 @@ class FileVolume:
     def read( self, id, priority, extension ):
 
         p = self.__get_path( id, priority, extension )
+
+        # If we have items to commit, it may have not yet been comitted
+        tcp = [it[0] for it in self.to_commit if it[1] == p]
+        if( len( tcp ) > 0 ):
+            p = tcp[0]
+
         if( not os.path.isfile( p ) ):
             return None
         else:

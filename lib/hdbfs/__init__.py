@@ -391,7 +391,7 @@ class Database:
         if( len( streams ) == 0 ):
             return False
 
-        if( not streams[0]._verify() ):
+        if( not streams[0].verify() ):
             self.imgdb.load_data( path, streams[0].stream.stream_id,
                                         streams[0].stream.priority,
                                         streams[0].stream.extension )
@@ -469,7 +469,7 @@ class Database:
             if( stream.stream.mime_type is None ):
                 stream.stream.mime_type = mime_type
 
-            f = stream._get_file()
+            f = stream.get_file()
 
         if( name_policy == NAME_POLICY_DONT_REGISTER ):
             log = model.StreamLog( stream.stream, 'hdbfs:register',
@@ -485,7 +485,7 @@ class Database:
 
             f.obj.name = name
 
-        if( not stream._verify() ):
+        if( not stream.verify() ):
             self.imgdb.load_data( path, stream.stream.stream_id,
                                         stream.stream.priority,
                                         stream.stream.extension )
@@ -498,6 +498,13 @@ class Database:
             f, stream, is_new = self.__register_file( path, name_policy, name )
 
         return f
+
+    def register_file3( self, path, name_policy = NAME_POLICY_SET_IF_UNDEF, name = None ):
+
+        with self._access( write = True ):
+            f, stream, is_new = self.__register_file( path, name_policy, name )
+
+        return f, stream, is_new
 
     def __register_thumb( self, path, obj, origin, name ):
 

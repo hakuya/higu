@@ -45,6 +45,12 @@ html, body, #app{
     margin-bottom: 10px;
 }
 
+.alblabel{
+    font-size: 80%;
+    color: #666;
+    padding: 0 5px 0 5px;
+}
+
 .objlabel{
     font-weight: bold;
     text-align: center;

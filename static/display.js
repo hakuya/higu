@@ -1004,25 +1004,12 @@ var public_make_dummy_display = function( msg )
  * make_object_display( obj_id ) - factory method for creating
  * the appropriate display.
  */
-var public_make_object_display = function( obj_id )
+var public_make_object_display = function( info )
 {
-    var request = {
-        action:     'stream_info',
-        target:     obj_id,
-        stream:     null,
-        items:      [ 'type', 'repr', 'tags', 'names',
-            'variants', 'variants_of', 'dup_streams',
-            'albums', 'files', 'text', 'thumb_gen',
-            'width', 'height', 'sizes', 'origin_time', 'creation_time' ],
-    };
-    
-    response = load_sync( request );
-    info = response.info;
-
     if( info.type == 'file' ) {
-        return make_file_display( obj_id, info );
+        return make_file_display( info.object_id, info );
     } else if( info.type == 'album' ) {
-        return make_group_display( obj_id, info );
+        return make_group_display( info.object_id, info );
     } else {
         return public_make_dummy_display( 'This is a placeholder for an object '
             + 'that does not exist or has been removed.' );

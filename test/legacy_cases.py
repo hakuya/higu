@@ -327,9 +327,14 @@ class LegacyCases( testutil.TestCase ):
             for s in f.get_streams():
 
                 if( s.get_name() == '.' ):
-                    self.assertEqual( s.get_origin_method(),
-                                      'hdbfs:legacy_create',
-                                      'Unexpected origin method for root' )
+                    if( ver[0] >= 10 ):
+                        self.assertEqual( s.get_origin_method(),
+                                          'hdbfs:register',
+                                          'unexpected origin method for root' )
+                    else:
+                        self.assertEqual( s.get_origin_method(),
+                                          'hdbfs:legacy_create',
+                                          'unexpected origin method for root' )
                     self.assertIsNone( s.get_origin_stream(),
                                      'Unexpected origin stream for root' )
                     self.assertEqual( s, f.get_root_stream(),
@@ -339,9 +344,14 @@ class LegacyCases( testutil.TestCase ):
                     self.assertEqual( s.get_mime(), 'image/png',
                                       'Unexpected mime for root' )
                 elif( s.get_name().startswith( 'dup:' ) ):
-                    self.assertEqual( s.get_origin_method(),
-                                      'hdbfs:legacy_create',
-                                      'Unexpected origin method for dup' )
+                    if( ver[0] >= 10 ):
+                        self.assertEqual( s.get_origin_method(),
+                                          'hdbfs:register',
+                                          'Unexpected origin method for dup' )
+                    else:
+                        self.assertEqual( s.get_origin_method(),
+                                          'hdbfs:legacy_create',
+                                          'Unexpected origin method for dup' )
                     self.assertIsNone( s.get_origin_stream(),
                                      'Unexpected origin stream for dup' )
                     self.assertEqual( s.get_extension(), 'png',
@@ -349,9 +359,14 @@ class LegacyCases( testutil.TestCase ):
                     self.assertEqual( s.get_mime(), 'image/png',
                                       'Unexpected mime for dup' )
                 elif( s.get_name().startswith( 'tb:' ) ):
-                    self.assertTrue( s.get_origin_method().startswith(
-                                        'imgdb:legacy_tb:' ),
-                                      'Unexpected origin method for thumb' )
+                    if( ver[0] >= 10 ):
+                        self.assertTrue( s.get_origin_method().startswith(
+                                            'imgdb:tb:' ),
+                                          'Unexpected origin method for thumb' )
+                    else:
+                        self.assertTrue( s.get_origin_method().startswith(
+                                            'imgdb:legacy_tb:' ),
+                                          'Unexpected origin method for thumb' )
                     self.assertEqual( s.get_origin_stream(),
                                       f.get_root_stream(),
                                      'Unexpected origin stream for thumb' )
@@ -381,7 +396,8 @@ def build_cases():
 
     VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
                  ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
-                 ( 8, 0, ), ( 8, 1, ), ( 9, 0, ) ]
+                 ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
+                 ( 11, 0, ), ]
 
     for ver in VERSIONS:
 

@@ -21,7 +21,7 @@ LEGACY_REL_CLASS       = 2000
 
 def upgrade_from_0_to_1( log, session ):
 
-    print 'Database upgrade from VER 0 -> VER 1'
+    log.info( 'Database upgrade from VER 0 -> VER 1' )
 
     session.execute( 'ALTER TABLE mfl ADD COLUMN parent INTEGER' )
     session.execute( 'ALTER TABLE mfl ADD COLUMN gorder INTEGER' )

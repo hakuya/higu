@@ -302,6 +302,36 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( origin_names[0], self.white,
                 'Unexpected name in origin list' )
 
+    def test_group_name( self ):
+
+        white = self._load_data( self.white )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        obj = h.register_file( white )
+        alb_named = h.create_album()
+        alb_noname = h.create_album()
+
+        obj.assign( alb_named, name = 'not_white.png' )
+        obj.assign( alb_noname )
+
+        self.assertEqual( obj.get_name(), self.white,
+                'White name not read' )
+        self.assertEqual( obj.get_name( alb_named ), 'not_white.png',
+                'Album name not read' )
+        self.assertEqual( obj.get_name( alb_noname ), self.white,
+                'White name not read from noname album' )
+
+        obj.set_name( 'maybe_blue.png', alb_noname )
+
+        self.assertEqual( obj.get_name(), self.white,
+                'White name not read' )
+        self.assertEqual( obj.get_name( alb_named ), 'not_white.png',
+                'Album name not read' )
+        self.assertEqual( obj.get_name( alb_noname ), 'maybe_blue.png',
+                'Album 2 name not read' )
+
     def test_repr( self ):
 
         white = self._load_data( self.white )
@@ -796,6 +826,48 @@ class HiguLibCases( testutil.TestCase ):
                           '.', 'Incorrect name for primary stream after set' )
         self.assertFalse( '.' in dups,
                           'Root name in duplicate list after set' )
+
+    def test_set_album_root( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red )
+        yo = h.register_file( yellow )
+        go = h.register_file( green )
+
+        ro_stm = ro.get_root_stream()
+        yo_stm = yo.get_root_stream()
+        go_stm = go.get_root_stream()
+
+        alb_locked = h.create_album()
+        alb_nolock = h.create_album()
+
+        yo.assign( alb_locked, lock_stream = True )
+        go.assign( alb_nolock )
+
+        h.merge_objects( ro, yo )
+        h.merge_objects( ro, go )
+
+        self.assertEqual( ro.get_root_stream().get_hash(), ro_stm.get_hash(),
+                'Incorrect root stream (base -> ro)' )
+        self.assertEqual( ro.get_root_stream( alb_locked ).get_hash(), yo_stm.get_hash(),
+                'Incorrect root stream (locked -> yo)' )
+        self.assertEqual( ro.get_root_stream( alb_nolock ).get_hash(), ro_stm.get_hash(),
+                'Incorrect root stream (nolock -> ro)' )
+
+        ro.set_root_stream( go_stm, alb_nolock )
+
+        self.assertEqual( ro.get_root_stream().get_hash(), ro_stm.get_hash(),
+                'Incorrect root stream 2 (base -> ro)' )
+        self.assertEqual( ro.get_root_stream( alb_locked ).get_hash(), yo_stm.get_hash(),
+                'Incorrect root stream 2 (locked -> yo)' )
+        self.assertEqual( ro.get_root_stream( alb_nolock ).get_hash(), go_stm.get_hash(),
+                'Incorrect root stream 2 (nolock -> go)' )
 
     def test_forward_merge( self ):
 

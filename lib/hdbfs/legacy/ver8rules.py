@@ -384,3 +384,13 @@ def upgrade_from_9_to_10( log, session ):
     session.execute( 'DROP TABLE mtda' )
     session.execute( 'DROP TABLE rel2' )
     return 10, 0
+
+def upgrade_from_10_to_11( log, session ):
+
+    log.info( 'Database upgrade from VER 10 -> VER 11' )
+
+    session.execute( 'ALTER TABLE relations ADD COLUMN child_name TEXT' )
+    session.execute( 'ALTER TABLE relations ADD COLUMN child_stream_id INTEGER' )
+
+    return 11, 0
+
