@@ -15,8 +15,8 @@ var active_tab_id = null;
 var tabs_listeners = [];
 
 var info_set = [ 'object_id', 'type', 'repr', 'tags',
-    'names', 'variants', 'variants_of',
-    'dup_streams', 'albums', 'files', 'text', 'thumb_gen',
+    'names', 'variants', 'variants_of', 'original_file',
+    'duplicates', 'albums', 'files', 'text', 'thumb_gen',
     'width', 'height', 'sizes', 'origin_time', 'creation_time' ];
 
 /**
@@ -54,6 +54,11 @@ add_tab = function( tab )
  */
 var public_init = function()
 {};
+
+public_get_info_set = function()
+{
+    return info_set;
+}
 
 /**
  * all_tabs() - returns all tabs
@@ -552,6 +557,7 @@ public_ListProvider = function( list )
 
 return {
     init: public_init,
+    get_info_set: public_get_info_set,
     all_tabs: public_all_tabs,
     register_tabs_listener: public_register_tabs_listener,
     active: public_active,

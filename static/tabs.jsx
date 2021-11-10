@@ -108,9 +108,9 @@ class ObjectLabel extends React.Component
                 </div>
                 <div className='objinfo'>
                     <div>{ 'id: ' } { d.obj_id }</div>
-                    { d.info.type == 'file' &&
+                    { (d.info.type == 'file' || d.info.type == 'duplicate') &&
                         <div>{ d.info.width } { 'x' } { d.info.height }</div> }
-                    { d.info.type == 'album' &&
+                    { (d.info.type == 'album' || d.info.type == 'published') &&
                         <div>{ d.info.files.length } { 'images' }</div> }
                 </div>
             </div>
@@ -188,6 +188,10 @@ class ObjectInfoPane extends React.Component
                     <ObjectList label='Albums: ' objects={ info.albums }/>
                 }
                 { info.albums && info.albums.length > 0 && <br/> }
+                { info.original_file &&
+                    <ObjectList label='Duplicate of: ' objects={ [ info.original_file ] }/>
+                }
+                { info.original_file && <br/> }
                 { info.variants_of && info.variants_of.length > 0 &&
                     <ObjectList label='Variant of: '
                                 objects={ info.variants_of }
@@ -212,27 +216,44 @@ class ObjectInfoPane extends React.Component
                                 } ] }/>
                 }
                 { info.variants && info.variants.length > 0 && <br/> }
-                { 'Transform: ' }
-                <a href='#' onClick={ () => {
-                                    this.props.display.transform( 'auto_orientation' )
-                                } }>
-                    { 'auto' }
-                </a> { ' | ' }
-                <a href='#' onClick={ () => {
-                                    this.props.display.transform( 'rotate_ccw' )
-                                } }>
-                    { 'ccw' }
-                </a> { ' | ' }
-                <a href='#' onClick={ () => {
-                                    this.props.display.transform( 'rotate_cw' )
-                                } }>
-                    { 'cw' }
-                </a> { ' | ' }
-                <a href='#' onClick={ () => {
-                                    this.props.display.transform( 'mirror' )
-                                } }>
-                    { 'mirror' }
-                </a> <br/>
+                { info.duplicates && info.duplicates.length > 0 &&
+                    <ObjectList label='Duplicates: '
+                                objects={ info.duplicates }
+                                actions={ [ {
+                                    label: 'del',
+                                    onClick: ( obj_id ) => {
+                                        var d = this.props.display;
+                                        d.unlink_duplicate( d.get_obj_id(), obj_id );
+                                    }
+                                } ] }/>
+                }
+                { info.duplicates && info.duplicates.length > 0 && <br/> }
+                { info.type == 'file' &&
+                    <span>
+                        { 'Transform: ' }
+                        <a href='#' onClick={ () => {
+                                            this.props.display.transform( 'auto_orientation' )
+                                        } }>
+                            { 'auto' }
+                        </a> { ' | ' }
+                        <a href='#' onClick={ () => {
+                                            this.props.display.transform( 'rotate_ccw' )
+                                        } }>
+                            { 'ccw' }
+                        </a> { ' | ' }
+                        <a href='#' onClick={ () => {
+                                            this.props.display.transform( 'rotate_cw' )
+                                        } }>
+                            { 'cw' }
+                        </a> { ' | ' }
+                        <a href='#' onClick={ () => {
+                                            this.props.display.transform( 'mirror' )
+                                        } }>
+                            { 'mirror' }
+                        </a>
+                    </span>
+                }
+                { info.type == 'file' && <br/> }
                 { this.props.display.stream_id === null &&
                     <a href={ '/img?id=' + this.props.display.obj_id } target='_blank'>
                         { 'View Fullsize' }
@@ -300,10 +321,10 @@ class ObjectInfoPane extends React.Component
                     <span> { 'Added: ' } { info.creation_time } </span>
                 }
                 { info.creation_time && <br/> }
-                { info.type == 'file' &&
+                { (info.type == 'file' || info.type == 'duplicate') &&
                     this.renderFileInfo( info )
                 }
-                { info.type != 'file' &&
+                { (info.type == 'album' || info.type == 'published') &&
                     this.renderGroupInfo( info )
                 }
             </div>
@@ -446,10 +467,14 @@ class ThumbTile extends React.Component
 class ThumbItem extends React.Component
 {
     componentDidMount() {
-        util.make_sortable( this.props.display, $( this.el ), this.props.index );
+        if( this.props.display.is_sortable() ) {
+            util.make_sortable( this.props.display, $( this.el ), this.props.index );
+        }
     }
     componentDidUpdate() {
-        $( this.el ).droppable( 'destroy' );
+        if( this.props.display.is_sortable() ) {
+            $( this.el ).droppable( 'destroy' );
+        }
         this.componentDidMount();
     }
     render() {

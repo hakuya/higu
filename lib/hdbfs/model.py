@@ -12,15 +12,22 @@ import threading
 
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
+TYPE_DUPLICATE  = 1001
+
+FILE_TYPES = [ TYPE_FILE, TYPE_DUPLICATE ]
+
 TYPE_GROUP      = 2000
 TYPE_ALBUM      = 2001
 TYPE_CLASSIFIER = 2002
+TYPE_PUBLISHED  = 2003
+
+ALBUM_TYPES = [ TYPE_ALBUM, TYPE_PUBLISHED ]
 
 SP_EXPENDABLE = 1000
 SP_NORMAL     = 2000
 SP_PRIORITY   = 3000
 
-VERSION = 11
+VERSION = 12
 REVISION = 0
 
 IMGDB_VERSION = 1
@@ -82,9 +89,6 @@ class Relation( Base ):
     parent_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
     sort = Column( Integer )
     child_name = Column( Text )
-    child_stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ) )
-
-    child_stream = relation( 'Stream', foreign_keys = [ child_stream_id ] )
 
     def __init__( self, sort = None ):
 

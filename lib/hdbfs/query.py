@@ -42,6 +42,45 @@ class TagConstraint:
             return db.session.query( model.Relation.child_id ) \
                      .filter( model.Relation.parent_id.in_( tag ) )
 
+class TagCountConstraint:
+
+    def __init__( self, op, c ):
+
+        self.__op = op
+        self.__c = int( c )
+
+    def get_preferred_order( self ):
+
+        return None
+
+    def to_db_constraint( self, db ):
+
+        from sqlalchemy import func, literal_column
+
+        tagged = db.session.query( model.Relation.child_id.label( 'id' ),
+                                   func.count( model.Relation.child_id ).label( 'tagc' ) ) \
+                   .join( model.Object, model.Object.object_id == model.Relation.parent_id ) \
+                   .filter( model.Object.object_type == model.TYPE_CLASSIFIER ) \
+                   .group_by( model.Relation.child_id.label( 'id' ) )
+        notags = db.session.query( model.Object.object_id, literal_column( '0' ).label( 'tagc' ) ) \
+                   .filter( ~model.Object.object_id.in_(
+                                db.session.query( model.Relation.child_id ) \
+                                  .join( model.Object, model.Object.object_id
+                                                    == model.Relation.parent_id ) \
+                                  .filter( model.Object.object_type == model.TYPE_CLASSIFIER ) ) )
+        tagq = tagged.union( notags ).subquery()
+
+        q = db.session.query( tagq.c.id )
+
+        return {
+            '='  : lambda q: q.filter( tagq.c.tagc == self.__c ),
+            '!=' : lambda q: q.filter( tagq.c.tagc != self.__c ),
+            '>'  : lambda q: q.filter( tagq.c.tagc > self.__c ),
+            '>=' : lambda q: q.filter( tagq.c.tagc >= self.__c ),
+            '<'  : lambda q: q.filter( tagq.c.tagc < self.__c ),
+            '<=' : lambda q: q.filter( tagq.c.tagc <= self.__c ),
+        }[self.__op]( q )
+
 class NameConstraint:
 
     def __init__( self, op, s ):
@@ -273,46 +312,158 @@ class Query:
 
         self.__obj_type = None
         self.__order_by = None
-        self.__strict = False
         self.__expand = False
+        self.__nochild = False
 
         self.__req_constraints = []
         self.__or_constraints = []
         self.__not_constraints = []
 
-    def set_strict( self, strict = True ):
+    def __create_constraint( self, s ):
 
-        self.__strict = strict
+        if( s.startswith( '@' ) ):
+            return NameConstraint( '=', '*' + s[1:] + '*' )
+        elif( s.startswith( '#' ) ):
+            return TagConstraint( s[1:], fuzzy = True )
+        elif( s.startswith( '&' ) ):
+            if( s[1:].startswith( '!' ) ):
+                if( s[1:].startswith( '!!' ) ):
+                    not_null = True
+                    key = s[3:]
+                else:
+                    not_null = False
+                    key = s[2:]
+
+                if( key in [ 'id', 'tagc' ] ):
+                    raise ValueError, 'Bad Parameter Constraint'
+                elif( key == 'name' ):
+                    return NameConstraint( '!=' if( not_null ) else '=', None )
+                else:
+                    return ParameterConstraint( key, '!=' if( not_null ) else '=', None )
+            else:
+                ops = [ '>=', '<=', '>', '<', '!=', '=', '~' ]
+                s = s[1:]
+
+                for i in ops:
+                    try:
+                        idx = s.index( i[0] )
+                        key = s[0:idx]
+                        op = i
+                        value = s[idx+len(i[0]):]
+
+                        if( key == 'id' ):
+                            return ObjIdConstraint( op, value )
+                        elif( key == 'tagc' ):
+                            return TagCountConstraint( op, value )
+                        elif( key == 'name' ):
+                            return NameConstraint( op, value )
+                        else:
+                            return ParameterConstraint( key, op, value )
+                    except ValueError:
+                        pass
+                else:
+                    raise ValueError, 'Bad Parameter Constraint'
+        else:
+            return UnboundConstraint( s )
+
+    def __process_command( self, cmd ):
+
+        cmd = cmd.split( ':' )
+
+        if( cmd[0] == 'sort' ):
+            if( len( cmd ) < 2 ):
+                raise ValueError, 'Sort command needs an argument'
+
+            desc = False
+
+            if( len( cmd ) > 2 and cmd[2] == 'desc' ):
+                desc = True
+
+            self.set_order( cmd[1], desc )
+
+        elif( cmd[0] == 'type' ):
+            if( len( cmd ) < 2 ):
+                raise ValueError, 'Type command needs an argument'
+
+            if( cmd[1] == 'file' ):
+                self.set_type( hdbfs.TYPE_FILE );
+            elif( cmd[1] == 'album' ):
+                self.set_type( hdbfs.TYPE_ALBUM );
+            else:
+                raise ValueError, 'Bad type'
+
+        elif( cmd[0] == 'expand' ):
+            self.set_expand()
+
+        elif( cmd[0] == 'untagged' ):
+            self.set_untagged()
+
+        else:
+            raise ValueError, 'Bad Command'
+
+    def from_string( self, s ):
+
+        clauses = s.split( ' ' )
+        clauses = [i for i in clauses if( len( i ) > 0 )]
+
+        commands = [i[1:] for i in clauses if( i[0] == '$' )]
+        add = [i[1:] for i in clauses if( i[0] == '?' )]
+        sub = [i[1:] for i in clauses if( i[0] == '!' )]
+        req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
+
+        map( self.__process_command, commands )
+
+        self.__req_constraints.extend( map( self.__create_constraint, req ) )
+        self.__or_constraints.extend( map( self.__create_constraint, add ) )
+        self.__not_constraints.extend( map( self.__create_constraint, sub ) )
+
+        return self
 
     def set_expand( self, expand = True ):
 
         self.__expand = expand
+        return self
+
+    def set_untagged( self ):
+
+        self.__nochild = True
+        self.__req_constraints = [ TagCountConstraint( '=', 0 ) ]
+        self.__add_constraints = []
+        self.__not_constratins = []
+
+        return self
 
     def set_type( self, obj_type ):
 
         self.__obj_type = obj_type
+        return self
 
     def set_order( self, prop, desc = False ):
 
         self.__order_by = ( prop, desc )
+        return self
 
     def add_require_constraint( self, constraint ):
 
         self.__req_constraints.append( constraint )
+        return self
 
     def add_or_constraint( self, constraint ):
 
         self.__or_constraints.append( constraint )
+        return self
 
     def add_not_constraint( self, constraint ):
 
         self.__not_constraints.append( constraint )
+        return self
 
     def set_constraints( self, req_c = [], or_c = [], not_c = [] ):
 
         self.__req_constraints = list( req_c )
         self.__or_constraints = list( or_c )
         self.__not_constraints = list( not_c )
+        return self
 
     def execute( self, db ):
 
@@ -366,30 +517,29 @@ class Query:
         if( self.__obj_type is not None ):
             query = query.filter( model.Object.object_type == self.__obj_type )
         else:
-            if( req_q is None and add_q is None ):
-                # Extra filter applied in this case if there are otherwise no
-                # other filters. We don't want to show files which will already
-                # be presented in an album
-                files = db.session.query( model.Object.object_id ) \
-                        .filter( model.Object.object_type == hdbfs.TYPE_FILE )
-                albums = db.session.query( model.Object.object_id ) \
-                        .filter( model.Object.object_type == hdbfs.TYPE_ALBUM )
-                all_children = db.session.query( model.Relation.child_id ) \
-                        .filter( model.Relation.parent_id.in_( albums ) )
-                free_files = files.filter( ~model.Object.object_id.in_( all_children ) )
+            query = query.filter( model.Object.object_type.in_(
+                        hdbfs.FILE_TYPES + hdbfs.ALBUM_TYPES ) )
 
-                select_ids = free_files.union( albums )
-                query = query.filter( model.Object.object_id.in_( select_ids ) )
+        if( self.__nochild
+         or (self.__obj_type is None and req_q is None and add_q is None) ):
 
-            query = query.filter( model.Object.object_type.in_( [
-                hdbfs.TYPE_FILE, hdbfs.TYPE_ALBUM ] ) )
+            # Extra filter applied in this case if there are otherwise no
+            # other filters. We don't want to show files which will already
+            # be presented in an album
+            all_r = db.session.query( model.Object.object_id ) \
+                      .filter( model.Object.object_type.in_(
+                                    hdbfs.FILE_TYPES + hdbfs.ALBUM_TYPES ) )
+            children = db.session.query( model.Relation.child_id ) \
+                    .filter( model.Relation.parent_id.in_( all_r ) )
+
+            query = query.filter( ~model.Object.object_id.in_( children ) )
 
         if( self.__expand ):
             from sqlalchemy import or_
 
             query = db.session.query( model.Object ) \
                     .join( model.Relation, model.Relation.child_id == model.Object.object_id ) \
-                    .filter( model.Object.object_type == hdbfs.TYPE_FILE ) \
+                    .filter( model.Object.object_type.in_( hdbfs.FILE_TYPES ) ) \
                     .filter( or_( model.Object.object_id.in_( query ),
                                   model.Relation.parent_id.in_( query ) ) )
         else:
@@ -422,101 +572,3 @@ class Query:
 
         return hdbfs.ModelObjToHiguObjIterator( db, query ) 
 
-def create_constraint( s ):
-
-    if( s.startswith( '@' ) ):
-        return NameConstraint( '=', '*' + s[1:] + '*' )
-    elif( s.startswith( '#' ) ):
-        return TagConstraint( s[1:], fuzzy = True )
-    elif( s.startswith( '&' ) ):
-        if( s[1:].startswith( '!' ) ):
-            if( s[1:].startswith( '!!' ) ):
-                not_null = True
-                key = s[3:]
-            else:
-                not_null = False
-                key = s[2:]
-
-            if( key == 'id' ):
-                raise ValueError, 'Bad Parameter Constraint'
-            elif( key == 'name' ):
-                return NameConstraint( '!=' if( not_null ) else '=', None )
-            else:
-                return ParameterConstraint( key, '!=' if( not_null ) else '=', None )
-        else:
-            ops = [ '>=', '<=', '>', '<', '!=', '=', '~' ]
-            s = s[1:]
-
-            for i in ops:
-                try:
-                    idx = s.index( i[0] )
-                    key = s[0:idx]
-                    op = i
-                    value = s[idx+len(i[0]):]
-
-                    if( key == 'id' ):
-                        return ObjIdConstraint( op, value )
-                    elif( key == 'name' ):
-                        return NameConstraint( op, value )
-                    else:
-                        return ParameterConstraint( key, op, value )
-                except ValueError:
-                    pass
-            else:
-                raise ValueError, 'Bad Parameter Constraint'
-    else:
-        return UnboundConstraint( s )
-
-def build_query( s ):
-
-    query = Query()
-
-    clauses = s.split( ' ' )
-    clauses = [i for i in clauses if( len( i ) > 0 )]
-
-    commands = [i[1:] for i in clauses if( i[0] == '$' )]
-    add = [i[1:] for i in clauses if( i[0] == '?' )]
-    sub = [i[1:] for i in clauses if( i[0] == '!' )]
-    req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
-
-    for cmd in commands:
-        cmd = cmd.split( ':' )
-
-        if( cmd[0] == 'strict' ):
-            query.set_strict()
-
-        elif( cmd[0] == 'sort' ):
-            if( len( cmd ) < 2 ):
-                raise ValueError, 'Sort command needs an argument'
-
-            desc = False
-
-            if( len( cmd ) > 2 and cmd[2] == 'desc' ):
-                desc = True
-
-            query.set_order( cmd[1], desc )
-
-        elif( cmd[0] == 'type' ):
-            if( len( cmd ) < 2 ):
-                raise ValueError, 'Type command needs an argument'
-
-            if( cmd[1] == 'file' ):
-                query.set_type( hdbfs.TYPE_FILE );
-            elif( cmd[1] == 'album' ):
-                query.set_type( hdbfs.TYPE_ALBUM );
-            else:
-                raise ValueError, 'Bad type'
-
-        elif( cmd[0] == 'expand' ):
-            query.set_expand()
-
-        else:
-            raise ValueError, 'Bad Command'
-
-    req = map( create_constraint, req )
-    add = map( create_constraint, add )
-    sub = map( create_constraint, sub )
-
-    query.set_constraints( req, add, sub )
-
-    return query

@@ -170,14 +170,19 @@ def make_db( h ):
         al.assign( h.make_tag( 'white_blue_album' ) )
         al.set_text( 'White & Blue' )
 
-    if( ver[0] > 8 or ver[0] == 8 and ver[1] > 0 ):
+    if( ver[0] >= 12 ):
+        lo.assign( wo )
+        bo.assign( ko )
+    elif( ver[0] > 8 or ver[0] == 8 and ver[1] > 0 ):
         lo.set_variant_of( wo )
         bo.set_variant_of( ko )
     else:
         lo.set_varient_of( wo )
         bo.set_varient_of( ko )
 
-    if( ver[0] >= 10 ):
+    if( ver[0] >= 12 ):
+        ko.assign( lo, is_duplicate = True )
+    elif( ver[0] >= 10 ):
         h.merge_objects( lo, ko )
     else:
         ko.set_duplicate_of( lo )

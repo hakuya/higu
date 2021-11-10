@@ -14,8 +14,12 @@ def get_type_str( obj ):
     type = obj.get_type()
     if( type == hdbfs.TYPE_FILE ):
         return 'file'
+    elif( type == hdbfs.TYPE_DUPLICATE ):
+        return 'duplicate'
     elif( type == hdbfs.TYPE_ALBUM ):
         return 'album'
+    elif( type == hdbfs.TYPE_PUBLISHED ):
+        return 'published'
     elif( type == hdbfs.TYPE_CLASSIFIER ):
         return 'tag'
     else:
@@ -105,7 +109,7 @@ class JsonInterface:
             info['tags'] = map( lambda x: x.get_name(), tags )
         if( 'names' in items ):
             if( isinstance( target, hdbfs.File ) ):
-                info['names'] = target.get_origin_names( all_streams = True )
+                info['names'] = target.get_origin_names()
             else:
                 name = target.get_name()
                 if( name is not None ):
@@ -118,9 +122,12 @@ class JsonInterface:
         if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
             variants_of = target.get_variants_of()
             info['variants_of'] = map( make_obj_tuple, variants_of )
-        if( isinstance( target, hdbfs.File ) and 'dup_streams' in items ):
-            dups = target.get_duplicate_streams()
-            info['dup_streams'] = map( lambda x: x.get_stream_id(), dups )
+        if( isinstance( target, hdbfs.File ) and 'duplicates' in items ):
+            dups = target.get_duplicates()
+            info['duplicates'] = map( make_obj_tuple, dups )
+        if( isinstance( target, hdbfs.File ) and 'original_file' in items ):
+            orig = target.get_original_file()
+            info['original_file'] = make_obj_tuple( orig ) if( orig is not None ) else None
         if( isinstance( target, hdbfs.File ) and 'albums' in items ):
             albums = target.get_albums()
             info['albums'] = map( make_obj_tuple, albums )
@@ -132,9 +139,11 @@ class JsonInterface:
                 info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
             except:
                 info['thumb_gen'] = 0
-        if( 'width' in items
-         or 'height' in items
-         or 'sizes' in items ):
+
+        if( isinstance( target, hdbfs.File )
+        and ('width' in items
+          or 'height' in items
+          or 'sizes' in items) ):
 
             w = None
             h = None
@@ -357,9 +366,9 @@ class JsonInterface:
         if( data.has_key( 'mode' ) ):
             # Search by directive
             if( data['mode'] == 'all' ):
-                return db.all_albums_or_free_files(), {}
+                return hdbfs.query.Query().execute( db ), {}
             elif( data['mode'] == 'untagged' ):
-                return db.unowned_files(), {}
+                return hdbfs.query.Query().set_untagged().execute( db ), {}
             elif( data['mode'] == 'album' ):
                 album = db.get_object_by_id( data['album'] )
                 return map( lambda x: x.get_id(), album.get_files() ), \
@@ -369,7 +378,7 @@ class JsonInterface:
             if( data.has_key( 'query' ) ):
                 #try:
                 if( 1 ):
-                    query = hdbfs.query.build_query( data['query'] )
+                    query = hdbfs.query.Query().from_string( data['query'] )
                 #except ( KeyError, ValueError, ), e:
                 #    return json_err( e )
 
@@ -518,7 +527,7 @@ class JsonInterface:
                         continue
 
                     new_name = None
-                    for n in r.get_origin_names( True ):
+                    for n in r.get_origin_names():
                         if( len( parts ) == 1 or re.match( parts[1], n ) ):
                             new_name = n
                             break
@@ -695,14 +704,25 @@ class JsonInterface:
         db.copy_tag( tag, target )
         return json_ok()
 
-    def cmd_set_variant( self, original, variant ):
+    def cmd_link_files( self, original, variant, is_duplicate = False ):
 
         db = self.__db
 
         original = db.get_object_by_id( original )
         variant = db.get_object_by_id( variant )
 
-        variant.set_variant_of( original )
+        variant.assign( original, is_duplicate = is_duplicate )
+
+        return json_ok()
+
+    def cmd_unlink_files( self, original, variant ):
+
+        db = self.__db
+
+        original = db.get_object_by_id( original )
+        variant = db.get_object_by_id( variant )
+
+        variant.unassign( original )
 
         return json_ok()
 
@@ -714,17 +734,6 @@ class JsonInterface:
         variant = db.get_object_by_id( variant )
 
         variant.clear_variant_of( original )
-
-        return json_ok()
-
-    def cmd_merge_duplicates( self, original, duplicate ):
-
-        db = self.__db
-
-        original = db.get_object_by_id( original )
-        duplicate = db.get_object_by_id( duplicate )
-
-        db.merge_objects( original, duplicate )
 
         return json_ok()
 

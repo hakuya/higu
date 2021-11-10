@@ -335,7 +335,7 @@ class DupDialog extends React.Component
         } );
     }
     onMerge() {
-        this.obj.merge_duplicates( this.state.received, this.state.dropped );
+        this.obj.link_duplicates( this.state.received, this.state.dropped );
         this.setState( {
             show: false,
         } );

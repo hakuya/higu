@@ -403,18 +403,6 @@ class ImageFile( File ):
 
         File.__init__( self, db, obj )
 
-    def set_root_stream( self, stream, group = None ):
-
-        File.set_root_stream( self, stream, group )
-
-        if( group is not None ):
-            self.db.tbcache.purge_thumbs( self )
-            self.db.tbcache.init_object_metadata( self )
-
-        # Trigger a metadata update on the albums
-        for album in self.get_albums():
-            album._on_children_changed()
-
     def _on_created( self, stream ):
 
         _require_metadata_init( self, stream )
@@ -502,7 +490,10 @@ class ImageFile( File ):
 
     def get_thumb_stream( self, exp ):
 
-        return self.db.tbcache.make_thumb( self, exp )
+        if( self.obj.object_type == model.TYPE_FILE ):
+            return self.db.tbcache.make_thumb( self, exp )
+        else:
+            return self.get_root_stream()
 
     def check_metadata( self ):
 
@@ -514,6 +505,16 @@ class ImageFile( File ):
             pass
         
         self.db.tbcache.init_object_metadata( self )
+
+    def assign( self, parent,
+                order = None,
+                name = None,
+                is_duplicate = None,
+                force = None ):
+
+        File.assign( self, parent, order, name, is_duplicate, force )
+        if( self.obj.object_type == model.TYPE_DUPLICATE ):
+            self.db.tbcache.purge_thumbs( self )
 
 class Album( OrderedGroup ):
 
@@ -528,6 +529,29 @@ class Album( OrderedGroup ):
     def _on_children_changed( self ):
 
         _require_metadata_init( self, None )
+
+    def publish( self ):
+
+        with self.db._access( write = True ):
+            if( self.obj.object_type == model.TYPE_ALBUM ):
+                self.obj.object_type = model.TYPE_PUBLISHED
+            elif( self.obj.object_type == model.TYPE_PUBLISHED ):
+                pass
+            else:
+                assert False
+
+    def unpublish( self ):
+
+        with self.db._access( write = True ):
+            if( self.obj.object_type == model.TYPE_ALBUM ):
+                pass
+            elif( self.obj.object_type == model.TYPE_PUBLISHED ):
+                # There can't be any duplicates in an unpublished album
+                assert len( [f for f in self.get_files()
+                        if f.obj.object_type == model.TYPE_DUPLICATE] ) == 0
+                self.obj.object_type = model.TYPE_ALBUM
+            else:
+                assert False
 
     def get_origin_time( self ):
 
@@ -741,9 +765,11 @@ def _img_stream_factory( db, stream ):
 
 def _img_obj_factory( db, obj ):
 
-    if( obj.object_type == TYPE_FILE ):
+    if( obj.object_type == model.TYPE_FILE
+     or obj.object_type == model.TYPE_DUPLICATE ):
         return ImageFile( db, obj )
-    elif( obj.object_type == TYPE_ALBUM ):
+    elif( obj.object_type == model.TYPE_ALBUM
+       or obj.object_type == model.TYPE_PUBLISHED ):
         return Album( db, obj )
     else:
         return None

@@ -366,27 +366,6 @@ class HiguLibCases( testutil.TestCase ):
         self.assertTrue( len( k_f.get_origin_names() ) == 0,
                 'Name list on black did not return empty' )
 
-    def test_log_all_names( self ):
-
-        white = self._load_data( self.white )
-        black = self._load_data( self.black )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        w_f = h.register_file( white )
-        k_f = h.register_file( black )
-
-        h.merge_objects( w_f, k_f )
-
-        names = w_f.get_origin_names( True )
-        self.assertTrue( self.white in names,
-                'Name list did not return white' )
-        self.assertTrue( self.black in names,
-                'Name list did not return black' )
-        self.assertEqual( len( names ), 2,
-                'Name list had an unexpected number of names' )
-
     def test_duplicate_name( self ):
 
         grey = self._load_data( self.grey )
@@ -735,7 +714,7 @@ class HiguLibCases( testutil.TestCase ):
         self.assertEqual( files[1], go, 'Green not in second position after reorder' )
         self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
 
-    def test_set_duplicate( self ):
+    def test_set_variant( self ):
 
         white = self._load_data( self.white )
         black = self._load_data( self.black )
@@ -746,234 +725,80 @@ class HiguLibCases( testutil.TestCase ):
         wo = h.register_file( white, False )
         ko = h.register_file( black, False )
 
-        ko_id = ko.get_id()
-        ko_hash = ko.get_root_stream().get_hash()
+        ko.assign( wo )
 
-        h.merge_objects( wo, ko )
+        self.assertTrue( ko in wo.get_variants(), 'Black not variant of white' )
+        self.assertTrue( len( wo.get_variants_of() ) == 0, 'White is a variant' )
 
-        self.assertEqual( wo, ko, 'White and black are not duplicates' )
-        self.assertEqual( h.get_object_by_id( ko_id ), None, 'Blacks ID still exists' )
+        self.assertTrue( wo in ko.get_variants_of(), 'White is not a parent of black' )
+        self.assertTrue( len( ko.get_variants() ) == 0, 'Black has variants' )
 
-        dups = wo.get_duplicate_streams()
-        self.assertEqual( len( dups ), 1, 'Unexpected number of dups on white' )
-        self.assertEqual( dups[0].get_hash(),
-                          ko_hash, 'Black not in duplicate list of white' )
+        self.assertTrue( len( wo.get_duplicates() ) == 0, 'White has duplicates' )
+        self.assertTrue( len( ko.get_duplicates() ) == 0, 'Black has duplicates' )
+        self.assertTrue( wo.get_original_file() is None, 'White is a duplicate' )
+        self.assertTrue( ko.get_original_file() is None, 'Black is a duplicate' )
 
-    def test_set_root( self ):
+        # Reverse the relationship
+        wo.assign( ko )
+
+        self.assertTrue( wo in ko.get_variants(), 'White not variant of black' )
+        self.assertTrue( len( ko.get_variants_of() ) == 0, 'Black is a variant' )
+
+        self.assertTrue( ko in wo.get_variants_of(), 'Black is not a parent of white' )
+        self.assertTrue( len( wo.get_variants() ) == 0, 'White has variants' )
+
+    def test_set_duplicate( self ):
 
         red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
         green = self._load_data( self.green )
         blue = self._load_data( self.blue )
+
+        h = hdbfs.Database()
+        h.enable_write_access()
+
+        ro = h.register_file( red, False )
+        go = h.register_file( green, False )
+        bo = h.register_file( blue, False )
+
+        bo.assign( ro, is_duplicate = True )
+
+        self.assertTrue( bo in ro.get_duplicates(), 'Blue not duplicate of red' )
+        self.assertTrue( len( bo.get_duplicates() ) == 0, 'Blue has duplicates' )
+
+        self.assertTrue( bo.get_original_file() == ro, 'Red is not a parent of blue' )
+        self.assertTrue( ro.get_original_file() == None, 'Red is a duplicate' )
+
+        self.assertTrue( len( ro.get_variants() ) == 0, 'Red has variants' )
+        self.assertTrue( len( bo.get_variants() ) == 0, 'Blue has variants' )
+        self.assertTrue( len( ro.get_variants_of() ) == 0, 'Red has variant parents' )
+        self.assertTrue( len( bo.get_variants_of() ) == 0, 'Blue has variant parents' )
+
+        go.assign( ro, is_duplicate = True )
+
+        self.assertTrue( go in ro.get_duplicates(), 'Green not duplicate of red' )
+        self.assertTrue( bo in ro.get_duplicates(), 'Blue not duplicate of red' )
+        self.assertTrue( len( bo.get_duplicates() ) == 0, 'Blue has duplicates' )
+
+    def test_promote_duplicate( self ):
+
+        white = self._load_data( self.white )
         black = self._load_data( self.black )
 
         h = hdbfs.Database()
         h.enable_write_access()
 
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
+        wo = h.register_file( white, False )
         ko = h.register_file( black, False )
 
-        ro_hash = ro.get_root_stream().get_hash()
-        yo_hash = yo.get_root_stream().get_hash()
-        go_hash = go.get_root_stream().get_hash()
-        bo_hash = bo.get_root_stream().get_hash()
+        ko.assign( wo )
 
-        h.merge_objects( ro, yo )
-        h.merge_objects( ro, go )
-        h.merge_objects( ro, bo )
+        self.assertTrue( wo in ko.get_variants_of(), 'White is not a parent of Black' )
+        self.assertTrue( ko.get_original_file() is None, 'Black is a dup' )
 
-        dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
-        self.assertEqual( len( dups ), 3, 'Unexpected number of dups on red' )
-        self.assertEqual( ro.get_root_stream().get_hash(),
-                          ro_hash, 'Red not primary stream after merge' )
-        self.assertTrue( yo_hash in dups,
-                         'Yellow not in duplicate list of red' )
-        self.assertTrue( go_hash in dups,
-                         'Green not in duplicate list of red' )
-        self.assertTrue( bo_hash in dups,
-                         'Blue not in duplicate list of red' )
+        ko.assign( wo, is_duplicate = True )
 
-        try:
-            ro.set_root_stream( wo.get_root_stream() )
-            self.fail( 'Attempt to set white as root stream succeeded' )
-        except:
-            pass
-
-        try:
-            ro.set_root_stream( ro.get_root_stream() )
-            self.fail( 'Attempt to set root to root succeeded' )
-        except:
-            pass
-
-        ro.set_root_stream( ro.get_stream( 'dup:' + go_hash ) )
-
-        dups = map( lambda x: x.get_hash(), ro.get_duplicate_streams() )
-        self.assertEqual( len( dups ), 3, 'Unexpected number of dups on red after set' )
-        self.assertEqual( ro.get_root_stream().get_hash(),
-                          go_hash, 'Green not primary stream after set' )
-        self.assertTrue( ro_hash in dups,
-                         'Red not in duplicate list of red after set' )
-        self.assertTrue( yo_hash in dups,
-                         'Yellow not in duplicate list of red after set' )
-        self.assertTrue( bo_hash in dups,
-                         'Blue not in duplicate list of red after set' )
-
-        dups = map( lambda x: x.get_name(), ro.get_duplicate_streams() )
-        self.assertEqual( ro.get_root_stream().get_name(),
-                          '.', 'Incorrect name for primary stream after set' )
-        self.assertFalse( '.' in dups,
-                          'Root name in duplicate list after set' )
-
-    def test_set_album_root( self ):
-
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        ro = h.register_file( red )
-        yo = h.register_file( yellow )
-        go = h.register_file( green )
-
-        ro_stm = ro.get_root_stream()
-        yo_stm = yo.get_root_stream()
-        go_stm = go.get_root_stream()
-
-        alb_locked = h.create_album()
-        alb_nolock = h.create_album()
-
-        yo.assign( alb_locked, lock_stream = True )
-        go.assign( alb_nolock )
-
-        h.merge_objects( ro, yo )
-        h.merge_objects( ro, go )
-
-        self.assertEqual( ro.get_root_stream().get_hash(), ro_stm.get_hash(),
-                'Incorrect root stream (base -> ro)' )
-        self.assertEqual( ro.get_root_stream( alb_locked ).get_hash(), yo_stm.get_hash(),
-                'Incorrect root stream (locked -> yo)' )
-        self.assertEqual( ro.get_root_stream( alb_nolock ).get_hash(), ro_stm.get_hash(),
-                'Incorrect root stream (nolock -> ro)' )
-
-        ro.set_root_stream( go_stm, alb_nolock )
-
-        self.assertEqual( ro.get_root_stream().get_hash(), ro_stm.get_hash(),
-                'Incorrect root stream 2 (base -> ro)' )
-        self.assertEqual( ro.get_root_stream( alb_locked ).get_hash(), yo_stm.get_hash(),
-                'Incorrect root stream 2 (locked -> yo)' )
-        self.assertEqual( ro.get_root_stream( alb_nolock ).get_hash(), go_stm.get_hash(),
-                'Incorrect root stream 2 (nolock -> go)' )
-
-    def test_forward_merge( self ):
-
-        red = self._load_data( self.red )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        ro = h.register_file( red )
-        bo = h.register_file( blue )
-
-        rid = ro.get_id()
-        bid = bo.get_id()
-        stmid = ro.get_root_stream().get_stream_id()
-
-        self.assertTrue( rid < bid, 'Red not before blue' )
-
-        ro['test'] = 123
-        ro['test_red'] = 123
-        bo['test'] = 456
-        bo['test_blue'] = 456
-
-        h.merge_objects( ro, bo )
-
-        self.assertEqual( ro.get_id(), rid, 'Red ID changed' )
-        self.assertEqual( ro.get_name(), 'red_sq.png', 'Red name changed' )
-        self.assertEqual( ro.get_root_stream().get_stream_id(), stmid, 'Red stream changed' )
-        self.assertEqual( ro['test'], 123, 'Red metadata changed' )
-        self.assertEqual( ro['test_red'], 123, 'Red metadata changed' )
-
-        try:
-            ro['test_blue']
-            self.fail( 'Did not expect to read blue' )
-        except:
-            pass
-
-    def test_reverse_merge( self ):
-
-        red = self._load_data( self.red )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        bo = h.register_file( blue )
-        ro = h.register_file( red )
-
-        rid = ro.get_id()
-        bid = bo.get_id()
-        stmid = ro.get_root_stream().get_stream_id()
-
-        self.assertTrue( rid > bid, 'Red not after blue' )
-
-        ro['test'] = 123
-        ro['test_red'] = 123
-        bo['test'] = 456
-        bo['test_blue'] = 456
-
-        h.merge_objects( ro, bo )
-
-        self.assertEqual( ro.get_id(), bid, 'Red did not take Blue ID' )
-        self.assertEqual( ro.get_name(), 'red_sq.png', 'Red name changed' )
-        self.assertEqual( ro.get_root_stream().get_stream_id(), stmid, 'Red stream changed' )
-        self.assertEqual( ro['test'], 123, 'Red metadata changed' )
-        self.assertEqual( ro['test_red'], 123, 'Red metadata changed' )
-
-        try:
-            ro['test_blue']
-            self.fail( 'Did not expect to read blue' )
-        except:
-            pass
-
-    def test_set_duplicate_of_variant( self ):
-
-        red = self._load_data( self.red )
-        yellow = self._load_data( self.yellow )
-        green = self._load_data( self.green )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        ro = h.register_file( red, False )
-        yo = h.register_file( yellow, False )
-        go = h.register_file( green, False )
-        bo = h.register_file( blue, False )
-
-        go.set_variant_of( ro )
-        h.merge_objects( ro, yo )
-        h.merge_objects( go, bo )
-
-        self.assertEqual( ro, yo, 'Yellow not equal to red' )
-        self.assertEqual( go, bo, 'Blue not equal to green' )
-        self.assertTrue( go in ro.get_variants(), 'Green not variant of red' )
-
-        self.assertEqual( len( ro.get_duplicate_streams() ),
-                          1, 'Red duplicate list mismatch' )
-        self.assertEqual( len( go.get_duplicate_streams() ),
-                          1, 'Green duplicate list mismatch' )
-
-        self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
-        self.assertEqual( len( go.get_variants_of() ), 1, 'Green is not a variant' )
-
-        self.assertEqual( len( ro.get_variants() ), 1, 'Red variant list mismatch' )
-        self.assertEqual( len( go.get_variants() ), 0, 'Green variant list mismatch' )
+        self.assertEqual( len( ko.get_variants_of() ), 0, 'White has variants' )
+        self.assertEqual( ko.get_original_file(), wo, 'Black not a dup' )
 
     def test_duplicates_moved( self ):
 
@@ -1000,20 +825,20 @@ class HiguLibCases( testutil.TestCase ):
         go_s_id = go.get_root_stream().get_stream_id()
         bo_s_id = go.get_root_stream().get_stream_id()
 
-        h.merge_objects( ro, yo )
-        h.merge_objects( go, bo )
-        h.merge_objects( ro, go )
+        yo.assign( ro, is_duplicate = True )
+        bo.assign( go, is_duplicate = True )
+        go.assign( ro, is_duplicate = True )
 
-        self.assertEqual( ro.get_id(), ro_id, 'Red was removed' )
-        self.assertEqual( h.get_object_by_id( yo_id ), None, 'Yellow was not removed' )
-        self.assertEqual( h.get_object_by_id( go_id ), None, 'Green was not removed' )
-        self.assertEqual( h.get_object_by_id( bo_id ), None, 'Blue was not removed' )
+        dups = ro.get_duplicates()
+        self.assertFalse( ro in dups, 'Red in dup list' )
+        self.assertTrue( yo in dups, 'Yellow not in dup list' )
+        self.assertTrue( go in dups, 'Green not in dup list' )
+        self.assertTrue( bo in dups, 'Blue not in dup list' )
 
-        dups = map( lambda x: x.get_stream_id(), ro.get_duplicate_streams() )
-        self.assertFalse( ro_s_id in dups, 'Red in dup list' )
-        self.assertTrue( yo_s_id in dups, 'Yellow not in dup list' )
-        self.assertTrue( go_s_id in dups, 'Green not in dup list' )
-        self.assertTrue( bo_s_id in dups, 'Blue not in dup list' )
+        self.assertEqual( len( dups ), 3, 'Unexpected no. of dups' )
+        self.assertEqual( len( yo.get_duplicates() ), 0, 'Yellow has duplicates' )
+        self.assertEqual( len( go.get_duplicates() ), 0, 'Green has duplicates' )
+        self.assertEqual( len( bo.get_duplicates() ), 0, 'Blue has duplicates' )
 
     def test_variants_moved( self ):
 
@@ -1030,15 +855,15 @@ class HiguLibCases( testutil.TestCase ):
         go = h.register_file( green, False )
         bo = h.register_file( blue, False )
 
-        yo.set_variant_of( ro )
-        bo.set_variant_of( go )
-        h.merge_objects( ro, go )
+        yo.assign( ro )
+        bo.assign( go )
+        go.assign( ro, is_duplicate = True )
 
         self.assertEqual( len( ro.get_variants_of() ), 0, 'Red is a variant' )
         self.assertEqual( len( yo.get_variants_of() ), 1, 'Yellow is not a variant' )
         self.assertEqual( len( bo.get_variants_of() ), 1, 'Blue is not a variant' )
 
-        self.assertEqual( len( ro.get_duplicate_streams() ), 1, 'Red duplicate list mismatch' )
+        self.assertEqual( len( ro.get_duplicates() ), 1, 'Red duplicate list mismatch' )
         self.assertEqual( len( ro.get_variants() ), 2, 'Red variant list mismatch' )
 
         variants = ro.get_variants()
@@ -1056,6 +881,7 @@ class HiguLibCases( testutil.TestCase ):
         h.enable_write_access()
 
         album = h.create_album()
+        pub = h.create_album()
 
         ro = h.register_file( red, False )
         yo = h.register_file( yellow, False )
@@ -1066,13 +892,20 @@ class HiguLibCases( testutil.TestCase ):
         bo.assign( album, 3 )
         ro.assign( album, 1 )
 
-        h.merge_objects( go, yo )
+        yo.assign( pub )
+        pub.publish()
+
+        yo.assign( go, is_duplicate = True )
 
         files = album.get_files()
         self.assertEqual( len( files ), 3, 'Album size mismatch' )
         self.assertEqual( files[0], ro, 'Red not first in album' )
         self.assertEqual( files[1], go, 'Green not second in album' )
         self.assertEqual( files[2], bo, 'Blue not third in album' )
+
+        files = pub.get_files()
+        self.assertEqual( len( files ), 1, 'Publish size mismatch' )
+        self.assertEqual( files[0], yo, 'Red not in published album' )
 
     def test_tags_moved( self ):
 
@@ -1098,8 +931,8 @@ class HiguLibCases( testutil.TestCase ):
 
         bo.assign( tag3 )
 
-        h.merge_objects( ro, go )
-        h.merge_objects( ro, bo )
+        go.assign( ro, is_duplicate = True )
+        bo.assign( ro, is_duplicate = True )
 
         self.assertEqual( len( ro.get_tags() ), 3, 'Red tag list mismatch' )
 

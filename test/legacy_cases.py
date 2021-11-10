@@ -87,9 +87,8 @@ class LegacyCases( testutil.TestCase ):
 
         for f in files:
             streams.append( f.get_root_stream() )
-            streams.extend( f.get_duplicate_streams() )
 
-        self.assertEqual( len( streams ), 9,
+        self.assertEqual( len( streams ), 8,
                 'Unexpected number of streams in DB' )
 
         hashs = map( lambda x: x.get_hash(), streams )
@@ -109,8 +108,6 @@ class LegacyCases( testutil.TestCase ):
                 'White not found' )
         self.assertTrue( self.grey_hash in hashs,
                 'Grey not found' )
-        self.assertTrue( self.black_hash in hashs,
-                'Black not found' )
 
     def subtest_ensure_files_have_timestamp( self, ver ):
 
@@ -179,11 +176,13 @@ class LegacyCases( testutil.TestCase ):
         self.assertTrue( white in grey.get_variants_of(),
                 'Grey should be variant of white' )
 
-        dup_list = grey.get_duplicate_streams()
+        dup_list = grey.get_duplicates()
         self.assertEqual( len( dup_list ), 1,
                 'Grey duplicate list len mismatch' )
-        self.assertEqual( dup_list[0].get_hash(), self.black_hash,
+        self.assertEqual( dup_list[0].get_name(), self.black,
                 'Black is not the duplicate of grey' )
+        self.assertEqual( dup_list[0].get_root_stream().get_hash(), self.black_hash,
+                'Black is missing its stream' )
 
     def subtest_check_dup_moved( self, ver ):
 
@@ -313,7 +312,7 @@ class LegacyCases( testutil.TestCase ):
             self.assertEqual( len( white_s ), 2,
                     'Unexpected number of streams in white obj' )
 
-        self.assertEqual( len( grey_s ), 4,
+        self.assertEqual( len( grey_s ), 3,
                 'Unexpected number of streams in grey obj' )
 
     def subtest_check_stream_origin( self, ver ):
@@ -397,7 +396,7 @@ def build_cases():
     VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
                  ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
                  ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
-                 ( 11, 0, ), ]
+                 ( 11, 0, ), ( 12, 0, ), ]
 
     for ver in VERSIONS:
 

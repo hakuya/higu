@@ -175,25 +175,21 @@ class Obj:
         with self.db._access():
             return self.obj.object_type
 
-    def _get_parents( self, obj_type ):
-
-        objs = [ obj for obj in self.obj.parents if obj.object_type == obj_type ]
-        return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
-
     def get_parents( self, obj_type ):
 
+        obj_type = [ obj_type ] if( not isinstance( obj_type, list ) ) else obj_type
+
         with self.db._access():
-            return self._get_parents( obj_type )
-
-    def _get_children( self, obj_type ):
-
-        objs = [ obj for obj in self.obj.children if obj.object_type == obj_type ]
-        return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
+            objs = [ obj for obj in self.obj.parents if obj.object_type in obj_type ]
+            return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
 
     def get_children( self, obj_type ):
 
+        obj_type = [ obj_type ] if( not isinstance( obj_type, list ) ) else obj_type
+
         with self.db._access():
-            return self._get_children( obj_type )
+            objs = [ obj for obj in self.obj.children if obj.object_type in obj_type ]
+            return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
 
     def get_creation_time( self ):
 
@@ -219,69 +215,185 @@ class Obj:
                              .order_by( model.Object.name ) ]
             return map( lambda x: Tag( self.db, x ), tag_objs )
 
-    def _assign( self, group,
-                 order = None,
-                 name = None,
-                 stream_id = None ):
-    
+    def __assign_duplicate( self, parent, rel ):
+
+        from sqlalchemy import or_
+        from sqlalchemy.orm import aliased
+
+        # If our parent was a duplicate, we are now promoting it:
+        # duplicates do not stack
+        if( parent.obj.object_type == model.TYPE_DUPLICATE ):
+            parent.obj.object_type = model.TYPE_FILE
+
+        self.obj.object_type = model.TYPE_DUPLICATE
+
+        # Duplicates do not have relations with most other objects
+        # so we need to move the relations to the parent now
+
+        # Move relationships which do not conflict
+        #---------------------------------------------------------------
+        r_i = aliased( model.Relation )
+
+        q = self.db.session.query( model.Relation )
+        # For relations where we are the parent
+        q = q.filter( model.Relation.parent_id == self.obj.object_id )
+        # And, for which a child is not also a child of our parent
+        q = q.filter( ~self.db.session.query( r_i )
+                          .filter( r_i.parent_id == parent.obj.object_id )
+                          .filter( r_i.child_id == model.Relation.child_id )
+                          .exists() )
+        # Move the parent to our parent
+        q.update( { 'parent_id' : parent.obj.object_id }, synchronize_session = 'fetch' )
+
+        q = self.db.session.query( model.Relation )
+        # For relations where we are the child
+        q = q.filter( model.Relation.child_id == self.obj.object_id )
+        # And which isn't the relation with our parent
+        q = q.filter( model.Relation.parent_id != parent.obj.object_id )
+        # And which isn't a relation with a PUBLISHED album
+        q = q.filter( ~model.Relation.parent_id.in_(
+                        self.db.session.query( model.Object.object_id )
+                            .filter( model.Object.object_type == model.TYPE_PUBLISHED ) ) )
+        # And, for which the parent is not also a parent of our parent
+        q = q.filter( ~self.db.session.query( r_i )
+                          .filter( r_i.parent_id == model.Relation.parent_id )
+                          .filter( r_i.child_id == parent.obj.object_id )
+                          .exists() )
+        # Move it to a parent of our parent
+        q.update( { 'child_id' : parent.obj.object_id }, synchronize_session = 'fetch' )
+
+        # Drop remaining relationships
+        #---------------------------------------------------------------
+        q = self.db.session.query( model.Relation )
+        # For relations where we are either the parent or the child
+        q = q.filter( or_( model.Relation.parent_id == self.obj.object_id,
+                           model.Relation.child_id == self.obj.object_id ) )
+        # And which isn't the relation with our parent
+        q = q.filter( model.Relation.parent_id != parent.obj.object_id )
+        # And which isn't a relation with a PUBLISHED album
+        q = q.filter( ~model.Relation.parent_id.in_(
+                        self.db.session.query( model.Object.object_id )
+                            .filter( model.Object.object_type == model.TYPE_PUBLISHED ) ) )
+        # Delete these
+        q.delete( synchronize_session = 'fetch' )
+
+    def __assign( self, parent, order, name, is_duplicate, force ):
+
+        # Sanity checks
+        if( self.obj.object_type == model.TYPE_ALBUM
+         or self.obj.object_type == model.TYPE_PUBLISHED ):
+
+            assert parent.obj.object_type == model.TYPE_CLASSIFIER
+
+        elif( self.obj.object_type == model.TYPE_FILE ):
+
+            if( force ):
+                assert parent.obj.object_type in [
+                            model.TYPE_CLASSIFIER,
+                            model.TYPE_ALBUM,
+                            model.TYPE_PUBLISHED,
+                            model.TYPE_FILE
+                        ]
+            else:
+                assert parent.obj.object_type in [
+                            model.TYPE_CLASSIFIER,
+                            model.TYPE_ALBUM,
+                            model.TYPE_FILE
+                        ]
+
+        elif( self.obj.object_type == model.TYPE_DUPLICATE ):
+
+            if( force ):
+                assert parent.obj.object_type == model.TYPE_PUBLISHED
+            else:
+                assert False
+
+        else:
+            assert False
+
+        # Orders and names are allowed only for albums
+        if( order is not None or name is not None ):
+            assert parent.obj.object_type in model.ALBUM_TYPES
+
+        # Fetch an existing relation
         rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
+                .filter( model.Relation.parent_id == parent.obj.object_id ) \
                 .filter( model.Relation.child_id == self.obj.object_id ).first()
 
-        if( rel is not None ):
-            if( order is not None ):
-                rel.sort = order
-            if( name is not None ):
-                rel.child_name = name
-            if( stream_id is not None ):
-                rel.stream_id = stream_id
-            return
+        # Loops aren't permitted, so reverse a relation if we get into that case
+        if( rel is None ):
+            rel = self.db.session.query( model.Relation ) \
+                    .filter( model.Relation.child_id == parent.obj.object_id ) \
+                    .filter( model.Relation.parent_id == self.obj.object_id ).first()
 
-        rel = model.Relation( order )
-        rel.parent_obj = group.obj
-        rel.child_obj = self.obj
-        rel.child_name = name
-        rel.child_stream_id = stream_id
+            if( rel is not None ):
+                rel.parent_obj = parent.obj
+                rel.child_obj = self.obj
 
-        group._on_children_changed()
+        if( is_duplicate is not None ):
+            # Duplicates are allowed only on files
+            assert parent.obj.object_type == model.TYPE_FILE
 
-    def assign( self, group,
+            if( is_duplicate ):
+                self.__assign_duplicate( parent, rel )
+
+        if( rel is None ):
+            rel = model.Relation()
+            rel.parent_obj = parent.obj
+            rel.child_obj = self.obj
+
+        if( order is not None ):
+            rel.sort = order
+        if( name is not None ):
+            rel.child_name = name
+
+    def assign( self, parent,
                 order = None,
-                name = None ):
+                name = None,
+                is_duplicate = None,
+                force = None ):
 
         with self.db._access( write = True ):
-            self._assign( group, order, name )
+            self.__assign( parent, order, name, is_duplicate, force )
+            parent._on_children_changed()
 
-    def _unassign( self, group ):
+    def __unassign( self, parent, force ):
+
+        if( not force ):
+            assert parent.obj.object_type != model.TYPE_PUBLISHED
 
         rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
+                .filter( model.Relation.parent_id == parent.obj.object_id ) \
                 .filter( model.Relation.child_id == self.obj.object_id ).first()
 
         if( rel is not None ):
             self.db.session.delete( rel )
 
-        group._on_children_changed()
+            if( self.obj.object_type == model.TYPE_DUPLICATE
+            and parent.obj.object_type == model.TYPE_FILE ):
 
-    def unassign( self, group ):
+                # We're no longer a duplicate
+                self.obj.object_type = model.TYPE_FILE
+
+    def unassign( self, parent, force = None  ):
 
         with self.db._access( write = True ):
-            self._unassign( group )
-
-    def _reorder( self, group, order ):
-
-        rel = self.db.session.query( model.Relation ) \
-                .filter( model.Relation.parent_id == group.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ) \
-                .first()
-        if( rel is None ):
-            raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
-        rel.sort = order
+            self.__unassign( parent, force )
+            parent._on_children_changed()
 
     def reorder( self, group, order = None ):
 
         with self.db._access( write = True ):
-            self._reorder( group, order )
+
+            assert group.obj.object_type == model.TYPE_ALBUM
+
+            rel = self.db.session.query( model.Relation ) \
+                    .filter( model.Relation.parent_id == group.obj.object_id ) \
+                    .filter( model.Relation.child_id == self.obj.object_id ) \
+                    .first()
+            if( rel is None ):
+                raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
+            rel.sort = order
 
     def get_order( self, group ):
 
@@ -338,7 +450,7 @@ class Obj:
     def __repr__( self ):
 
         name = self.get_name()
-        if( name is not None ):
+        if( name is None ):
             return 'Object( id={0} )'.format( self.obj.object_id )
         else:
             return 'Object( "{0}", id={1} )'.format( self.get_name(), self.obj.object_id )
@@ -375,16 +487,12 @@ class Group( Obj ):
 
         return False
 
-    def _get_files( self ):
-
-        objs = [ obj for obj in self.obj.children
-                             if obj.object_type == TYPE_FILE ]
-        return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
-
     def get_files( self ):
 
-        with self.db._access():
-            return self._get_files()
+        return self.get_children( [
+                    model.TYPE_FILE,
+                    model.TYPE_DUPLICATE
+                ] )
 
 class OrderedGroup( Group ):
 
@@ -408,18 +516,18 @@ class OrderedGroup( Group ):
 
         with self.db._access( write = True ):
 
-            all_objs = self._get_files()
+            all_objs = self.get_files()
             
             for child in enumerate( children ):
                 assert( child[1] in all_objs )
                 all_objs.remove( child[1] )
                 
-                child[1]._reorder( self, child[0] )
+                child[1].reorder( self, child[0] )
 
             offset = len( children )
 
             for child in enumerate( all_objs ):
-                child[1]._reorder( self, offset + child[0] )
+                child[1].reorder( self, offset + child[0] )
 
 class Tag( Group ):
 
@@ -433,107 +541,43 @@ class File( Obj ):
 
         Obj.__init__( self, db, obj )
 
-    def _get_albums( self ):
-
-        return self._get_parents( TYPE_ALBUM )
-
     def get_albums( self ):
 
-        return self.get_parents( TYPE_ALBUM )
-
-    def _get_variants_of( self ):
-
-        return self._get_parents( TYPE_FILE )
+        return self.get_parents( [ model.TYPE_ALBUM, model.TYPE_PUBLISHED ] )
 
     def get_variants_of( self ):
 
-        return self.get_parents( TYPE_FILE )
-
-    def _get_variants( self ):
-
-        return self._get_children( TYPE_FILE )
+        if( self.obj.object_type == model.TYPE_FILE ):
+            return self.get_parents( model.TYPE_FILE )
+        else:
+            return []
 
     def get_variants( self ):
 
-        return self.get_children( TYPE_FILE )
+        return self.get_children( model.TYPE_FILE )
 
-    def _set_variant_of( self, parent ):
+    def get_original_file( self ):
 
-        assert( isinstance( parent, File ) )
-        assert( parent.obj != self.obj )
+        if( self.obj.object_type == model.TYPE_DUPLICATE ):
+            # Only one duplicate parent is permitted
+            return self.get_parents( model.TYPE_FILE )[0]
+        else:
+            return None
 
-        self._assign( parent, None )
+    def get_duplicates( self ):
 
-    def set_variant_of( self, parent ):
+        return self.get_children( model.TYPE_DUPLICATE )
 
-        with self.db._access( write = True ):
-            self._set_variant_of( parent )
-
-    def _clear_variant_of( self, parent ):
-
-        assert( isinstance( parent, File ) )
-        self._unassign( parent )
-
-    def clear_variant_of( self, parent ):
-
-        with self.db._access( write = True ):
-            self._clear_variant_of( parent )
-
-    def _get_duplicate_streams( self ):
-
-        from sqlalchemy import and_
-
-        return [ model_stream_to_higu_stream( self.db, s ) for s in
-            self.db.session.query( model.Stream )
-                           .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                          model.Stream.name.like( 'dup:%' ) ) )
-                           .order_by( model.Stream.stream_id ) ]
-
-    def get_duplicate_streams( self ):
-
-        with self.db._access():
-            return self._get_duplicate_streams()
-
-    def set_root_stream( self, stream, group = None ):
-
-        with self.db._access( write = True ):
-            assert stream.stream.object_id == self.obj.object_id
-            assert stream.stream.priority >= model.SP_NORMAL
-
-            if( group is not None ):
-                rel = self.db.session.query( model.Relation ) \
-                        .filter( model.Relation.parent_id == group.obj.object_id ) \
-                        .filter( model.Relation.child_id == self.obj.object_id ).first()
-                if( rel is None ):
-                    raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
-                rel.child_stream = stream.stream
-            else:
-                assert stream.stream.name.startswith( 'dup:' )
-                self.obj.root_stream.name = 'dup:' + self.obj.root_stream.hash_sha1
-                self.db.session.flush()
-                stream.stream.name = '.'
-                self.obj.root_stream = stream.stream
-                self.db.session.flush()
-
-    def get_origin_names( self, all_streams = False ):
+    def get_origin_names( self ):
 
         from sqlalchemy import and_
 
         with self.db._access():
-            if( all_streams ):
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .join( model.Stream,
-                               model.Stream.stream_id == model.StreamLog.stream_id )
-                        .filter( and_( model.Stream.object_id == self.obj.object_id,
-                                       model.StreamLog.origin_name != None ) )
-                        .distinct() ]
-            else:
-                return [ log.origin_name for log in
-                    self.db.session.query( model.StreamLog.origin_name )
-                        .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
-                                       model.StreamLog.origin_name != None ) )
-                        .distinct() ]
+            return [ log.origin_name for log in
+                self.db.session.query( model.StreamLog.origin_name )
+                    .filter( and_( model.StreamLog.stream_id == self.obj.root_stream.stream_id,
+                                   model.StreamLog.origin_name != None ) )
+                    .distinct() ]
 
     def get_repr( self, group = None ):
 
@@ -624,19 +668,10 @@ class File( Obj ):
         with self.db._access( write = True ):
             self._drop_expendable_streams()
 
-    def get_root_stream( self, group = None ):
+    def get_root_stream( self ):
 
         with self.db._access():
-            stream = self.obj.root_stream
-
-            if( group is not None ):
-                rel = self.db.session.query( model.Relation ) \
-                        .filter( model.Relation.parent_id == group.obj.object_id ) \
-                        .filter( model.Relation.child_id == self.obj.object_id ).first()
-                if( rel is not None and rel.child_stream is not None ):
-                    stream = rel.child_stream
-
-            return model_stream_to_higu_stream( self.db, stream )
+            return model_stream_to_higu_stream( self.db, self.obj.root_stream )
 
     def verify( self ):
 
@@ -644,38 +679,17 @@ class File( Obj ):
             for s in self.get_streams():
                 s.verify()
 
-    def assign( self, group,
-                order = None,
-                name = None,
-                stream = None,
-                lock_stream = None ):
-
-        with self.db._access( write = True ):
-            stream_id = None
-
-            if( stream is not None ):
-                sids = [s.stream_id for s in self.db.session.query( model.Stream ) \
-                             .filter( model.Stream.object_id == self.obj.object_id ) \
-                             .filter( model.Stream.priority >= model.SP_NORMAL )]
-                if( stream.get_stream_id() not in sids ):
-                    raise ValueError, '{0} is not a non-expendable stream of {1}'.format( \
-                                            stream.stream, self )
-                stream_id = stream.get_stream_id()
-
-            elif( lock_stream is not None and lock_stream ):
-                stream_id = self.obj.root_stream.stream_id
-
-            self._assign( group, order, name, stream_id )
-
 def _basic_stream_factory( db, stream ):
 
     return Stream( db, stream )
 
 def _basic_obj_factory( db, obj ):
 
-    if( obj.object_type == TYPE_FILE ):
+    if( obj.object_type == model.TYPE_FILE
+     or obj.object_type == model.TYPE_DUPLICATE ):
         return File( db, obj )
-    elif( obj.object_type == TYPE_ALBUM ):
+    elif( obj.object_type == model.TYPE_ALBUM
+       or obj.object_type == model.TYPE_PUBLISHED ):
         return Group( db, obj )
     elif( obj.object_type == TYPE_CLASSIFIER ):
         return Tag( db, obj )

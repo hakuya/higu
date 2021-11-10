@@ -242,37 +242,6 @@ class Database:
 
             return model_stream_to_higu_stream( self, stream )
 
-    def all_albums_or_free_files( self ):
-
-        from sqlalchemy.sql.expression import func
-
-        files = self.session.query( model.Object.object_id ) \
-                .filter( model.Object.object_type == TYPE_FILE )
-        albums = self.session.query( model.Object.object_id ) \
-                .filter( model.Object.object_type == TYPE_ALBUM )
-        all_children = self.session.query( model.Relation.child_id ) \
-                .filter( model.Relation.parent_id.in_( albums ) )
-        free_files = files.filter( ~model.Object.object_id.in_( all_children ) )
-
-        select_ids = free_files.union( albums )
-
-        return ModelObjToHiguObjIterator( self, 
-                self.session.query( model.Object )
-                    .filter( model.Object.object_id.in_( select_ids ) )
-                    .order_by( func.random() ) )
-
-    def unowned_files( self ):
-
-        from sqlalchemy.sql.expression import func
-        from sqlalchemy import or_
-
-        all_children = self.session.query( model.Relation.child_id )
-        return ModelObjToHiguObjIterator( self,
-                self.session.query( model.Object )
-                    .filter( model.Object.object_type.in_( [ TYPE_FILE, TYPE_ALBUM ] ) )
-                    .filter( ~model.Object.object_id.in_( all_children ) )
-                    .order_by( func.random() ) )
-
     def lookup_streams_by_details( self, file_length = None,
                                          hash_crc32 = None,
                                          hash_md5 = None,
@@ -410,27 +379,23 @@ class Database:
                     #log.warn( '%s was not found in the db and was ignored', f )
                     pass
 
-    def __create_album( self, tags = [], name = None, text = None ):
-
-        album = model.Object( TYPE_ALBUM )
-        self.session.add( album )
-        album = model_obj_to_higu_obj( self, album )
-
-        if( name is not None ):
-            album.obj.name = make_unicode( name )
-
-        if( text is not None ):
-            album.obj['text'] = make_unicode( text )
-
-        for t in tags:
-            album._assign( t, None )
-
-        return album
-
     def create_album( self, tags = [], name = None, text = None ):
 
         with self._access( write = True ):
-            return self.__create_album( tags, name, text )
+            album = model.Object( TYPE_ALBUM )
+            self.session.add( album )
+            album = model_obj_to_higu_obj( self, album )
+
+            if( name is not None ):
+                album.obj.name = make_unicode( name )
+
+            if( text is not None ):
+                album.obj['text'] = make_unicode( text )
+
+            for t in tags:
+                album.assign( t, None )
+
+            return album
 
     def __register_file( self, path, name_policy, name = None ):
 
@@ -550,7 +515,7 @@ class Database:
             taglist += map( self._make_tag, tags_new )
 
             if( create_album ):
-                album = self.__create_album( taglist, album_name, album_text )
+                album = self.create_album( taglist, album_name, album_text )
             else:
                 album = None
 
@@ -558,161 +523,10 @@ class Database:
                 x, stream, is_new = self.__register_file( f, name_policy )
 
                 if( album is not None ):
-                    x._assign( album, None )
+                    x.assign( album, None )
                 else:
                     for t in taglist:
-                        x._assign( t, None )
-
-    def _merge_objects( self, primary_obj, merge_obj ):
-
-        from sqlalchemy import and_, or_
-        from sqlalchemy.orm import aliased
-
-        assert isinstance( primary_obj, File ), 'Expected File got %r' % ( merge_obj )
-        assert isinstance( merge_obj, File ), 'Expected File got %r' % ( merge_obj )
-
-        obj_p = primary_obj.obj
-        obj_m = merge_obj.obj
-
-        assert obj_p != obj_m
-
-        merge_obj._drop_expendable_streams()
-
-        if( obj_p.object_id < obj_m.object_id ):
-            # Use the secondary name if the primary had none
-            if( obj_p.name is None and obj_m.name is not None ):
-                obj_p.name = obj_m.name
-
-            # Rename the root stream of the object to be merged so that it
-            # appears as a duplicate stream
-            stream = obj_m.root_stream
-            stream.name = 'dup:' + stream.hash_sha1
-
-            # Delete the metadata on the object to be merged, it will not be
-            # persisted
-            self.session.query( model.ObjectMetadata ) \
-                .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
-                .delete()
-
-            obj_p_is_primary = True
-
-        else:
-            # Always keep the lower ID
-            obj_p, obj_m = obj_m, obj_p
-
-            # Copy the name since obj_m used to be the primary
-            if( obj_m.name is not None ):
-                obj_p.name = obj_m.name
-
-            # Our merge is swapped, so obj_p is the duplicate
-            stream = obj_p.root_stream
-            stream.name = 'dup:' + stream.hash_sha1
-            obj_p.root_stream = obj_m.root_stream
-
-            # We need to move all the metadata over, since our primary is obj_m
-            self.session.query( model.ObjectMetadata ) \
-                .filter( model.ObjectMetadata.object_id == obj_p.object_id ) \
-                .delete()
-            self.session.query( model.ObjectMetadata ) \
-                .filter( model.ObjectMetadata.object_id == obj_m.object_id ) \
-                .update( { 'object_id' : obj_p.object_id } )
-
-            obj_p_is_primary = False
-
-        # Move all streams from the object to be merged to the 
-        self.session.query( model.Stream ) \
-            .filter( model.Stream.object_id == obj_m.object_id ) \
-            .update( { 'object_id' : obj_p.object_id } )
-
-        # Drop relationships with duplicate
-        self.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_p.object_id,
-                           model.Relation.child_id == obj_m.object_id ) ) \
-            .delete()
-        self.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_m.object_id,
-                           model.Relation.child_id == obj_p.object_id ) ) \
-            .delete()
-
-        # Move relationships which do not conflict
-        r_i = aliased( model.Relation )
-
-        self.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_m.object_id,
-                           ~self.session.query( r_i )
-                                .filter( and_( r_i.parent_id == obj_p.object_id,
-                                               r_i.child_id == model.Relation.child_id ) )
-                               .exists() ) ) \
-            .update( { 'parent_id' : obj_p.object_id },
-                     synchronize_session = 'fetch' )
-        self.session.query( model.Relation ) \
-            .filter( and_( model.Relation.child_id == obj_m.object_id,
-                           ~self.session.query( r_i )
-                                .filter( and_( r_i.parent_id == model.Relation.parent_id,
-                                               r_i.child_id == obj_p.object_id ) )
-                               .exists() ) ) \
-            .update( { 'child_id' : obj_p.object_id },
-                     synchronize_session = 'fetch' )
-
-        # Copy sort from relationships that conflict
-        for r_m in self.session.query( model.Relation ) \
-                       .filter( model.Relation.parent_id == obj_m.object_id ):
-
-            r_p = self.session.query( model.Relation ) \
-                      .filter( and_( model.Relation.parent_id == obj_p.object_id,
-                                     model.Relation.child_id == r_m.child_id ) ) \
-                      .first()
-
-            if( obj_p_is_primary ):
-                if( r_p.sort is None ):
-                    r_p.sort = r_m.sort
-            else:
-                if( r_m.sort is None ):
-                    r_m.sort = r_p.sort
-
-        for r_m in self.session.query( model.Relation ) \
-                       .filter( model.Relation.child_id == obj_m.object_id ):
-
-            r_p = self.session.query( model.Relation ) \
-                      .filter( and_( model.Relation.child_id == obj_p.object_id,
-                                     model.Relation.parent_id == r_m.parent_id ) ) \
-                      .first()
-
-            if( obj_p_is_primary ):
-                if( r_p.sort is None ):
-                    r_p.sort = r_m.sort
-            else:
-                if( r_m.sort is None ):
-                    r_m.sort = r_p.sort
-
-        self.session.query( model.Relation ) \
-            .filter( and_( model.Relation.parent_id == obj_m.object_id,
-                           self.session.query( r_i )
-                               .filter( and_( r_i.parent_id == model.Relation.parent_id,
-                                              r_i.child_id == model.Relation.child_id ) )
-                               .exists() ) ) \
-            .update( { 'sort' : obj_p.object_id },
-                     synchronize_session = 'fetch' )
-
-        # Drop remaining relationships
-        self.session.query( model.Relation ) \
-                    .filter( or_( model.Relation.parent_id == obj_m.object_id,
-                                  model.Relation.child_id == obj_m.object_id ) ) \
-                    .delete()
-
-        # Update our top-level objects
-        primary_obj.obj = obj_p
-        merge_obj.obj = obj_p
-
-        # And blow away the merge object from the DB
-        self.session.query( model.Object ) \
-            .filter( model.Object.object_id == obj_m.object_id ) \
-            .delete()
-
-    def merge_objects( self, primary_obj, merge_obj ):
-
-        with self._access( write = True ):
-            self._merge_objects( primary_obj, merge_obj )
+                        x.assign( t, None )
 
     def delete_object( self, obj ):
 

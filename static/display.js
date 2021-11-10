@@ -178,11 +178,14 @@ DisplayableBase = function()
         this.change_listeners = [];
     };
 
+    DisplayableBase.prototype.is_sortable = function() { return false; }
     DisplayableBase.prototype.set_variant = function(
             original, variant ) {}
     DisplayableBase.prototype.clear_variant = function(
             original, variant ) {}
-    DisplayableBase.prototype.merge_duplicates = function(
+    DisplayableBase.prototype.link_duplicates = function(
+            original, duplicate ) {}
+    DisplayableBase.prototype.unlink_duplicates = function(
             original, duplicate ) {}
     DisplayableBase.prototype.transform = function( xform ) {};
     DisplayableBase.prototype.reorder = function( drop_data, idx ) {};
@@ -231,6 +234,11 @@ DisplayableObject = function( obj_id, info )
     // extends Displayable
     DisplayableObject.prototype = new DisplayableBase();
     DisplayableObject.prototype.constructor = DisplayableObject;
+
+    DisplayableObject.prototype.is_sortable = function()
+    {
+        return this.info.type == 'album';
+    }
 
     DisplayableObject.prototype.rename = function( name, saveold )
     {
@@ -355,7 +363,7 @@ DisplayableObject = function( obj_id, info )
             original, variant )
     {
         var request = {
-            action:     'set_variant',
+            action:     'link_files',
             original:   original,
             variant:    variant,
         };
@@ -377,23 +385,32 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
     };
 
-    DisplayableObject.prototype.merge_duplicates = function(
+    DisplayableObject.prototype.link_duplicates = function(
             original, duplicate )
     {
         var request = {
-            action:     'merge_duplicates',
-            original:   original,
-            duplicate:  duplicate,
+            action:         'link_files',
+            original:       original,
+            variant:        duplicate,
+            is_duplicate:   true,
         };
 
         load_sync( request );
-        tabs.on_event( { type: 'removed', affected: [ duplicate ] } );
-        if( original < duplicate ) {
-            tabs.on_event( { type: 'info_changed', affected: [ original ] } );
-        } else {
-            tabs.on_event( { type: 'replaced', affected: [ original ], new_id: duplicate } );
-        }
+        tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
     };
+
+    DisplayableObject.prototype.unlink_duplicate = function(
+            original, duplicate )
+    {
+        var request = {
+            action:         'unlink_files',
+            original:       original,
+            variant:        duplicate,
+        };
+
+        load_sync( request );
+        tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
+    }
 
     DisplayableObject.prototype.transform = function( xform )
     {
@@ -442,8 +459,11 @@ DisplayableObject = function( obj_id, info )
                 case 116: // t
                     dialogs.show_tag_dialog( this );
                     break;
-                case 114: // r
+                case 110: // n
                     dialogs.show_name_dialog( this );
+                    break;
+                case 114: // r
+                    this.refresh_info( e );
                     break;
                 case 49: // 1
                 case 50: // 2
@@ -478,7 +498,7 @@ DisplayableObject = function( obj_id, info )
                 }
 
                 dialogs.show_dup_dialog( this, obj_id, this.obj_id );
-            } else {
+            } else if( this.info.type == 'album' ) {
                 if( type != 'file' && type != 'selection' ) {
                     alert( 'Only files may be added to albums' );
                     return;
@@ -511,6 +531,8 @@ DisplayableObject = function( obj_id, info )
                         [ this.obj_id ] } );
                 tabs.on_event( { type: 'info_changed', affected:
                         [ obj_id ] } );
+            } else if( this.info.type == 'published' ) {
+                alert( 'Published albums may not be modified' );
             }
         } else if( e.type == 'trash' ) {
             var obj_id = e.drop_data.get_object()
@@ -519,7 +541,7 @@ DisplayableObject = function( obj_id, info )
 
             if( this.info.type == 'file') {
                 alert( 'delete ' + repr );
-            } else {
+            } else if( this.info.type == 'album' ) {
                 if( obj_id == this.obj_id ) {
                     this.rm_group();
                     return;
@@ -543,6 +565,8 @@ DisplayableObject = function( obj_id, info )
                         [ this.obj_id ] } );
                 tabs.on_event( { type: 'info_changed', affected:
                         [ obj_id ].concat( targets ) } );
+            } else if( this.info.type == 'published' ) {
+                alert( 'Published albums may not be modified' );
             }
         } else if( e.type == 'replaced' ) {
             this.obj_id = e.new_id;
@@ -579,10 +603,7 @@ DisplayableObject = function( obj_id, info )
             action:     'stream_info',
             target:     this.obj_id,
             stream:     this.stream_id,
-            items:      [ 'type', 'repr', 'tags', 'names',
-                'variants', 'variants_of', 'dup_streams',
-                'albums', 'files', 'text', 'thumb_gen',
-                'width', 'height', 'sizes', 'origin_time', 'creation_time' ],
+            items:      tabs.get_info_set(),
         };
         
         response = load_sync( request );
@@ -624,7 +645,9 @@ DisplayableObject = function( obj_id, info )
 
     DisplayableObject.prototype.create_provider = function( args )
     {
-        if( this.info.type == 'album' ) {
+        if( this.info.type == 'album'
+         || this.info.type == 'published' )
+        {
             search_args = {
                 mode: 'album',
                 album: this.obj_id,
@@ -660,6 +683,8 @@ DisplayableSelection = function()
     // extends Displayable
     DisplayableSelection.prototype = new DisplayableBase();
     DisplayableSelection.prototype.constructor = DisplayableSelection;
+
+    DisplayableBase.prototype.is_sortable = function() { return true; }
 
     DisplayableSelection.prototype.tag = function( tags )
     {
@@ -1006,9 +1031,13 @@ var public_make_dummy_display = function( msg )
  */
 var public_make_object_display = function( info )
 {
-    if( info.type == 'file' ) {
+    if( info.type == 'file'
+     || info.type == 'duplicate' )
+    {
         return make_file_display( info.object_id, info );
-    } else if( info.type == 'album' ) {
+    } else if( info.type == 'album'
+            || info.type == 'published' )
+    {
         return make_group_display( info.object_id, info );
     } else {
         return public_make_dummy_display( 'This is a placeholder for an object '

@@ -118,59 +118,5 @@ class ThumbCases( testutil.TestCase ):
                       == hdbfs.model.SP_EXPENDABLE,
                          'Very small priority not set correctly' )
 
-    def test_thumbs_not_moved( self ):
-
-        red = self._load_data( self.red )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        o1 = h.register_file( blue, False )
-        o2 = h.register_file( red, False )
-
-        t2_4_hash = o2.get_thumb_stream( 4 ).get_hash()
-        t2_5_hash = o2.get_thumb_stream( 5 ).get_hash()
-
-        h.merge_objects( o1, o2 )
-
-        t1_4_hash = o1.get_thumb_stream( 4 ).get_hash()
-        t1_5_hash = o1.get_thumb_stream( 5 ).get_hash()
-
-        self.assertFalse( t1_4_hash == t2_4_hash,
-                         'New thumb matches moved from o2' )
-        self.assertFalse( t1_5_hash == t2_5_hash,
-                         'New thumb matches moved from o2' )
-
-    def test_thumbs_not_moved_with_existing( self ):
-
-        red = self._load_data( self.red )
-        blue = self._load_data( self.blue )
-
-        h = hdbfs.Database()
-        h.enable_write_access()
-
-        o1 = h.register_file( blue, False )
-        o2 = h.register_file( red, False )
-
-        t1_4_hash = o1.get_thumb_stream( 4 ).get_hash()
-        t1_5_hash = o1.get_thumb_stream( 5 ).get_hash()
-        t2_4_hash = o2.get_thumb_stream( 4 ).get_hash()
-        t2_5_hash = o2.get_thumb_stream( 5 ).get_hash()
-
-        h.merge_objects( o1, o2 )
-
-        tx_4_hash = o1.get_thumb_stream( 4 ).get_hash()
-        tx_5_hash = o1.get_thumb_stream( 5 ).get_hash()
-
-        self.assertTrue( tx_4_hash == t1_4_hash,
-                        'New thumb not matching from o1' )
-        self.assertTrue( tx_5_hash == t1_5_hash,
-                        'New thumb not matching from o1' )
-        self.assertFalse( tx_4_hash == t2_4_hash,
-                         'New thumb matches moved from o2' )
-        self.assertFalse( tx_5_hash == t2_5_hash,
-                         'New thumb matches moved from o2' )
-
 if( __name__ == '__main__' ):
     unittest.main()

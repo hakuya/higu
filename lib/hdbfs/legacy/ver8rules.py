@@ -394,3 +394,147 @@ def upgrade_from_10_to_11( log, session ):
 
     return 11, 0
 
+def upgrade_from_11_to_12( log, session ):
+
+    log.info( 'Database upgrade from VER 11 -> VER 12' )
+
+    # Ver 12 no longer uses holds duplicates as additional streams for files.
+    # It's a bit of a throwback, in that duplicates are full on files.
+    #
+    # To migrate, we need to promote all 'dup' streams to new file objects
+
+    #for row in session.execute( 'SELECT * from objects' ):
+    #    print row
+    #for row in session.execute( 'SELECT * from stream_log' ):
+    #    print row
+
+    # Create new objects for the duplicates. This is a beefy query.
+    session.execute(
+        'INSERT INTO objects (\n'
+                'object_type,\n'
+                'create_ts,\n'
+                'name,\n'
+                'root_stream_id\n'
+            ')\n'
+        'SELECT\n'
+            '1001,\n'
+            'COALESCE( first_stream_sighting.timestamp, objects.create_ts ),\n'
+            'stream_log.origin_name,\n'
+            'streams.stream_id\n'
+        # We take our streams
+        'FROM streams\n'
+        # Join them against their current objects,
+        # so we have a fallback for the create_ts
+        'INNER JOIN objects\n'
+                'ON objects.object_id = streams.object_id\n'
+        # Join against the earliest timestamp we
+        # have in the stream_log for that stream
+        'LEFT JOIN (\n'
+                'SELECT\n'
+                    'stream_id,\n'
+                    'MIN( timestamp ) AS timestamp\n'
+                'FROM stream_log\n'
+                'GROUP BY stream_id\n'
+            ') AS first_stream_sighting\n'
+            'ON first_stream_sighting.stream_id = streams.stream_id\n'
+        # Join against the name with the earliest
+        # timestamp we have for that stream. The name may have been
+        # assigned later, especially in certain migration cases,
+        # so we can't rely on the first stream_log entry containing
+        # a name
+        'LEFT JOIN (\n'
+                'SELECT\n'
+                    'stream_id,\n'
+                    'MIN( timestamp ) AS timestamp\n'
+                'FROM stream_log\n'
+                'WHERE origin_name NOT NULL\n'
+                'GROUP BY stream_id\n'
+            ') AS first_stream_name\n'
+            'ON first_stream_name.stream_id = streams.stream_id\n'
+        # Join once more against the names, so we can retrieve the name
+        'LEFT JOIN stream_log\n'
+               'ON stream_log.stream_id = first_stream_name.stream_id\n'
+              'AND stream_log.timestamp = first_stream_name.timestamp\n'
+              'AND stream_log.origin_name NOT NULL\n'
+        # And we pick out only duplicate streams
+        'WHERE streams.name LIKE \'dup:%\'\n'
+        # Eliminate dups from all this joining
+        'GROUP BY streams.stream_id' )
+
+    # We're going to need to link these new duplicate objects
+    # to the streams and their parent obejcts, so we create
+    # a temporary table to track the relationships
+    session.execute( 'CREATE TEMPORARY TABLE _dups (\n'
+                     'object_id          INTEGER NOT NULL,\n'
+                     'parent_id          INTEGER NOT NULL,\n'
+                     'stream_id          INTEGER NOT NULL )' )
+    session.execute( 'INSERT INTO _dups\n'
+                     'SELECT\n'
+                         'objects.object_id,\n'
+                         'streams.object_id,\n'
+                         'streams.stream_id\n'
+                     'FROM objects\n'
+                     'INNER JOIN streams\n'
+                             'ON streams.stream_id = objects.root_stream_id\n'
+                     'WHERE streams.name LIKE \'dup:%\'' )
+
+    # Fix up the object id for the stream in the streams and relations tables
+    for row in session.execute( 'SELECT object_id, stream_id FROM _dups' ):
+        session.execute( 'UPDATE streams\n'
+                         'SET object_id = :object_id\n,'
+                             'name = \'.\'\n'
+                         'WHERE stream_id = :stream_id',
+                         row )
+        session.execute( 'UPDATE relations\n'
+                         'SET child_id = :object_id\n'
+                         'WHERE child_stream_id = :stream_id',
+                         row )
+
+    # Copy our relations table to delete the child_stream_id column
+    session.execute( 'ALTER TABLE relations RENAME TO _relations;' )
+    session.execute( 'CREATE TABLE relations (\n'
+                     'child_id          INTEGER NOT NULL,\n'
+                     'parent_id         INTEGER NOT NULL,\n'
+                     'sort              INTEGER,\n'
+                     'child_name        TEXT, \n'
+                     'PRIMARY KEY ( child_id, parent_id ),\n'
+                     'FOREIGN KEY ( child_id ) '
+                       'REFERENCES objects( object_id ),\n'
+                     'FOREIGN KEY ( parent_id ) '
+                       'REFERENCES objects( object_id ) )\n' )
+
+    session.execute( 'INSERT INTO relations\n'
+                     'SELECT child_id,\n'
+                            'parent_id,\n'
+                            'sort,\n'
+                            'child_name\n'
+                     'FROM _relations' )
+
+    # Link the duplicates back to the parent object
+    session.execute( 'INSERT INTO relations(\n'
+                             'child_id,\n'
+                             'parent_id\n'
+                         ')\n'
+                     'SELECT object_id,\n'
+                            'parent_id\n'
+                     'FROM _dups' )
+
+    # Albums linking directly to duplicates is only allowed when
+    # published, so immediate publish albums that did this
+    session.execute( 'UPDATE objects\n'
+                     'SET object_type = 2003\n'
+                     'WHERE object_type = 2001\n'
+                       'AND object_id IN (\n'
+                        'SELECT relations.parent_id\n'
+                        'FROM relations\n'
+                        'INNER JOIN objects\n'
+                                'ON objects.object_id = relations.child_id\n'
+                        'WHERE objects.object_type = 1001\n'
+                     ')' )
+
+    # Tidy up
+    session.execute( 'DROP TABLE _relations' )
+    session.execute( 'DROP TABLE _dups' )
+
+    return 12, 0
+

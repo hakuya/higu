@@ -102,7 +102,8 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_all( self ):
 
-        rs = [ r for r in self.h.all_albums_or_free_files() ]
+        query = hdbfs.query.Query()
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.cyan_obj in rs, 'Cyan not in result' )
         self.assertTrue( self.magenta_obj in rs, 'Magenta not in result' )
@@ -122,7 +123,8 @@ class HiguQueryCases( testutil.TestCase ):
 
     def test_query_unowned( self ):
 
-        rs = [ r for r in self.h.unowned_files() ]
+        query = hdbfs.query.Query().set_untagged()
+        rs = [ r for r in query.execute( self.h ) ]
 
         self.assertTrue( self.grey_obj in rs, 'Grey not in result' )
 
