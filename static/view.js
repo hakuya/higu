@@ -17,7 +17,8 @@ var tabs_listeners = [];
 var info_set = [ 'object_id', 'type', 'repr', 'tags',
     'names', 'variants', 'variants_of', 'original_file',
     'duplicates', 'albums', 'files', 'text', 'thumb_gen',
-    'width', 'height', 'sizes', 'origin_time', 'creation_time' ];
+    'width', 'height', 'sizes', 'origin_time', 'creation_time',
+    'exif' ];
 
 /**
  * create_tab( title ) - creates a tab with the given title

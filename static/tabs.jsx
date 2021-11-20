@@ -181,7 +181,14 @@ class ObjectInfoPane extends React.Component
             </div>
         );
     }
-    renderFileInfo( info ) {
+    hasLinks( info ) {
+        return info.albums && info.albums.length > 0
+            || info.original_file
+            || info.variants_of && info.variants_of.length > 0
+            || info.variants && info.variants.length > 0
+            || info.duplicates && info.duplicates.length > 0
+    }
+    renderLinks( info ) {
         return (
             <div>
                 { info.albums && info.albums.length > 0 &&
@@ -228,6 +235,12 @@ class ObjectInfoPane extends React.Component
                                 } ] }/>
                 }
                 { info.duplicates && info.duplicates.length > 0 && <br/> }
+            </div>
+        )
+    }
+    renderFileInfo( info ) {
+        return (
+            <div>
                 { info.type == 'file' &&
                     <span>
                         { 'Transform: ' }
@@ -291,6 +304,21 @@ class ObjectInfoPane extends React.Component
             </div>
         );
     }
+    renderExifInfo( info ) {
+        var keys = Object.keys( info.exif );
+
+        return (
+            <table className='exiftable'>
+                {
+                    keys.map( ( it ) => (
+                        <tr key={ it }>
+                            <td> { it + ':' } </td> <td> { info.exif[it] } </td>
+                        </tr>
+                    ) )
+                }
+            </table>
+        );
+    }
     render() {
         var info = this.props.display.info;
 
@@ -313,6 +341,7 @@ class ObjectInfoPane extends React.Component
                         ) )
                     }
                 </ul>
+                <hr/>
                 { info.origin_time &&
                     <span> { 'Created: ' } { info.origin_time } </span>
                 }
@@ -320,7 +349,15 @@ class ObjectInfoPane extends React.Component
                 { info.creation_time &&
                     <span> { 'Added: ' } { info.creation_time } </span>
                 }
-                { info.creation_time && <br/> }
+                <hr/>
+                { this.hasLinks( info ) &&
+                    this.renderLinks( info )
+                }
+                { this.hasLinks( info ) && <hr/> }
+                { info.exif != null &&
+                    this.renderExifInfo( info )
+                }
+                { info.exif && <hr/> }
                 { (info.type == 'file' || info.type == 'duplicate') &&
                     this.renderFileInfo( info )
                 }
@@ -857,7 +894,7 @@ class AdminTab extends React.Component {
             lines = lines.concat( response.changes.map( ( it ) => {
                                         return it[0] + ': ' + it[1];
                                     } ));
-            
+
             dialogs.show_text_dialog( lines.join( '\n' ) );
         } else {
             alert( response.msg );

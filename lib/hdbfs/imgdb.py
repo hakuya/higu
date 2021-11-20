@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 
+import exif
 import model
 
 from defs import *
@@ -81,6 +82,16 @@ class StreamInfo:
                         self.stream.get_repr(), str( sys.exc_info()[1] ) )
 
         return self.img
+
+    def get_exif( self ):
+
+        # Ensure the image is loaded
+        self.get_img()
+
+        if( self.img is not None ):
+            return exif.read_exif( self. img )
+
+        return None
 
     def get_orientation( self ):
 
@@ -371,6 +382,11 @@ class ImageStream( Stream ):
 
         Stream.__init__( self, db, stream )
 
+    def get_exif( self ):
+
+        sinfo = StreamInfo( self.db, self )
+        return sinfo.get_exif()
+
     def get_dimensions( self ):
 
         sinfo = StreamInfo( self.db, self )
@@ -406,6 +422,11 @@ class ImageFile( File ):
     def _on_created( self, stream ):
 
         _require_metadata_init( self, stream )
+
+    def get_exif( self ):
+
+        with self.db._access():
+            return self.get_root_stream().get_exif()
 
     def get_dimensions( self ):
 

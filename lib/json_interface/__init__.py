@@ -202,6 +202,9 @@ class JsonInterface:
                 info['creation_time'] = creation_ts.strftime( '%Y/%m/%d %H:%M:%S' )
             else:
                 info['creation_time'] = None
+        if( isinstance( target, hdbfs.File )
+        and 'exif' in items ):
+            info['exif'] = target.get_exif()
 
         return info
 
