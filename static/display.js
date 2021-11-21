@@ -179,6 +179,8 @@ DisplayableBase = function()
     };
 
     DisplayableBase.prototype.is_sortable = function() { return false; }
+    DisplayableBase.prototype.set_field = function(
+            field, value ) {}
     DisplayableBase.prototype.set_variant = function(
             original, variant ) {}
     DisplayableBase.prototype.clear_variant = function(
@@ -219,7 +221,7 @@ DisplayableBase = function()
 /**
  * class DisplayableObject
  */
-DisplayableObject = function( obj_id, info )
+DisplayableObject = function( obj_id, info, fields )
 
     // Constructor
     {
@@ -229,6 +231,7 @@ DisplayableObject = function( obj_id, info )
         this.obj_id = obj_id;
         this.stream_id = null;
         this.info = info;
+        this.fields = fields;
     };
 
     // extends Displayable
@@ -358,6 +361,20 @@ DisplayableObject = function( obj_id, info )
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
     };
+
+    DisplayableBase.prototype.set_field = function(
+            field, value )
+    {
+        var request = {
+            action:     'set_field',
+            target:     this.obj_id,
+            field:      field,
+            value:      value,
+        };
+
+        load_sync( request );
+        tabs.on_event( { type: 'info_changed', affected: [ this.obj_id, ] } );
+    }
 
     DisplayableObject.prototype.set_variant = function(
             original, variant )
@@ -600,14 +617,15 @@ DisplayableObject = function( obj_id, info )
     DisplayableObject.prototype.refresh_info = function( e )
     {
         var request = {
-            action:     'stream_info',
+            action:     'info',
             target:     this.obj_id,
-            stream:     this.stream_id,
             items:      tabs.get_info_set(),
+            fields:     tabs.get_field_set(),
         };
         
         response = load_sync( request );
         this.info = response.info;
+        this.fields = response.fields;
 
         this.notify_change( e );
     };
@@ -1001,18 +1019,18 @@ ThumbView = function()
         }
     };
 
-var make_file_display = function( obj_id, info )
+var make_file_display = function( obj_id, info, fields )
 {
     return {
-        disp: new DisplayableObject( obj_id, info ),
+        disp: new DisplayableObject( obj_id, info, fields ),
         view: new ImageView()
     }
 };
 
-var make_group_display = function( obj_id, info )
+var make_group_display = function( obj_id, info, fields )
 {
     return {
-        disp: new DisplayableObject( obj_id, info ),
+        disp: new DisplayableObject( obj_id, info, fields ),
         view: new ThumbView()
     }
 };
@@ -1029,16 +1047,16 @@ var public_make_dummy_display = function( msg )
  * make_object_display( obj_id ) - factory method for creating
  * the appropriate display.
  */
-var public_make_object_display = function( info )
+var public_make_object_display = function( info, fields )
 {
     if( info.type == 'file'
      || info.type == 'duplicate' )
     {
-        return make_file_display( info.object_id, info );
+        return make_file_display( info.object_id, info, fields );
     } else if( info.type == 'album'
             || info.type == 'published' )
     {
-        return make_group_display( info.object_id, info );
+        return make_group_display( info.object_id, info, fields );
     } else {
         return public_make_dummy_display( 'This is a placeholder for an object '
             + 'that does not exist or has been removed.' );

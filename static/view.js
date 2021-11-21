@@ -19,6 +19,7 @@ var info_set = [ 'object_id', 'type', 'repr', 'tags',
     'duplicates', 'albums', 'files', 'text', 'thumb_gen',
     'width', 'height', 'sizes', 'origin_time', 'creation_time',
     'exif' ];
+var field_set = [ 'rating' ];
 
 /**
  * create_tab( title ) - creates a tab with the given title
@@ -59,6 +60,11 @@ var public_init = function()
 public_get_info_set = function()
 {
     return info_set;
+}
+
+public_get_field_set = function()
+{
+    return field_set;
 }
 
 /**
@@ -296,10 +302,10 @@ public_SingleProvider = function( obj_id )
     public_SingleProvider.prototype.init = function( obj, callback )
     {
         var request = {
-            action:     'stream_info',
-            target:     this.obj_id,
-            stream:     null,
+            action:     'info',
+            targets:    this.obj_id,
             items:      info_set,
+            fields:     field_set,
         };
 
         load_async( request, this, 'on_init_load', {
@@ -311,7 +317,9 @@ public_SingleProvider = function( obj_id )
     public_SingleProvider.prototype.on_init_load = function( data, response )
     {
         this.info = response.info;
-        display = displib.make_object_display( this.info );
+        this.fields = response.fields;
+
+        display = displib.make_object_display( this.info, this.fields );
         eval( 'data.obj.' + data.callback + '( display )' );
     };
 
@@ -323,7 +331,7 @@ public_SingleProvider = function( obj_id )
     public_SingleProvider.prototype.fetch = function( idx )
     {
         if( idx == 0 ) {
-            return displib.make_object_display( this.info );
+            return displib.make_object_display( this.info, this.fields );
         } else {
             return null;
         }
@@ -361,6 +369,7 @@ public_SearchProvider = function( query )
         var request = {
             action: 'search',
             info: info_set,
+            fields: field_set,
          };
 
         if( this.query.mode ) {
@@ -402,7 +411,7 @@ public_SearchProvider = function( query )
             this.index = response.index;
             this.count = response.results;
 
-            display = displib.make_object_display( response.first );
+            display = displib.make_object_display( response.first, response.fields );
         } else {
             this.sid = null;
             this.index = null;
@@ -438,6 +447,7 @@ public_SearchProvider = function( query )
             selection:  this.sid,
             index:      idx,
             info:       info_set,
+            fields:     field_set,
         };
         response = load_sync( request );
 
@@ -446,7 +456,7 @@ public_SearchProvider = function( query )
         }
 
         this.index = idx;
-        display = displib.make_object_display( response );
+        display = displib.make_object_display( response.info, response.fields );
         return display;
     };
 
@@ -497,10 +507,10 @@ public_ListProvider = function( list )
         this.obj_id = this.list[this.index][0];
 
         var request = {
-            action:     'stream_info',
+            action:     'info',
             target:     this.obj_id,
-            stream:     null,
             items:      info_set,
+            fields:     field_set,
         };
 
         load_async( request, this, 'on_init_load', {
@@ -511,7 +521,7 @@ public_ListProvider = function( list )
 
     public_ListProvider.prototype.on_init_load = function( data, response )
     {
-        display = displib.make_object_display( response.info );
+        display = displib.make_object_display( response.info, response.fields );
         eval( 'data.obj.' + data.callback + '( display )' );
     };
 
@@ -531,14 +541,14 @@ public_ListProvider = function( list )
         this.obj_id = this.list[this.index][0];
 
         var request = {
-            action:     'stream_info',
+            action:     'info',
             target:     this.obj_id,
-            stream:     null,
             items:      info_set,
+            fields:     field_set,
         };
         response = load_sync( request );
 
-        return displib.make_object_display( response.info );
+        return displib.make_object_display( response.info, response.fields );
     };
 
     public_ListProvider.prototype.offset = function( off )
@@ -559,6 +569,7 @@ public_ListProvider = function( list )
 return {
     init: public_init,
     get_info_set: public_get_info_set,
+    get_field_set: public_get_field_set,
     all_tabs: public_all_tabs,
     register_tabs_listener: public_register_tabs_listener,
     active: public_active,

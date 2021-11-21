@@ -64,7 +64,8 @@ html, body, #app{
 }
 
 .objinfo div{
-    width: 50%;
+    text-align: center;
+    width: 33%;
     float: left;
     font-size: 80%;
     color: #666;

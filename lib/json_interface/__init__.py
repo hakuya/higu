@@ -208,6 +208,20 @@ class JsonInterface:
 
         return info
 
+    def __fetch_fields( self, fields, target ):
+
+        def read_field( target, field ):
+
+            try:
+                return target[field]
+            except KeyError:
+                return None
+
+        return {
+            f : read_field( target, f )
+            for f in fields
+        }
+
     def close( self ):
 
         pass
@@ -235,7 +249,8 @@ class JsonInterface:
 
                     args = {}
                     for arg in req_args:
-                        assert data.has_key( arg ), "%s not provided" % ( arg, )
+                        assert data.has_key( arg ), "{0} not provided for {1}".format(
+                                                        arg, data['action'] )
                         args[arg] = data[arg]
                     for arg in opt_args:
                         if( data.has_key( arg ) ):
@@ -266,17 +281,31 @@ class JsonInterface:
             higu_ver = [ hdbfs.VERSION, hdbfs.REVISION ],
             db_ver   = [ hdbfs.DB_VERSION, hdbfs.DB_REVISION ] )
 
-    def cmd_info( self, targets, items ):
+    def cmd_info( self, target = None, targets = None, items = None, fields = None ):
 
         db = self.__db
 
-        def fetch_info_fn( target ):
-            return self.__fetch_info( items, target )
+        results = {}
 
-        targets = map( db.get_object_by_id, targets )
-        results = map( fetch_info_fn, targets )
+        if( target is not None ):
+            target = db.get_object_by_id( target )
 
-        return json_ok( info = results )
+            if( items is not None ):
+                results['info'] = self.__fetch_info( items, target )
+
+            if( fields is not None ):
+                results['fields'] = self.__fetch_fields( fields, target )
+
+        if( targets is not None ):
+            targets = map( db.get_object_by_id, targets )
+
+            if( items is not None ):
+                results['info'] = map( lambda it: self.__fetch_info( items, it ), targets )
+
+            if( fields is not None ):
+                results['fields'] = map( lambda it: self.__fetch_fields( fields, it ), targets )
+
+        return json_ok( **results )
 
     def cmd_stream_info( self, target, stream, items ):
 
@@ -287,6 +316,13 @@ class JsonInterface:
 
         results = self.__fetch_info( items, target, stream = stream )
         return json_ok( info = results )
+
+    def cmd_set_field( self, target, field, value ):
+
+        target = self.__db.get_object_by_id( target )
+        target[field] = value
+
+        return json_ok()
 
     def cmd_tag( self, targets, **args ):
 
@@ -433,6 +469,7 @@ class JsonInterface:
         idx = data['index'] if( 'index' in data ) else 0
         count = data['count'] if( 'count' in data ) else None
         info = data['info'] if( 'info' in data ) else None
+        fields = data['fields'] if( 'fields' in data ) else None
 
         if( idx < 0 or idx >= results ):
             idx = 0
@@ -452,15 +489,18 @@ class JsonInterface:
                 result['first'] = self.__fetch_info( info, target, **ctx )
             else:
                 result['first'] = sel[idx]
+
+            if( fields is not None ):
+                result['fields'] = self.__fetch_fields( fields, target )
         else:
             if( info is not None ):
-                def fetch_info_fn( target ):
-                    return self.__fetch_info( items, target, **ctx )
-
                 targets = map( self.__db.get_object_by_id, sel[idx:idx+count] )
-                result['items'] = map( fetch_info_fn, targets )
+                result['items'] = map( lambda it: self.__fetch_info( items, it, **ctx ), targets )
             else:
                 result['items'] = sel[idx:idx+count]
+
+            if( fields is not None ):
+                result['fields'] = map( lambda it: self.__fetch_fields( fields, it ), targets )
 
         return json_ok( **result )
 
@@ -551,7 +591,7 @@ class JsonInterface:
         else:
             return json_err( 'argument', 'Unsupported execution action' )
 
-    def cmd_selection_fetch( self, selection, index, info = None ):
+    def cmd_selection_fetch( self, selection, index, info = None, fields = None ):
 
         sel_id = selection
         idx = index
@@ -562,11 +602,16 @@ class JsonInterface:
         except IndexError:
             return json_err( 'index', 'Invalid index' )
 
+        result = { 'object_id' : obj_id }
+        target = self.__db.get_object_by_id( obj_id )
+
         if( info is not None ):
-            target = self.__db.get_object_by_id( obj_id )
-            return json_ok( **self.__fetch_info( info, target, **sel.state ) )
-        else:
-            return json_ok( object_id = obj_id )
+            result['info'] = self.__fetch_info( info, target, **sel.state )
+
+        if( fields is not None ):
+            result['fields'] = self.__fetch_fields( fields, target )
+
+        return json_ok( **result )
 
     def cmd_selection_close( self, selection ):
 

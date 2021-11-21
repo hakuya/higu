@@ -97,6 +97,28 @@ class ObjectLabel extends React.Component
         $( this.el ).draggable( 'destroy' );
         this.componentDidMount();
     }
+    starClicked( value ) {
+        this.props.display.set_field( 'rating', value );
+    }
+    renderRatingStar( value, current ) {
+        return (
+            <a href='#' onClick={ () => { this.starClicked( value ) } }>
+                { current >= value ? "\u2605" : "\u2606" }
+            </a>
+        );
+    }
+    renderRating() {
+        var d = this.props.display;
+        return (
+            <div>
+                { this.renderRatingStar( 2, d.fields.rating ) }
+                { this.renderRatingStar( 4, d.fields.rating ) }
+                { this.renderRatingStar( 6, d.fields.rating ) }
+                { this.renderRatingStar( 8, d.fields.rating ) }
+                { this.renderRatingStar( 10, d.fields.rating ) }
+            </div>
+        );
+    }
     render() {
         var d = this.props.display;
         return (
@@ -108,6 +130,7 @@ class ObjectLabel extends React.Component
                 </div>
                 <div className='objinfo'>
                     <div>{ 'id: ' } { d.obj_id }</div>
+                    { this.renderRating() }
                     { (d.info.type == 'file' || d.info.type == 'duplicate') &&
                         <div>{ d.info.width } { 'x' } { d.info.height }</div> }
                     { (d.info.type == 'album' || d.info.type == 'published') &&
