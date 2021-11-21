@@ -1,4 +1,4 @@
-from basic_objs import *
+from hdbfs.basic_objs import *
 
 _STM_FACTORIES = []
 _OBJ_FACTORIES = []
@@ -46,7 +46,7 @@ class ModelObjToHiguObjIterator:
 
         return ModelObjToHiguObjIterator( self.db, self.it )
 
-    def next( self ):
+    def __next__( self ):
 
-        return model_obj_to_higu_obj( self.db, self.it.next() )
+        return model_obj_to_higu_obj( self.db, self.it.__next__() )
 

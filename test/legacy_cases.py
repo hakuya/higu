@@ -56,7 +56,7 @@ class LegacyCases( testutil.TestCase ):
                     'Unexpected file type found %s' % (
                         str( type( f ) ) ) )
 
-        fnames = map( lambda x: x.get_name(), files )
+        fnames = list( map( lambda x: x.get_name(), files ) )
         self.assertTrue( self.magenta in fnames,
                 'Magenta not found' )
         self.assertTrue( self.red in fnames,
@@ -91,7 +91,7 @@ class LegacyCases( testutil.TestCase ):
         self.assertEqual( len( streams ), 8,
                 'Unexpected number of streams in DB' )
 
-        hashs = map( lambda x: x.get_hash(), streams )
+        hashs = list( map( lambda x: x.get_hash(), streams ) )
         self.assertTrue( self.magenta_hash in hashs,
                 'Magenta not found' )
         self.assertTrue( self.red_hash in hashs,
@@ -383,13 +383,18 @@ class BoundSubtest:
         self.fn = fn
         self.ver = ver
 
-    def __call__( self, lself ):
+    def __call__( self, lself = None ):
+
+        print( self )
+        print( lself )
 
         lself._create_library_structure( self.ver )
         lself._init_hdbfs()
         self.fn( lself, self.ver )
 
 def build_cases():
+
+    import functools
 
     cls = LegacyCases
 
@@ -405,12 +410,21 @@ def build_cases():
             if( not item.startswith( 'subtest_' ) ):
                 continue
 
+            def decorator( fn, ver ):
+
+                def new_fn( self ):
+
+                    self._create_library_structure( ver )
+                    self._init_hdbfs()
+                    fn( self, ver )
+
+                return new_fn
+
             # For each version and sub-test, create a test
             fn = getattr( cls, item )
-            bound_fn = BoundSubtest( fn, ver ).__call__
-            setattr( cls, 'test_%d_%d_%s' % (
-                        ver[0], ver[1], item[8:] ),
-                    types.MethodType( bound_fn, None, cls ) )
+            setattr( cls,
+                     f'test_{ver[0]}_{ver[1]}_{item[8:]}',
+                     decorator( fn, ver ) )
 
 build_cases()
 

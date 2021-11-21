@@ -4,7 +4,7 @@ import sys
 
 import hdbfs
 
-import cache
+import json_interface.cache as cache
 
 VERSION = 0
 REVISION = 0
@@ -38,17 +38,17 @@ def json_err( err, emsg = None ):
 
     if( isinstance( err, KeyError ) ):
         etype = 'key'
-        emsg = err.message
+        emsg = str( err )
     elif( isinstance( err, ValueError ) ):
         etype = 'value'
-        emsg = err.message
+        emsg = str( err )
     elif( isinstance( err, str ) ):
         etype = err
         if( emsg is None ):
-            emsg = 'An %s error has occured' % ( etype, )
+            emsg = f'An {etype} error has occured'
     else:
         etype = 'unknown'
-        emsg = 'An %s error has occured' % ( str( etype ), )
+        emsg = f'An {etype!s} error has occured'
 
     if( emsg is None ):
         return {
@@ -106,7 +106,7 @@ class JsonInterface:
             info['repr'] = target.get_repr( album )
         if( 'tags' in items ):
             tags = target.get_tags()
-            info['tags'] = map( lambda x: x.get_name(), tags )
+            info['tags'] = list( map( lambda x: x.get_name(), tags ) )
         if( 'names' in items ):
             if( isinstance( target, hdbfs.File ) ):
                 info['names'] = target.get_origin_names()
@@ -118,22 +118,22 @@ class JsonInterface:
                     info['names'] = []
         if( isinstance( target, hdbfs.File ) and 'variants' in items ):
             variants = target.get_variants()
-            info['variants'] = map( make_obj_tuple, variants )
+            info['variants'] = list( map( make_obj_tuple, variants ) )
         if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
             variants_of = target.get_variants_of()
-            info['variants_of'] = map( make_obj_tuple, variants_of )
+            info['variants_of'] = list( map( make_obj_tuple, variants_of ) )
         if( isinstance( target, hdbfs.File ) and 'duplicates' in items ):
             dups = target.get_duplicates()
-            info['duplicates'] = map( make_obj_tuple, dups )
+            info['duplicates'] = list( map( make_obj_tuple, dups ) )
         if( isinstance( target, hdbfs.File ) and 'original_file' in items ):
             orig = target.get_original_file()
             info['original_file'] = make_obj_tuple( orig ) if( orig is not None ) else None
         if( isinstance( target, hdbfs.File ) and 'albums' in items ):
             albums = target.get_albums()
-            info['albums'] = map( make_obj_tuple, albums )
+            info['albums'] = list( map( make_obj_tuple, albums ) )
         if( isinstance( target, hdbfs.Album ) and 'files' in items ):
             files = target.get_files()
-            info['files'] = map( make_obj_tuple, files )
+            info['files'] = list( map( make_obj_tuple, files ) )
         if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
             try:
                 info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
@@ -175,9 +175,9 @@ class JsonInterface:
                 sizes[-1] = maxdim
 
                 if( w > h ):
-                    sizes = map( lambda x, e: ( e, x, x * h / w ), sizes, exps )
+                    sizes = list( map( lambda x, e: ( e, x, x * h / w ), sizes, exps ) )
                 else:
-                    sizes = map( lambda y, e: ( e, y * w / h, y ), sizes, exps )
+                    sizes = list( map( lambda y, e: ( e, y * w / h, y ), sizes, exps ) )
 
                 info['sizes'] = sizes
 
@@ -249,11 +249,10 @@ class JsonInterface:
 
                     args = {}
                     for arg in req_args:
-                        assert data.has_key( arg ), "{0} not provided for {1}".format(
-                                                        arg, data['action'] )
+                        assert arg in data, f'{arg} not provided for {data["action"]}'
                         args[arg] = data[arg]
                     for arg in opt_args:
-                        if( data.has_key( arg ) ):
+                        if( arg in data ):
                             args[arg] = data[arg]
                     return fn( **args )
                 else:
@@ -264,7 +263,7 @@ class JsonInterface:
                         req_args = argspec.args[1:-len( argspec.defaults )]
 
                     for arg in req_args:
-                        assert data.has_key( arg ), 'Missing arg ' + arg
+                        assert arg in data, f'Missing arg {arg}'
                     return fn( **data )
         finally:
             pass
@@ -297,13 +296,13 @@ class JsonInterface:
                 results['fields'] = self.__fetch_fields( fields, target )
 
         if( targets is not None ):
-            targets = map( db.get_object_by_id, targets )
+            targets = list( map( db.get_object_by_id, targets ) )
 
             if( items is not None ):
-                results['info'] = map( lambda it: self.__fetch_info( items, it ), targets )
+                results['info'] = list( map( lambda it: self.__fetch_info( items, it ), targets ) )
 
             if( fields is not None ):
-                results['fields'] = map( lambda it: self.__fetch_fields( fields, it ), targets )
+                results['fields'] = list( map( lambda it: self.__fetch_fields( fields, it ), targets ) )
 
         return json_ok( **results )
 
@@ -328,28 +327,26 @@ class JsonInterface:
 
         db = self.__db
 
-        targets = map( db.get_object_by_id, targets )
-
-        if( args.has_key( 'query' ) ):
-            tags = filter( lambda x: x != '', args['query'].split( ' ' ) )
+        if( 'query' in args ):
+            tags = [t for t in args['query'].split( ' ' ) if t != '']
 
             add = [t for t in tags if t[0] != '-' and t[0] != '!']
             new = [t[1:] for t in tags if t[0] == '!']
             sub = [t[1:] for t in tags if t[0] == '-']
 
         else:
-            add = args['add_tags'] if( args.has_key( 'add_tags' ) ) else []
-            sub = args['sub_tags'] if( args.has_key( 'sub_tags' ) ) else []
-            new = args['new_tags'] if( args.has_key( 'new_tags' ) ) else []
+            add = args['add_tags'] if( 'add_tags' in args ) else []
+            sub = args['sub_tags'] if( 'sub_tags' in args ) else []
+            new = args['new_tags'] if( 'new_tags' in args ) else []
 
         try:
-            add = map( db.get_tag, add )
-            sub = map( db.get_tag, sub )
-            add += map( db.make_tag, new )
-        except ( KeyError, ValueError, ), e:
+            add = list( map( db.get_tag, add ) )
+            sub = list( map( db.get_tag, sub ) )
+            add += list( map( db.make_tag, new ) )
+        except ( KeyError, ValueError, ) as e:
             return json_err( e )
 
-        for obj in targets:
+        for obj in map( db.get_object_by_id, targets ):
             for t in sub:
                 obj.unassign( t )
             for t in add:
@@ -384,7 +381,7 @@ class JsonInterface:
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.OrderedGroup ) )
 
-        items = map( db.get_object_by_id, items )
+        items = list( map( db.get_object_by_id, items ) )
         group.set_order( items )
 
         return json_ok()
@@ -394,7 +391,7 @@ class JsonInterface:
         db = self.__db
 
         tags = db.all_tags()
-        tags = map( lambda x: x.get_name(), tags )
+        tags = list( map( lambda x: x.get_name(), tags ) )
 
         return json_ok( tags = tags )
 
@@ -402,7 +399,7 @@ class JsonInterface:
 
         db = self.__db
 
-        if( data.has_key( 'mode' ) ):
+        if( 'mode' in data ):
             # Search by directive
             if( data['mode'] == 'all' ):
                 return hdbfs.query.Query().execute( db ), {}
@@ -410,11 +407,11 @@ class JsonInterface:
                 return hdbfs.query.Query().set_untagged().execute( db ), {}
             elif( data['mode'] == 'album' ):
                 album = db.get_object_by_id( data['album'] )
-                return map( lambda x: x.get_id(), album.get_files() ), \
-                       { 'album' : data['album'] }
+                return list( map( lambda x: x.get_id(), album.get_files() ) ), \
+                                    { 'album' : data['album'] }
 
         else:
-            if( data.has_key( 'query' ) ):
+            if( 'query' in data ):
                 #try:
                 if( 1 ):
                     query = hdbfs.query.Query().from_string( data['query'] )
@@ -425,11 +422,11 @@ class JsonInterface:
                 query = hdbfs.query.Query()
 
                 # Search by parts
-                if( data.has_key( 'strict' ) and data['strict'] ):
+                if( 'strict' in data and data['strict'] ):
                     query.set_strict()
 
-                if( data.has_key( 'sort' ) and not data['randomize'] ):
-                    if( data.has_key( 'rsort' ) and data['rsort'] ):
+                if( 'sort' in data and not data['randomize'] ):
+                    if( 'rsort' in data and data['rsort'] ):
                         desc = True
                     else:
                         desc = False
@@ -437,15 +434,15 @@ class JsonInterface:
                     query.add_sort( data['sort'], desc )
 
 
-                req = data['req'] if data.has_key( 'req' ) else []
-                add = data['add'] if data.has_key( 'add' ) else []
-                sub = data['sub'] if data.has_key( 'sub' ) else []
+                req = data['req'] if 'req' in data else []
+                add = data['add'] if 'add' in data else []
+                sub = data['sub'] if 'sub' in data else []
 
                 try:
-                    req = map( higu.query.create_constraint, req )
-                    add = map( higu.query.create_constraint, req )
-                    sub = map( higu.query.create_constraint, req )
-                except ( KeyError, ValueError, ), e:
+                    req = list( map( higu.query.create_constraint, req ) )
+                    add = list( map( higu.query.create_constraint, req ) )
+                    sub = list( map( higu.query.create_constraint, req ) )
+                except ( KeyError, ValueError, ) as e:
                     return json_err( e ), {}
 
             return query.execute( db ), {}
@@ -495,12 +492,12 @@ class JsonInterface:
         else:
             if( info is not None ):
                 targets = map( self.__db.get_object_by_id, sel[idx:idx+count] )
-                result['items'] = map( lambda it: self.__fetch_info( items, it, **ctx ), targets )
+                result['items'] = list( map( lambda it: self.__fetch_info( items, it, **ctx ), targets ) )
             else:
                 result['items'] = sel[idx:idx+count]
 
             if( fields is not None ):
-                result['fields'] = map( lambda it: self.__fetch_fields( fields, it ), targets )
+                result['fields'] = list( map( lambda it: self.__fetch_fields( fields, it ), targets ) )
 
         return json_ok( **result )
 
@@ -513,15 +510,15 @@ class JsonInterface:
             return json_err( 'argument', 'Expected an execution' )
 
         try:
-            action, operand = map( lambda x: x.strip(), data['exec'].split( ':', 1 ) )
+            action, operand = tuple( map( lambda x: x.strip(), data['exec'].split( ':', 1 ) ) )
         except:
             return json_err( 'argument', 'Bad execution format' )
 
         if( action == 'name' ):
             import re
 
-            parts = map( lambda x: x.replace( '\0', '/' ),
-                         operand.replace( '\\/', '\0' ).split( '/' ) )
+            parts = list( map( lambda x: x.replace( '\0', '/' ),
+                                operand.replace( '\\/', '\0' ).split( '/' ) ) )
 
             items = []
 
@@ -597,6 +594,9 @@ class JsonInterface:
         idx = index
 
         sel = self.__cache.fetch_selection( self.__session_id, sel_id )
+        if( sel is None ):
+            return json_err( 'badsel' )
+
         try:
             obj_id = sel[idx]
         except IndexError:
@@ -629,7 +629,7 @@ class JsonInterface:
 
         db = self.__db
 
-        targets = map( db.get_object_by_id, targets )
+        targets = list( map( db.get_object_by_id, targets ) )
         for target in targets:
             assert( isinstance( target, hdbfs.File ) )
 
@@ -659,8 +659,7 @@ class JsonInterface:
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.Album ) )
 
-        targets = map( db.get_object_by_id, targets )
-        for target in targets:
+        for target in map( db.get_object_by_id, targets ):
             assert( isinstance( target, hdbfs.File ) )
             target.assign( group )
 
@@ -673,8 +672,7 @@ class JsonInterface:
         group = db.get_object_by_id( group )
         assert( isinstance( group, hdbfs.Album ) )
 
-        targets = map( db.get_object_by_id, targets )
-        for target in targets:
+        for target in map( db.get_object_by_id, targets ):
             assert( isinstance( target, hdbfs.File ) )
             target.unassign( group )
 

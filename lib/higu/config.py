@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import os
 
 cfg = None
@@ -18,7 +18,7 @@ class MainConfig:
 
     def __init__( self, config ):
 
-        self.cfg = ConfigParser.SafeConfigParser()
+        self.cfg = configparser.SafeConfigParser()
         self.cfg.read( config )
         self.base = os.path.split( config )[0]
 

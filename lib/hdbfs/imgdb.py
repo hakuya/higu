@@ -4,13 +4,14 @@ import os
 import sys
 import tempfile
 
-import exif
-import model
+import hdbfs.ark
+import hdbfs.exif as exif
+import hdbfs.model as model
 
-from defs import *
-from basic_objs import *
-from hooks import *
-from obj_factory import add_obj_factory
+from hdbfs.defs import *
+from hdbfs.basic_objs import *
+from hdbfs.hooks import *
+from hdbfs.obj_factory import add_obj_factory
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -62,20 +63,35 @@ class StreamInfo:
         self.w = None
         self.h = None
         self.orientation = None
+        self.fd = None
         self.img = None
         self.origin_time = None
+
+    def __enter__( self ):
+
+        return self
+
+    def __exit__( self, type, value, tb ):
+
+        self.close()
+
+    def close( self ):
+
+        if( self.fd is not None ):
+            self.fd.close()
+            self.fd = None
+            self.img = None
 
     def get_img( self ):
 
         from PIL import Image
 
         if( self.img is None ):
-            f = self.stream.read()
-            if( f is None ):
-                return None
-
             try:
-                self.img = Image.open( f )
+                self.fd = self.stream.open()
+                self.img = Image.open( self.fd )
+            except hdbfs.ark.FileUnavailableError:
+                return None
             except:
                 LOG.warning(
                         'Failed opening image for "%s": %s',
@@ -239,6 +255,20 @@ class ImageInfo:
 
         self.origin_time = None
 
+    def __enter__( self ):
+
+        return self
+
+    def __exit__( self, type, value, tb ):
+
+        self.close()
+
+    def close( self ):
+
+        if( self.root_si is not None ):
+            self.root_si.close()
+            self.root_si = None
+
     def get_root_stream_info( self ):
 
         if( self.root_si is None ):
@@ -384,23 +414,23 @@ class ImageStream( Stream ):
 
     def get_exif( self ):
 
-        sinfo = StreamInfo( self.db, self )
-        return sinfo.get_exif()
+        with StreamInfo( self.db, self ) as sinfo:
+            return sinfo.get_exif()
 
     def get_dimensions( self ):
 
-        sinfo = StreamInfo( self.db, self )
-        return sinfo.get_dims()
+        with StreamInfo( self.db, self ) as sinfo:
+            return sinfo.get_dims()
 
     def get_origin_time( self ):
 
-        sinfo = StreamInfo( self.db, self )
-        origin_ts = sinfo.get_origin_time()
-        if( origin_ts is None ):
-            return None
+        with StreamInfo( self.db, self ) as sinfo:
+            origin_ts = sinfo.get_origin_time()
+            if( origin_ts is None ):
+                return None
 
-        return datetime.datetime\
-                .utcfromtimestamp( origin_ts )
+            return datetime.datetime\
+                    .utcfromtimestamp( origin_ts )
 
     def check_metadata( self ):
 
@@ -614,19 +644,19 @@ class ThumbCache:
 
     def get_dimensions( self, obj ):
 
-        imginfo = ImageInfo( self.imgdb, obj )
-        return imginfo.get_obj_dims()
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+            return imginfo.get_obj_dims()
 
     def get_origin_time( self, obj ):
 
-        imginfo = ImageInfo( self.imgdb, obj )
+        with ImageInfo( self.imgdb, obj ) as imginfo:
 
-        origin_ts = imginfo.get_origin_time()
-        if( origin_ts is None ):
-            return None
+            origin_ts = imginfo.get_origin_time()
+            if( origin_ts is None ):
+                return None
 
-        return datetime.datetime\
-                .utcfromtimestamp( origin_ts )
+            return datetime.datetime\
+                    .utcfromtimestamp( origin_ts )
 
     def init_stream_metadata( self, stream ):
 
@@ -636,10 +666,10 @@ class ThumbCache:
             except:
                 pass
 
-            streaminfo = StreamInfo( self.imgdb, stream )
-            streaminfo.get_origin_time()
-            streaminfo.get_dims()
-            streaminfo.get_orientation()
+            with StreamInfo( self.imgdb, stream ) as sinfo:
+                sinfo.get_origin_time()
+                sinfo.get_dims()
+                sinfo.get_orientation()
 
             stream['.metaver'] = METADATA_VERSION
 
@@ -653,9 +683,9 @@ class ThumbCache:
 
             self.init_stream_metadata( obj.get_root_stream() )
 
-            imginfo = ImageInfo( self.imgdb, obj )
-            imginfo.get_origin_time()
-            imginfo.get_dims()
+            with ImageInfo( self.imgdb, obj ) as imginfo:
+                imginfo.get_origin_time()
+                imginfo.get_dims()
 
             obj['.metaver'] = METADATA_VERSION
 
@@ -699,85 +729,87 @@ class ThumbCache:
 
         from PIL import Image
 
-        imginfo = ImageInfo( self.imgdb, obj )
+        with ImageInfo( self.imgdb, obj ) as imginfo:
 
-        gen, max_e, use_root = imginfo.get_tb_info()
+            gen, max_e, use_root = imginfo.get_tb_info()
 
-        if( exp < MIN_THUMB_EXP ):
-            exp = MIN_THUMB_EXP
+            if( exp < MIN_THUMB_EXP ):
+                exp = MIN_THUMB_EXP
 
-        if( exp >= max_e ):
-            if( use_root == 1 ):
-                return imginfo.get_root_stream()
-            else:
-                exp = max_e
-
-        t_stream = obj.get_stream( 'tb:%d' % ( exp, ) )
-        if( t_stream is not None ):
-            return t_stream
-
-        s = 2**exp
-
-        # If we're here, we need to produce a thumb
-        t = tempfile.mkstemp( '.jpg' )
-        os.close( t[0] )
-
-        # At this point, we need to create a thumb, open the file
-        try:
-            img = imginfo.get_img()
-            if( img is None ):
-                return None
-
-            w, h = imginfo.get_obj_dims( verify = True )
-            orientation = imginfo.get_orientation()
-
-            # Always operate in RGB
-            img = img.convert( 'RGB' )
-
-            # Do the rotate
-            if( orientation == 2 ):
-                img = img.transpose( Image.FLIP_LEFT_RIGHT )
-            elif( orientation == 3 ):
-                img = img.transpose( Image.ROTATE_180 )
-            elif( orientation == 4 ):
-                img = img.transpose( Image.FLIP_TOP_BOTTOM )
-            elif( orientation == 5 ):
-                img = img.transpose( Image.FLIP_LEFT_RIGHT )
-                img = img.transpose( Image.ROTATE_270 )
-            elif( orientation == 6 ):
-                img = img.transpose( Image.ROTATE_270 )
-            elif( orientation == 7 ):
-                img = img.transpose( Image.FLIP_LEFT_RIGHT )
-                img = img.transpose( Image.ROTATE_90 )
-            elif( orientation == 8 ):
-                img = img.transpose( Image.ROTATE_90 )
-
-            # Do the resize
-            if( w > s or h > s ):
-                if( w > h ):
-                    tw = s
-                    th = h * s / w
+            if( exp >= max_e ):
+                if( use_root == 1 ):
+                    return imginfo.get_root_stream()
                 else:
-                    tw = w * s / h
-                    th = s
+                    exp = max_e
 
-                img = img.resize( ( tw, th, ), Image.ANTIALIAS )
+            t_stream = obj.get_stream( f'tb:{exp}' )
+            if( t_stream is not None ):
+                return t_stream
 
-            # Save the image
-            img.save( t[1] )
+            s = 2**exp
 
-            # Now load the thumb into the database
-            return obj.db.register_thumb( t[1], obj,
-                                          imginfo.get_root_stream(),
-                                          'tb:%d' % ( exp, ) )
+            # If we're here, we need to produce a thumb
+            t = tempfile.mkstemp( '.jpg' )
+            os.close( t[0] )
 
-        except IOError:
-            return None
+            # At this point, we need to create a thumb, open the file
+            try:
+                img = imginfo.get_img()
+                if( img is None ):
+                    return None
+
+                w, h = imginfo.get_obj_dims( verify = True )
+                orientation = imginfo.get_orientation()
+
+                # Always operate in RGB
+                img = img.convert( 'RGB' )
+
+                # Do the rotate
+                if( orientation == 2 ):
+                    img = img.transpose( Image.FLIP_LEFT_RIGHT )
+                elif( orientation == 3 ):
+                    img = img.transpose( Image.ROTATE_180 )
+                elif( orientation == 4 ):
+                    img = img.transpose( Image.FLIP_TOP_BOTTOM )
+                elif( orientation == 5 ):
+                    img = img.transpose( Image.FLIP_LEFT_RIGHT )
+                    img = img.transpose( Image.ROTATE_270 )
+                elif( orientation == 6 ):
+                    img = img.transpose( Image.ROTATE_270 )
+                elif( orientation == 7 ):
+                    img = img.transpose( Image.FLIP_LEFT_RIGHT )
+                    img = img.transpose( Image.ROTATE_90 )
+                elif( orientation == 8 ):
+                    img = img.transpose( Image.ROTATE_90 )
+
+                # Do the resize
+                if( w > s or h > s ):
+                    if( w > h ):
+                        tw = s
+                        th = int( round( h * s / w ) )
+                    else:
+                        tw = int( round( w * s / h ) )
+                        th = s
+
+                    img = img.resize( ( tw, th, ), Image.ANTIALIAS )
+
+                # Save the image
+                img.save( t[1] )
+
+                # Now load the thumb into the database
+                return obj.db.register_thumb( t[1], obj,
+                                              imginfo.get_root_stream(),
+                                              f'tb:{exp}' )
+
+            except IOError:
+                return None
 
     def purge_thumbs( self, obj ):
 
         obj.drop_expendable_streams()
-        ImageInfo( self.imgdb, obj ).get_tb_info( True )
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+            imginfo.get_tb_info( True )
 
 def _img_stream_factory( db, stream ):
 

@@ -6,48 +6,50 @@
 HIGUHOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $HIGUHOME
 
+PYTHON=python3
+
 export PYTHONPATH=./lib:./test
 
 if [ -z $1 ] || [ $1 == "req" ]; then
     echo 'Testing system requirements to run HIGU'
     echo '============================================================'
-    python test/req_cases.py $2 || exit $?
+    $PYTHON test/req_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "imgdb" ]; then
     echo 'Testing image database functions'
     echo '============================================================'
-    python test/imgdb_cases.py $2 || exit $?
+    $PYTHON test/imgdb_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_core" ]; then
     echo 'Testing HDBFS core library and database functions'
     echo '============================================================'
-    python test/higu_cases.py $2 || exit $?
+    $PYTHON test/higu_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_query" ]; then
     echo 'Testing HDBFS core library query functions'
     echo '============================================================'
-    python test/query_cases.py $2 || exit $?
+    $PYTHON test/query_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_thumb" ]; then
     echo 'Testing HDBFS thumbnail functions'
     echo '============================================================'
-    python test/thumb_cases.py $2 || exit $?
+    $PYTHON test/thumb_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "insert" ]; then
     echo 'Testing insertfile script'
     echo '============================================================'
-    python test/insert_cases.py $2 || exit $?
+    $PYTHON test/insert_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "web" ]; then
     echo 'Testing web session'
     echo '============================================================'
-    python test/websession_cases.py $2 || exit $?
+    $PYTHON test/websession_cases.py $2 || exit $?
 fi
 
 if [ -z $1 ] || [ $1 == "legacy" ]; then
@@ -57,5 +59,5 @@ if [ -z $1 ] || [ $1 == "legacy" ]; then
 
     echo 'Testing legacy support'
     echo '============================================================'
-    python test/legacy_cases.py || exit $?
+    $PYTHON test/legacy_cases.py || exit $?
 fi

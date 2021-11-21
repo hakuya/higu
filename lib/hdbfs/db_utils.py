@@ -96,13 +96,13 @@ class DatabaseFile:
 
     def backup( self ):
 
-        with file( self.__file, 'rb' ) as f:
+        with open( self.__file, 'rb' ) as f:
             n = 0
             while( 1 ):
                 if( not os.path.isfile( self.__file + '.bak' + str( n ) ) ):
                     break
                 n += 1
-            with file( self.__file + '.bak' + str( n ), 'wb' ) as g:
+            with open( self.__file + '.bak' + str( n ), 'wb' ) as g:
                 while( 1 ):
                     buff = f.read( 1024 )
                     if( len( buff ) == 0 ):

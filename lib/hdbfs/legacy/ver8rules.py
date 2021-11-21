@@ -25,28 +25,28 @@ class LinkedDuplicateIterator:
 
         return self
 
-    def next( self ):
+    def __next__( self ):
 
         while True:
-            ( obj_id, ) = self.__iter.next()
+            ( obj_id, ) = self.__iter.__next__()
 
             try:
                 self.__session.execute( 'SELECT id FROM objl WHERE dup = :obj',
-                                        { 'obj' : obj_id } ).__iter__().next()
+                                        { 'obj' : obj_id } ).__iter__().__next__()
                 return obj_id
             except StopIteration:
                 pass
 
             try:
                 self.__session.execute( 'SELECT parent FROM rel2 WHERE child = :obj',
-                                        { 'obj' : obj_id } ).__iter__().next()
+                                        { 'obj' : obj_id } ).__iter__().__next__()
                 return obj_id
             except StopIteration:
                 pass
 
             try:
                 self.__session.execute( 'SELECT child FROM rel2 WHERE parent = :obj',
-                                        { 'obj' : obj_id } ).__iter__().next()
+                                        { 'obj' : obj_id } ).__iter__().__next__()
                 return obj_id
             except StopIteration:
                 pass

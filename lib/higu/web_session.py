@@ -3,18 +3,11 @@ import calendar
 import os
 import time
 
-import model
+import higu.model as model
 
 WEB_SESSION_DB_NAME = 'websdb.dat'
 
 DEFAULT_EXPIRY_SECS = 60 * 60
-
-def ensure_string( s ):
-
-    if( isinstance( s, unicode ) ):
-        return s.encode( 'utf-8' )
-    else:
-        return str( s )
 
 class WebSessionAccess:
 
@@ -105,8 +98,12 @@ class WebSessionAccess:
                 self.__db_session.commit()
                 return False
 
-            password = ensure_string( password )
-            password_hash = ensure_string( user_info.password_hash )
+            password = str( password ).encode( 'utf8' )
+            password_hash = user_info.password_hash
+
+            # Not sure why this comes back unicode sometimes
+            if( isinstance( password_hash, str ) ):
+                password_hash = password_hash.encode( 'ascii' )
 
             if( bcrypt.hashpw( password, password_hash ) == password_hash ):
                 session.user_id = user_info.user_id
@@ -159,7 +156,7 @@ class WebSessionAccess:
                 self.__db_session.commit()
                 return False
 
-            password = ensure_string( password )
+            password = str( password ).encode( 'utf8' )
 
             password_hash = bcrypt.hashpw( password, bcrypt.gensalt( 14 ) )
             user_info = model.User( user_name, password_hash )
@@ -212,7 +209,7 @@ class WebSessionAccess:
                 self.__db_session.commit()
                 return False
 
-            password = ensure_string( password )
+            password = str( password ).encode( 'utf8' )
 
             user_info.password_hash = bcrypt.hashpw( password, bcrypt.gensalt( 14 ) )
 

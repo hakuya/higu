@@ -1,6 +1,6 @@
 import sys
 
-from defs import *
+from hdbfs.defs import *
 
 _PRE_COMMIT_HOOKS = []
 _POST_COMMIT_HOOKS = []

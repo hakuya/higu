@@ -1,4 +1,4 @@
-import config
-import server
-import model
-import web_session
+import higu.config
+import higu.server
+import higu.model
+import higu.web_session

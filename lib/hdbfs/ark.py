@@ -3,6 +3,11 @@ import shutil
 import tempfile
 import zipfile
 
+class FileUnavailableError( Exception ):
+
+    def __init__( self ):
+        Exception.__init__( self )
+
 class ZipVolume:
 
     def __init__( self, path ):
@@ -22,20 +27,20 @@ class ZipVolume:
                 id = int( ids, 16 )
                 self.ls[id] = i
             except:
-                print 'WARNING: %s not loaded from zip' % ( i.filename, )
+                print( f'WARNING: {i.filename} not loaded from zip' )
                 pass
 
     def verify( self ):
 
         return self.zf.testzip() is None
 
-    def read( self, id, extension ):
+    def open( self, id, extension ):
 
         try:
             info = self.ls[id]
             return self.zf.open( info, 'r' )
         except KeyError:
-            return None
+            raise FileUnavailableError()
 
     def _debug_write( self, id, extension ):
 
@@ -68,7 +73,7 @@ class FileVolume:
 
         return True
 
-    def read( self, id, priority, extension ):
+    def open( self, id, priority, extension ):
 
         p = self.__get_path( id, priority, extension )
 
@@ -78,12 +83,12 @@ class FileVolume:
             p = tcp[0]
 
         if( not os.path.isfile( p ) ):
-            return None
+            raise FileUnavailableError()
         else:
             try:
                 return open( p, 'rb' )
             except IndexError:
-                return None
+                raise FileUnavailableError()
 
     def _debug_write( self, id, priority, extension ):
 
@@ -92,7 +97,7 @@ class FileVolume:
         try:
             return open( p, 'wb' )
         except IndexError:
-            return None
+            raise FileUnavailableError()
 
     def get_state( self ):
 
@@ -199,7 +204,7 @@ class StreamDatabase:
 
     def __get_volume( self, vol_id ):
 
-        if( self.volumes.has_key( vol_id ) ):
+        if( vol_id in self.volumes ):
             return self.volumes[vol_id]
 
         vol = FileVolume( self.data_config, vol_id )
@@ -338,10 +343,10 @@ class StreamDatabase:
         v = self.__get_vol_for_id( id )
         v.delete( id, priority, extension )
 
-    def read( self, id, priority, extension ):
+    def open( self, id, priority, extension ):
 
         v = self.__get_vol_for_id( id )
-        return v.read( id, priority, extension )
+        return v.open( id, priority, extension )
 
     def _debug_write( self, id, priority, extension ):
 

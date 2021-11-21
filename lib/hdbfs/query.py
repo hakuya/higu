@@ -3,7 +3,7 @@ import datetime
 
 import hdbfs
 
-import model
+import hdbfs.model as model
 
 class TagConstraint:
 
@@ -159,7 +159,7 @@ def QueryInt( v, ceil = False ):
         dday = int( date_str[2] ) if( len( date_str ) >= 3 ) else 1
 
         if( len( date_str ) >= 4 ):
-            raise ValueError
+            raise ValueError()
 
         if( time_str is not None and len( date_str ) >= 3 ):
             time_str = time_str.split( ':' )
@@ -168,7 +168,7 @@ def QueryInt( v, ceil = False ):
             tsec = int( time_str[2] ) if( len( time_str ) >= 3 ) else 0
 
             if( len( time_str ) >= 4 ):
-                raise ValueError
+                raise ValueError()
         else:
             hour = 0
             tmin = 0
@@ -335,7 +335,7 @@ class Query:
                     key = s[2:]
 
                 if( key in [ 'id', 'tagc' ] ):
-                    raise ValueError, 'Bad Parameter Constraint'
+                    raise ValueError( 'Bad Parameter Constraint' )
                 elif( key == 'name' ):
                     return NameConstraint( '!=' if( not_null ) else '=', None )
                 else:
@@ -362,7 +362,7 @@ class Query:
                     except ValueError:
                         pass
                 else:
-                    raise ValueError, 'Bad Parameter Constraint'
+                    raise ValueError( 'Bad Parameter Constraint' )
         else:
             return UnboundConstraint( s )
 
@@ -372,7 +372,7 @@ class Query:
 
         if( cmd[0] == 'sort' ):
             if( len( cmd ) < 2 ):
-                raise ValueError, 'Sort command needs an argument'
+                raise ValueError( 'Sort command needs an argument' )
 
             desc = False
 
@@ -383,14 +383,14 @@ class Query:
 
         elif( cmd[0] == 'type' ):
             if( len( cmd ) < 2 ):
-                raise ValueError, 'Type command needs an argument'
+                raise ValueError( 'Type command needs an argument' )
 
             if( cmd[1] == 'file' ):
                 self.set_type( hdbfs.TYPE_FILE );
             elif( cmd[1] == 'album' ):
                 self.set_type( hdbfs.TYPE_ALBUM );
             else:
-                raise ValueError, 'Bad type'
+                raise ValueError( 'Bad type' )
 
         elif( cmd[0] == 'expand' ):
             self.set_expand()
@@ -399,7 +399,7 @@ class Query:
             self.set_untagged()
 
         else:
-            raise ValueError, 'Bad Command'
+            raise ValueError( 'Bad Command' )
 
     def from_string( self, s ):
 
@@ -411,7 +411,8 @@ class Query:
         sub = [i[1:] for i in clauses if( i[0] == '!' )]
         req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
 
-        map( self.__process_command, commands )
+        for c in commands:
+            self.__process_command( c )
 
         self.__req_constraints.extend( map( self.__create_constraint, req ) )
         self.__or_constraints.extend( map( self.__create_constraint, add ) )
@@ -473,19 +474,19 @@ class Query:
         q_order = None
 
         if( len( self.__or_constraints ) > 0 ):
-            add_q = map( to_db_c, self.__or_constraints )
+            add_q = list( map( to_db_c, self.__or_constraints ) )
             add_q = add_q[0].union( *add_q[1:] )
         else:
             add_q = None
 
         if( len( self.__not_constraints ) > 0 ):
-            sub_q = map( to_db_c, self.__not_constraints )
+            sub_q = list( map( to_db_c, self.__not_constraints ) )
             sub_q = sub_q[0].union( *sub_q[1:] )
         else:
             sub_q = None
 
         if( len( self.__req_constraints ) > 0 ):
-            req_q = map( to_db_c, self.__req_constraints )
+            req_q = list( map( to_db_c, self.__req_constraints ) )
             req_q = req_q[0].intersect( *req_q[1:] )
         else:
             req_q = None

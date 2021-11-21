@@ -366,8 +366,8 @@ def init( database_file, imgdb_path ):
     global dbfile
     global Session
 
-    import db_utils
-    import legacy
+    import hdbfs.db_utils as db_utils
+    import hdbfs.legacy as legacy
 
     migrators = {
         'hdbfs' : legacy.HDBFSMigrator( _init_schema ),

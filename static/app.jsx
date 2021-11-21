@@ -80,7 +80,9 @@ class QueryBox extends React.Component
 class Header extends React.Component
 {
     render() {
-        if( document.username != null ) {
+        var username = localStorage.getItem( 'username' );
+
+        if( username != null ) {
             return (
                 <div id="header">
                     <a href='/do_logout'>logout</a> { ' / ' }
@@ -88,10 +90,10 @@ class Header extends React.Component
                     <QueryLink mode='untagged' tabTitle='Untagged' label='untagged'/> { ' / ' }
                     <SelectionLink/> { ' / ' }
                     <TaglistLink/> { ' / ' }
-                    { document.username == 'admin' &&
+                    { username == 'admin' &&
                         <AdminLink/>
                     }
-                    { document.username == 'admin' && ' / ' }
+                    { username == 'admin' && ' / ' }
                     <QueryBox/>
                 </div>
              );

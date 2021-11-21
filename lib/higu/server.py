@@ -2,19 +2,18 @@ import cherrypy
 import os
 import uuid
 import time
-import config
 import json
 
+import higu.config as config
 
-from genshi.template import TemplateLoader
+import higu.model as model
+import higu.thumb_generator as thumb_generator
+import higu.web_session as web_session
+
+from higu.html import TextFormatter, HtmlGenerator
 
 import hdbfs
 import json_interface
-import model
-import thumb_generator
-import web_session
-
-from html import TextFormatter, HtmlGenerator
 
 _json = json
 
@@ -25,15 +24,15 @@ CONFIG={
         'tools.encode.on'       : True,
         'tools.encode.encoding' : 'utf-8',
     },
+    '/index' : {
+        'tools.staticfile.on' : True,
+        'tools.staticfile.filename' : os.path.join( os.getcwd(), 'html/index.html' ),
+    },
     '/static' : {
         'tools.staticdir.on' : True,
         'tools.staticdir.dir' : os.path.join( os.getcwd(), 'static' ),
     },
 }
-
-loader = TemplateLoader(
-    os.path.join( os.getcwd(), 'templates' ),
-    auto_reload = True )
 
 class Server:
 
@@ -79,23 +78,6 @@ class Server:
         return int( self.cfg['port'] )
 
     @cherrypy.expose
-    def index( self ):
-
-        db, username, is_admin, session_id = self.__get_session()
-
-        tmpl = loader.load( 'index.html' )
-        stream = tmpl.generate( username = username,
-                                is_admin = is_admin )
-        return stream.render( 'html', doctype = 'html' )
-
-    @cherrypy.expose
-    def login( self ):
-
-        tmpl = loader.load( 'tabs/login.html' )
-        stream = tmpl.generate()
-        return stream.render( 'html', doctype = 'html' )
-
-    @cherrypy.expose
     def do_login( self, username, password, json = 0 ):
 
         access = web_session.WebSessionAccess()
@@ -103,68 +85,25 @@ class Server:
 
         success = access.login( session_id, username, password )
 
-        if( json ):
-            cherrypy.response.headers['Content-Type'] = 'application/json'
-            return _json.dumps( {
-                        'username' : username,
-                        'session_id' : session_id if( success ) else None,
-                        'success' : success
-                    } )
-        else:
-            tmpl = loader.load( 'login.html' )
-            stream = tmpl.generate( username = username,
-                                    success = success )
-            return stream.render( 'html', doctype = 'html' )
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        return _json.dumps( {
+                    'username' : username,
+                    'session_id' : session_id if( success ) else None,
+                    'success' : success
+                } ).encode( 'utf8' )
 
     @cherrypy.expose
     def do_logout( self ):
+
+        from cherrypy.lib.static import serve_file
 
         access = web_session.WebSessionAccess()
         session_id = self.__get_session_id( access )
 
         access.logout( session_id )
 
-        tmpl = loader.load( 'logout.html' )
-        stream = tmpl.generate()
-        return stream.render( 'html', doctype = 'html' )
-
-    @cherrypy.expose
-    def admin( self ):
-
-        tmpl = loader.load( 'tabs/admin.html' )
-        stream = tmpl.generate()
-        return stream.render( 'html', doctype = 'html' )
-
-    @cherrypy.expose
-    def taglist( self ):
-
-        db = self.__get_session()[0]
-        all_tags = db.all_tags()
-
-        tmpl = loader.load( 'tabs/taglist.html' )
-        stream = tmpl.generate( taglist = all_tags )
-        return stream.render( 'html', doctype = 'html' )
-
-    @cherrypy.expose
-    def info( self, id ):
-
-        db = self.__get_session()[0]
-        obj = db.get_object_by_id( id )
-
-        info = {
-            'id'    : id,
-            'repr'  : obj.get_repr(),
-            'type'  : obj.get_type(),
-            'tags'  : map( lambda x: x.get_name(),
-                           obj.get_tags() ),
-        }
-
-        if( isinstance( obj, hdbfs.File ) ):
-            info['names'] = obj.get_origin_names()
-
-        tmpl = loader.load( 'tabs/display/info.html' )
-        stream = tmpl.generate( hdbfs = hdbfs, info = info )
-        return stream.render( 'html', doctype = 'html' )
+        return serve_file( os.path.join( os.getcwd(), 'html/logout.html' ),
+                           content_type = 'text/html' )
 
     @cherrypy.expose
     def callback_new( self ):
@@ -181,14 +120,13 @@ class Server:
 
         jsif.close()
 
-        return json.dumps( result )
+        return json.dumps( result ).encode( 'utf8' )
 
     @cherrypy.expose
     def img( self, id = None, exp = None, gen = None, stream = None ):
 
-        db = self.__get_session()[0]
+        with self.__get_session()[0] as db:
 
-        try:
             if( stream is not None ):
                 stream = db.get_stream_by_id( stream )
                 rep = stream
@@ -217,11 +155,10 @@ class Server:
 
                 rep = f
 
-            p = stream.read()
             mime = stream.get_mime()
             name = rep.get_repr()
-        finally:
-            db.close()
+
+            p = stream.open()
 
         cherrypy.response.headers["Content-Type"] = mime
         cherrypy.response.headers["Content-Disposition"] = 'filename="%s"' % name
@@ -239,7 +176,7 @@ class Server:
 
 def _background_thumb_generator():
 
-    print 'Running thumb generator'
+    print( 'Running thumb generator' )
     gen = thumb_generator.ThumbGenerator()
 
     while( True ):
@@ -259,7 +196,7 @@ def start():
     CONFIG['global']['server.socket_host'] = server.get_host()
     CONFIG['global']['server.socket_port'] = server.get_port()
 
-    print 'Starting server'
+    print( 'Starting server' )
     cherrypy.quickstart( server, config=CONFIG )
 
 # vim:sts=4:et:sw=4

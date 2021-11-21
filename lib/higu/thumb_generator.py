@@ -43,7 +43,7 @@ class ThumbGenerator:
                 return
 
             if( isinstance( obj, hdbfs.ImageFile ) ):
-                print 'Generating thumbs and meta for file', obj.get_id()
+                print( f'Generating thumbs and meta for file {obj!r}' )
                 obj.check_metadata()
 
                 time.sleep( sleep )
@@ -57,7 +57,7 @@ class ThumbGenerator:
                 #        time.sleep( sleep )
 
             elif( isinstance( obj, hdbfs.Album ) ):
-                print 'Generating metadata for album', obj.get_id()
+                print( f'Generating metadata for album {obj!r}' )
                 obj.check_metadata()
 
                 db.tbcache.init_album_metadata( obj )

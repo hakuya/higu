@@ -11,14 +11,14 @@ def str2hex( str ):
     for c in str:
         if( isinstance( c, int ) ):
             # Python 3 compatibility
-            xstr += "%02x" % ( c )
+            xstr += "{:02x}".format( c )
         else:
-            xstr += "%02x" % ( ord( c ) )
+            xstr += "{:02x}".format( ord( c ) )
     return xstr.lower()
 
 class crc32:
     def __init__( self ):
-        self.__value = zlib.crc32( "" )
+        self.__value = zlib.crc32( bytearray() )
 
     def update( self, str ):
         self.__value = zlib.crc32( str, self.__value )

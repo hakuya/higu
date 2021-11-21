@@ -1,10 +1,11 @@
 import datetime
 
-import model
+import hdbfs.ark
+import hdbfs.model as model
 
-from defs import *
-from hash import calculate_details
-from obj_factory import *
+from hdbfs.defs import *
+from hdbfs.hash import calculate_details
+from hdbfs.obj_factory import *
 
 class Stream:
 
@@ -82,33 +83,32 @@ class Stream:
         with self.db._access():
             return self.stream.mime_type
 
-    def read( self ):
+    def open( self ):
 
         with self.db._access():
-            return self.db.imgdb.read( self.stream.stream_id,
+            return self.db.imgdb.open( self.stream.stream_id,
                                        self.stream.priority,
                                        self.stream.extension  )
 
     def verify( self ):
 
         with self.db._access():
-            fd = self.read()
+            try:
+                with self.open() as fd:
+                    details = calculate_details( fd )
 
-            if( fd is None ):
-                return False
+                    if( details[0] != self.stream.stream_length ):
+                        return False
+                    if( details[1] != self.stream.hash_crc32 ):
+                        return False
+                    if( details[2] != self.stream.hash_md5 ):
+                        return False
+                    if( details[3] != self.stream.hash_sha1 ):
+                        return False
 
-            details = calculate_details( fd )
-
-            if( details[0] != self.stream.stream_length ):
+                    return True
+            except hdbfs.ark.FileUnavailableError:
                 return False
-            if( details[1] != self.stream.hash_crc32 ):
-                return False
-            if( details[2] != self.stream.hash_md5 ):
-                return False
-            if( details[3] != self.stream.hash_sha1 ):
-                return False
-
-            return True
 
     def _drop_data( self ):
 
@@ -122,15 +122,16 @@ class Stream:
 
     def __str__( self ):
 
-        return '{0!s}:{1}'.format( self.get_file(), self.get_name() )
+        return f'{self.get_file()!s}:{self.get_name()}'
 
     def __repr__( self ):
 
-        return 'Stream( {0}, id={1}, obj={2}, mime={3} )'.format(
-                    self.get_name(),
-                    self.get_stream_id(),
-                    self.stream.object_id,
-                    self.stream.mime_type )
+        name = self.get_name()
+        id = self.get_stream_id()
+        obj = self.stream.object_id
+        mime = self.stream.mime_type
+
+        return f'Stream( {name}, {id=}, {obj=}, {mime=} )'
 
     def __getitem__( self, key ):
 
@@ -181,7 +182,7 @@ class Obj:
 
         with self.db._access():
             objs = [ obj for obj in self.obj.parents if obj.object_type in obj_type ]
-            return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
+            return list( map( lambda x: model_obj_to_higu_obj( self.db, x ), objs ) )
 
     def get_children( self, obj_type ):
 
@@ -189,7 +190,7 @@ class Obj:
 
         with self.db._access():
             objs = [ obj for obj in self.obj.children if obj.object_type in obj_type ]
-            return map( lambda x: model_obj_to_higu_obj( self.db, x ), objs )
+            return list( map( lambda x: model_obj_to_higu_obj( self.db, x ), objs ) )
 
     def get_creation_time( self ):
 
@@ -213,7 +214,7 @@ class Obj:
                         and_( model.Object.object_type == TYPE_CLASSIFIER,
                               model.Object.children.contains( self.obj ) ) )
                              .order_by( model.Object.name ) ]
-            return map( lambda x: Tag( self.db, x ), tag_objs )
+            return list( map( lambda x: Tag( self.db, x ), tag_objs ) )
 
     def __assign_duplicate( self, parent, rel ):
 
@@ -392,7 +393,7 @@ class Obj:
                     .filter( model.Relation.child_id == self.obj.object_id ) \
                     .first()
             if( rel is None ):
-                raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
+                raise ValueError( f'{self!s} is not in {group!s}' )
             rel.sort = order
 
     def get_order( self, group ):
@@ -402,7 +403,7 @@ class Obj:
                     .filter( model.Relation.parent_id == group.obj.object_id ) \
                     .filter( model.Relation.child_id == self.obj.object_id ).first()
             if( rel is None ):
-                raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
+                raise ValueError( f'{self!s} is not in {group!s}' )
             return rel.sort
         
     def get_name( self, group = None ):
@@ -425,7 +426,7 @@ class Obj:
                         .filter( model.Relation.parent_id == group.obj.object_id ) \
                         .filter( model.Relation.child_id == self.obj.object_id ).first()
                 if( rel is None ):
-                    raise ValueError, '{0} is not in {1}'.format( str( self ), str( group ) )
+                    raise ValueError( f'{self!s} is not in {group!s}' )
                 else:
                     rel.child_name = name
             else:
@@ -449,11 +450,13 @@ class Obj:
 
     def __repr__( self ):
 
+        id = self.obj.object_id
         name = self.get_name()
+
         if( name is None ):
-            return 'Object( id={0} )'.format( self.obj.object_id )
+            return f'Object( {id=} )'
         else:
-            return 'Object( "{0}", id={1} )'.format( self.get_name(), self.obj.object_id )
+            return f'Object( "{name}", {id=} )'
 
     def __getitem__( self, key ):
 

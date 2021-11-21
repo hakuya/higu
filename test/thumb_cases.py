@@ -36,9 +36,10 @@ class ThumbCases( testutil.TestCase ):
         self.assertFalse( thumb_stream.get_stream_id()
                        == root_stream.get_stream_id(),
                           'Root returned for small thumb' )
-        self.assertFalse( self._diff( root_stream.read(),
-                                      thumb_stream.read() ),
-                'Smaller thumb stream identical' )
+        with root_stream.open() as fd_root:
+            with thumb_stream.open() as fd_thumb:
+                self.assertFalse( self._diff( fd_root, fd_thumb ),
+                        'Smaller thumb stream identical' )
         self.assertTrue( thumb_stream.get_priority()
                       == hdbfs.model.SP_EXPENDABLE,
                          'Thumb priority not set correctly' )

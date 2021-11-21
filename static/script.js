@@ -36,6 +36,8 @@ function load_async( request, obj, callback, data )
         success:        function( response ) {
             if( response.result == 'err' && response.except == 'nosession' ) {
                 alert( 'Your session has expired' );
+                localStorage.removeItem( 'username' );
+                localStorage.removeItem( 'session_id' );
                 document.location.href = '/';
                 return null;
             }
@@ -70,6 +72,8 @@ function load_sync( request )
 
     if( result != null && result.result == 'err' && result.except == 'nosession' ) {
         alert( 'Your session has expired' );
+        localStorage.removeItem( 'username' );
+        localStorage.removeItem( 'session_id' );
         document.location.href = '/';
         return null;
     }

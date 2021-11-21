@@ -15,10 +15,8 @@ class RequirementCases( unittest.TestCase ):
         import sys
 
         ver = sys.version_info
-        self.assertEqual( ver[0], 2,
-                'Only Python 2.x series is supported' )
-        self.assertTrue( ver[1] >= 6,
-                'Python must be at least version 2.6' )
+        self.assertEqual( ver[0], 3,
+                'Only Python 3.x series is supported' )
 
     def test_cherrypy( self ):
 
@@ -27,7 +25,7 @@ class RequirementCases( unittest.TestCase ):
         except ImportError:
             self.fail( 'CherryPy is not installed' )
 
-        ver = map( lambda x: int( x ), cherrypy.__version__.split( '.' ) )
+        ver = list( map( lambda x: int( x ), cherrypy.__version__.split( '.' ) ) )
 
         self.assertTrue( ver[0] > 3 or (ver[0] == 3 and ver[1] >= 1),
                 'CherryPy must be at least version 3.1' )
@@ -39,29 +37,22 @@ class RequirementCases( unittest.TestCase ):
         except ImportError:
             self.fail( 'SqlAlchemy is not installed' )
 
-        ver = map( lambda x: int( x ), sqlalchemy.__version__.split( '.' ) )
+        ver = list( map( lambda x: int( x ), sqlalchemy.__version__.split( '.' ) ) )
 
         self.assertTrue( ver[0] > 0 or ver[1] >= 5,
                 'SqlAlchemy must be at least version 0.5' )
 
-    def test_genshi( self ):
-
-        try:
-            import genshi.template
-        except ImportError:
-            self.fail( 'genshi is not installed' )
-
     def test_pil( self ):
 
         try:
-            from PIL import Image
+            import PIL
         except ImportError:
             self.fail( 'PIL is not installed' )
 
-        ver = map( lambda x: int( x ), Image.VERSION.split( '.' ) )
+        ver = list( map( lambda x: int( x ), PIL.__version__.split( '.' ) ) )
 
         self.assertTrue( ver[0] >= 1,
-                'PIL must be at least version 1.0' )
+                'PIL must be at least version 2.0' )
 
     def test_bcrypt( self ):
 

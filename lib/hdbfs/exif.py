@@ -1,51 +1,54 @@
-from PIL import ExifTags
+import sys
 
+from hdbfs.defs import *
+
+from PIL import ExifTags
 
 IGNORED_EXIF_TAGS = [ 0x927c, 0x8769, 0xc4a5 ]
 
 def _decode_exif_unknown_inner( s ):
 
-    if( isinstance( s, unicode ) ):
+    if( isinstance( s, str ) ):
         # Already unicode, we're good to go
         return s
 
-    if( not isinstance( s, str ) ):
+    if( not isinstance( s, bytes ) ):
         # Probably a number
         return str( s )
 
     try:
         if( len( s ) > 8 ):
             # The type is specified in the first 8 bytes of the buffer
-            if( s[0:8] == 'UNICODE\0' ):
-                return unicode( s[8:].decode( 'utf_16_le' ) )
-            elif( s[0:8] == 'JIS\0\0\0\0\0' ):
-                return unicode( s[8:].decode( 'iso2022_jp' ) )
-            elif( s[0:8] == 'ASCII\0\0\0' ):
+            if( s[0:8] == b'UNICODE\0' ):
+                return s[8:].decode( 'utf_16_le' )
+            elif( s[0:8] == b'JIS\0\0\0\0\0' ):
+                return s[8:].decode( 'iso2022_jp' )
+            elif( s[0:8] == b'ASCII\0\0\0' ):
                 # Theoretically ASCII, but sometimes utf8 gets pumped in
                 for enc in [ 'ascii', 'utf_8' ]:
                     try:
-                        return unicode( s[8:].decode( enc ) )
+                        return s[8:].decode( enc )
                     except:
                         pass
-                return unicode( s[8:], errors='replace' )
-            elif( s[0:8] == '\0\0\0\0\0\0\0\0' ):
+                return s[8:].decode( 'utf_8', 'replace' )
+            elif( s[0:8] == b'\0\0\0\0\0\0\0\0' ):
                 # Unspecified, drop the header and fall down for our
                 # fallback processing
                 s = s[8:]
 
-        if( len( s ) > 2 and s[-2:] == '\0\0' ):
+        if( len( s ) > 2 and s[-2:] == b'\0\0' ):
             # If there are two NULL terminators, it's a utf16
             # null terminator
-            return unicode( s.decode( 'utf_16_le' ) )
+            return s.decode( 'utf_16_le' )
         else:
             # Try to take it as utf8
-            return unicode( s.decode( 'utf_8' ) )
+            return s.decode( 'utf_8' )
 
     except:
         pass
 
     # *shrugs*, power it into unicode
-    return unicode( s, errors='replace' )
+    return s.decode( 'utf_8', 'replace' )
 
 def _decode_exif_unknown( s ):
 
@@ -60,33 +63,31 @@ def _decode_exif_gps( gps_v ):
     def _dms( dms, axis ):
 
         if( dms[0][0] % dms[0][1] != 0 ):
-            return u'{0}\u00b0 {1}'.format(
-                        1.0 * dms[0][0] / dms[0][1],
-                        str( axis ) )
-        elif( dms[1][0] % dms[1][1] != 0 ):
-            return u'{0}\u00b0{1}\'{2}'.format(
-                        dms[0][0] / dms[0][1],
-                        1.0 * dms[1][0] / dms[1][1],
-                        str( axis ) )
-        else:
-            return u'{0}\u00b0{1}\'{2}"{3}'.format(
-                        dms[0][0] / dms[0][1],
-                        dms[1][0] / dms[1][1],
-                        1.0 * dms[2][0] / dms[2][1],
-                        str( axis ) )
+            d = float( dms[0][0] / dms[0][1] )
+            return f'{d}\u00b0 {axis!s}'
 
-    return u'{0} {1}'.format(
-                _dms( gps_v[0x0002], gps_v[0x0001] ),
-                _dms( gps_v[0x0004], gps_v[0x0003] ) )
+        elif( dms[1][0] % dms[1][1] != 0 ):
+            d = int( dms[0][0] // dms[0][1] )
+            m = float( dms[1][0] / dms[1][1] )
+            return f'{d}\u00b0{m}\'{axis!s}'
+
+        else:
+            d = int( dms[0][0] // dms[0][1] )
+            m = int( dms[1][0] // dms[1][1] )
+            s = float( dms[2][0] / dms[2][1] )
+            return f'{d}\u00b0{m}\'{s}"{axis!s}'
+
+    return ' '.join( ( _dms( gps_v[0x0002], gps_v[0x0001] ),
+                       _dms( gps_v[0x0004], gps_v[0x0003] ) ) )
 
 def _decode_exif_shutter_speed( v ):
 
     f = 1.0 * v[0] / v[1]
 
     if( f > 0 ):
-        return '1/{0}s'.format( int( round( 2 ** f ) ) )
+        return f'1/{int( round( 2 ** f ) )}s'
     else:
-        return '{0}s'.format( 2 ** f )
+        return f'{2 ** f}s'
 
 def _decode_exif_aperture_value( v ):
 
@@ -94,45 +95,47 @@ def _decode_exif_aperture_value( v ):
 
     f = 1.0 * v[0] / v[1]
 
-    return 'f/{0:.1f}'.format( math.sqrt( 2 ** f ) )
+    return f'f/{math.sqrt( 2 ** f ):.1f}'
 
 def _decode_exif_focal_length( v ):
 
-    return '{0}mm'.format( 1.0 * v[0] / v[1] )
+    v = float( v[0] / v[1] )
+    return f'{v}mm'
 
 def _decode_exif_rational( v ):
 
     n, d = v
 
     if( n == 1 and d > 1 ):
-        return '1/{0}'.format( d )
+        return f'1/{d}'
     else:
-        return '{0}'.format( 1.0 * n / d )
+        return f'{n/d}'
 
 def _decode_exif_exposure_time( v ):
 
-    return '{0}s'.format( _decode_exif_rational( v ) )
+    return f'{_decode_exif_rational( v )}s'
 
 def _decode_exif_lens_spec( v ):
 
-    if( v[0] != ( 0, 0 ) ):
-        focal_len = _decode_exif_focal_length( v[0] )
-
-        if( v[1] != ( 0, 0 ) and v[1] != v[0] ):
-            focal_len = '{0} - {1}'.format( focal_len,
-                            _decode_exif_focal_length( v[1] ) )
+    focal_len = [_decode_exif_focal_length( it )
+                    for it in v[0:2]
+                    if it != ( 0, 0 )]
+    if( len( focal_len ) == 2 ):
+        r = f'{focal_len[0]} - {focal_len[1]}'
+    elif( len( focal_len ) == 1 ):
+        r = f'{focal_len[0]}'
     else:
         return None
 
-    if( v[2] != ( 0, 0 ) ):
-        ap = _decode_exif_rational( v[2] )
-        if( v[3] != ( 0, 0 ) and v[3] != v[2] ):
-            ap = '{0} - {1}'.format( ap,
-                        _decode_exif_rational( v[3] ) )
-
-        return '{0}, {1}'.format( focal_len, ap )
+    ap = [_decode_exif_rational( it )
+            for it in v[2:4]
+            if it != ( 0, 0 )]
+    if( len( ap ) == 2 ):
+        return f'{r}, {ap[0]} - {ap[1]}'
+    elif( len( ap ) == 1 ):
+        return f'{r}, {ap[0]}'
     else:
-        return focal_len
+        return r
 
 def _decode_exposure_bias( v ):
 
@@ -141,9 +144,9 @@ def _decode_exposure_bias( v ):
     if( n == 0 ):
         return '0'
     elif( n < 0 ):
-        return '-{0}/{1}'.format( -n, d )
+        return f'-{-n}/{d}'.format( -n, d )
     else:
-        return '+{0}/{1}'.format( n, d )
+        return f'+{n}/{d}'
 
 EXIF_DECODE_FN_MAP = {
     0x011a : _decode_exif_rational,
@@ -181,11 +184,6 @@ def read_exif( img ):
                 if _decode_exif( k, v ) is not None
             }
         except:
-            import traceback
-            traceback.print_exc()
-            print sys.exc_info()
-            LOG.warning(
-                    'Failed reading exif for "%s": %s',
-                    self.stream.get_repr(), str( sys.exc_info()[1] ) )
+            LOG.warning( f'Failed reading exif for "{img}": {sys.exc_info()[1]!s}' )
 
     return None

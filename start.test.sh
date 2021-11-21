@@ -9,6 +9,8 @@ NAME=`basename $0`
 NAME=${NAME%.*}
 NAME=${NAME#*.}
 
+PYTHON=python3
+
 # Set the python path
 export PYTHONPATH=$PYTHONPATH:$HIGUHOME/lib
 
@@ -16,4 +18,4 @@ export PYTHONPATH=$PYTHONPATH:$HIGUHOME/lib
 HIGUCFG="$HIGUHOME/$NAME.cfg"
 
 cd $HIGUHOME
-python scripts/server.py $HIGUCFG
+$PYTHON scripts/server.py $HIGUCFG

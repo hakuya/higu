@@ -303,7 +303,7 @@ public_SingleProvider = function( obj_id )
     {
         var request = {
             action:     'info',
-            targets:    this.obj_id,
+            target:     this.obj_id,
             items:      info_set,
             fields:     field_set,
         };

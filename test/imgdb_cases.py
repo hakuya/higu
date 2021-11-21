@@ -50,13 +50,15 @@ class ImgDbCases( testutil.TestCase ):
                     'imgdat/000/000/0000000000000abc.dat' ) ),
                 'Image file moved to incorrect location' )
 
-        red_fd = self.idb.read( 0x123, PRI_DATA, 'png' )
-        self.assertTrue( self._diff_data( red_fd, self.red ),
-                'Image not read properly from library' )
+        with self.idb.open( 0x123, PRI_DATA, 'png' ) as red_fd:
+            self.assertTrue( self._diff_data( red_fd, self.red ),
+                    'Image not read properly from library' )
 
-        uk_fd = self.idb.read( 0xabc, PRI_DATA, 'png' )
-        self.assertTrue( uk_fd is None,
-                'Missing file somehow read from library' )
+        try:
+            self.idb.open( 0xabc, PRI_DATA, 'png' )
+            self.fail( 'Missing file somehow read from library' )
+        except hdbfs.ark.FileUnavailableError:
+            pass
 
     def test_tbdat_structure( self ):
 
@@ -80,13 +82,15 @@ class ImgDbCases( testutil.TestCase ):
                     'tbdat/000/000/0000000000000123.png' ) ),
                 'Image file moved to incorrect location' )
 
-        red_fd = self.idb.read( 0x123, PRI_THUMB, 'png' )
-        self.assertTrue( self._diff_data( red_fd, self.red ),
-                'Image not read properly from library' )
+        with self.idb.open( 0x123, PRI_THUMB, 'png' ) as red_fd:
+            self.assertTrue( self._diff_data( red_fd, self.red ),
+                    'Image not read properly from library' )
 
-        uk_fd = self.idb.read( 0xabc, PRI_THUMB, 'png' )
-        self.assertTrue( uk_fd is None,
-                'Missing file somehow read from library' )
+        try:
+            self.idb.open( 0xabc, PRI_THUMB, 'png' )
+            self.fail( 'Missing file somehow read from library' )
+        except hdbfs.ark.FileUnavailableError:
+            pass
 
     def test_multiple_folders( self ):
 
@@ -146,35 +150,35 @@ class ImgDbCases( testutil.TestCase ):
                     'imgdat/abc/123/0000000abc123def.png' ) ),
                 'Image file abc123def moved to incorrect location' )
 
-        red_fd = self.idb.read( 0x123, PRI_DATA, 'png' )
-        self.assertTrue( self._diff_data( red_fd, self.red ),
-                'Image 123 not read properly from library' )
-        yellow_fd = self.idb.read( 0xabc, PRI_THUMB, 'png' )
-        self.assertTrue( self._diff_data( yellow_fd, self.yellow ),
-                'Image not read properly from library' )
-        green_fd = self.idb.read( 0xdef, PRI_DATA, 'png' )
-        self.assertTrue( self._diff_data( green_fd, self.green ),
-                'Image not read properly from library' )
-        cyan_fd = self.idb.read( 0x123abc, PRI_DATA, 'png' )
-        self.assertTrue( self._diff_data( cyan_fd, self.cyan ),
-                'Image not read properly from library' )
-        blue_fd = self.idb.read( 0xabc123abc, PRI_THUMB, 'png' )
-        self.assertTrue( self._diff_data( blue_fd, self.blue ),
-                'Image not read properly from library' )
-        magenta_fd = self.idb.read( 0xabc123def, PRI_DATA, 'png' )
-        self.assertTrue( self._diff_data( magenta_fd, self.magenta ),
-                'Image not read properly from library' )
+        with self.idb.open( 0x123, PRI_DATA, 'png' ) as red_fd:
+            self.assertTrue( self._diff_data( red_fd, self.red ),
+                    'Image 123 not read properly from library' )
+        with self.idb.open( 0xabc, PRI_THUMB, 'png' ) as yellow_fd:
+            self.assertTrue( self._diff_data( yellow_fd, self.yellow ),
+                    'Image not read properly from library' )
+        with self.idb.open( 0xdef, PRI_DATA, 'png' ) as green_fd:
+            self.assertTrue( self._diff_data( green_fd, self.green ),
+                    'Image not read properly from library' )
+        with self.idb.open( 0x123abc, PRI_DATA, 'png' ) as cyan_fd:
+            self.assertTrue( self._diff_data( cyan_fd, self.cyan ),
+                    'Image not read properly from library' )
+        with self.idb.open( 0xabc123abc, PRI_THUMB, 'png' ) as blue_fd:
+            self.assertTrue( self._diff_data( blue_fd, self.blue ),
+                    'Image not read properly from library' )
+        with self.idb.open( 0xabc123def, PRI_DATA, 'png' ) as magenta_fd:
+            self.assertTrue( self._diff_data( magenta_fd, self.magenta ),
+                    'Image not read properly from library' )
 
     def test_commit_and_rollback( self ):
 
         # State should be clean on start-up
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
         self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
 
-        self.assertEquals( self.idb.get_state(), 'dirty',
+        self.assertEqual( self.idb.get_state(), 'dirty',
                 'Database not dirty after load' )
 
         # Should not be moved before commit
@@ -186,7 +190,7 @@ class ImgDbCases( testutil.TestCase ):
         self.assertFalse( os.path.exists( red ),
                 'Image not moved after prepare' )
         
-        self.assertEquals( self.idb.get_state(), 'prepared',
+        self.assertEqual( self.idb.get_state(), 'prepared',
                 'Database not prepared after prepare' )
 
         self.idb.unprepare_commit()
@@ -194,7 +198,7 @@ class ImgDbCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( red ),
                 'Image not returned after unprepare' )
 
-        self.assertEquals( self.idb.get_state(), 'dirty',
+        self.assertEqual( self.idb.get_state(), 'dirty',
                 'Database not clean after unprepare' )
 
         self.idb.prepare_commit()
@@ -202,13 +206,13 @@ class ImgDbCases( testutil.TestCase ):
         self.assertFalse( os.path.exists( red ),
                 'Image not moved after prepare/unprepare/prepare' )
         
-        self.assertEquals( self.idb.get_state(), 'prepared',
+        self.assertEqual( self.idb.get_state(), 'prepared',
                 'Database not prepared after prepare/unprepare/prepare' )
 
     def test_hard_single_vol( self ):
 
         # State should be clean on start-up
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
@@ -294,7 +298,7 @@ class ImgDbCases( testutil.TestCase ):
     def test_hard_multi_vol( self ):
 
         # State should be clean on start-up
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
@@ -379,7 +383,7 @@ class ImgDbCases( testutil.TestCase ):
     def test_hard_multi_pri( self ):
 
         # State should be clean on start-up
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
@@ -463,13 +467,13 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_rollback_then_commit( self ):
 
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
         self.idb.load_data( red, 0x123, PRI_DATA, 'png' )
 
-        self.assertEquals( self.idb.get_state(), 'dirty',
+        self.assertEqual( self.idb.get_state(), 'dirty',
                 'Database not dirty after load' )
 
         self.assertTrue( os.path.exists( red ),
@@ -480,7 +484,7 @@ class ImgDbCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( red ),
                 'Image moved after no-commit-rollback' )
         
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean after rollback' )
 
         self.idb.commit()
@@ -488,12 +492,12 @@ class ImgDbCases( testutil.TestCase ):
         self.assertTrue( os.path.exists( red ),
                 'Image moved after rollback before commit' )
 
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean after rollback then commit' )
 
     def test_commit_failure( self ):
 
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
@@ -507,12 +511,12 @@ class ImgDbCases( testutil.TestCase ):
         except:
             pass
 
-        self.assertEquals( self.idb.get_state(), 'dirty',
+        self.assertEqual( self.idb.get_state(), 'dirty',
                 'Database not dirty after failed commit' )
 
     def test_commit_failure_rollback_single_volume( self ):
 
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
@@ -538,7 +542,7 @@ class ImgDbCases( testutil.TestCase ):
 
     def test_commit_failure_rollback_multi_volume( self ):
 
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )
@@ -565,7 +569,7 @@ class ImgDbCases( testutil.TestCase ):
     def test_delete( self ):
 
         # State should be clean on start-up
-        self.assertEquals( self.idb.get_state(), 'clean',
+        self.assertEqual( self.idb.get_state(), 'clean',
                 'Database not clean on start-up' )
 
         red = self._load_data( self.red )

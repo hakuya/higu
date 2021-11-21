@@ -224,11 +224,7 @@ class HiguQueryCases( testutil.TestCase ):
 
         self.assertEqual( len( rs ), 3, 'Result size mismatch' )
 
-    def test_query_order_add( self ):
-
-        query = hdbfs.query.Query()
-        query.add_require_constraint( hdbfs.query.TagConstraint( self.rgb_tag ) )
-        query.set_order( 'add' )
+    def __check_query_order_add( self, query ):
 
         rs = [ r for r in query.execute( self.h ) ]
 
@@ -238,11 +234,20 @@ class HiguQueryCases( testutil.TestCase ):
 
         self.assertEqual( len( rs ), 3, 'Result size mismatch' )
 
-    def test_query_order_radd( self ):
+    def test_query_order_add( self ):
 
         query = hdbfs.query.Query()
         query.add_require_constraint( hdbfs.query.TagConstraint( self.rgb_tag ) )
-        query.set_order( 'add', True )
+        query.set_order( 'add' )
+
+        self.__check_query_order_add( query )
+
+    def test_query_order_add_qstr( self ):
+
+        query = hdbfs.query.Query().from_string( '$sort:add rgb' )
+        self.__check_query_order_add( query )
+
+    def __check_query_order_radd( self, query ):
 
         rs = [ r for r in query.execute( self.h ) ]
 
@@ -251,6 +256,19 @@ class HiguQueryCases( testutil.TestCase ):
         self.assertTrue( self.blue_obj == rs[0], 'Blue not in pos 0' )
 
         self.assertEqual( len( rs ), 3, 'Result size mismatch' )
+
+    def test_query_order_radd_qstr( self ):
+
+        query = hdbfs.query.Query().from_string( '$sort:add:desc rgb' )
+        self.__check_query_order_radd( query )
+
+    def test_query_order_radd( self ):
+
+        query = hdbfs.query.Query()
+        query.add_require_constraint( hdbfs.query.TagConstraint( self.rgb_tag ) )
+        query.set_order( 'add', True )
+
+        self.__check_query_order_radd( query )
 
     def test_query_mixed_tag( self ):
 

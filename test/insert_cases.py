@@ -5,6 +5,9 @@ import shutil
 import os
 
 import hdbfs
+import hdbfs.ark
+
+PYTHON='python3'
 
 class InsertCases( testutil.TestCase ):
 
@@ -19,7 +22,7 @@ class InsertCases( testutil.TestCase ):
     def _run( self, files, album = None, text = None, taglist = [],
             newtags = [], recover = None, name = None ):
 
-        cmd = [ 'python', 'scripts/insertfile.py', '-c', self.cfg_file_path ]
+        cmd = [ PYTHON, 'scripts/insertfile.py', '-c', self.cfg_file_path ]
 
         if( album is not None ):
             cmd.append( '-a' )
@@ -138,15 +141,18 @@ class InsertCases( testutil.TestCase ):
                         s.get_extension() )
         h.imgdb.commit()
 
-        img_fd = obj.get_root_stream().read()
-        self.assertFalse( img_fd is not None,
-                'Remove failed' )
+        try:
+            obj.get_root_stream().open()
+            self.fail( 'Remove failed' )
+        except hdbfs.ark.FileUnavailableError:
+            pass
 
         black = self._load_data( self.black )
         self._run( black, recover = True )
 
-        self.assertTrue( self._diff_data( obj.get_root_stream().read(), self.black ),
-                'Image not recovered' )
+        with obj.get_root_stream().open() as fd:
+            self.assertTrue( self._diff_data( fd, self.black ),
+                    'Image not recovered' )
 
         self.assertFalse( os.path.exists( black ),
                 'Recovery image was not removed' )
@@ -409,11 +415,11 @@ class InsertCases( testutil.TestCase ):
         query.add_require_constraint( hdbfs.query.TagConstraint( 'bw' ) )
         it = query.execute( h ).__iter__()
 
-        self.assertEqual( it.next(), al,
+        self.assertEqual( it.__next__(), al,
                 'Unexpected tagged item' )
 
         try:
-            it.next()
+            it.__next__()
             self.fail( 'Unexpected tagged item' )
         except StopIteration:
             pass
@@ -430,7 +436,7 @@ class InsertCases( testutil.TestCase ):
         h = hdbfs.Database()
         query = hdbfs.query.Query()
         query.set_type( hdbfs.TYPE_ALBUM )
-        al = query.execute( h ).__iter__().next()
+        al = query.execute( h ).__iter__().__next__()
 
         self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )

@@ -78,7 +78,7 @@ class Selection( Cacheable ):
         try:
             self.loaded = [ 0 ] * 10000
             for i in range( 10000 ):
-                self.loaded[i] = results.next().get_id()
+                self.loaded[i] = results.__next__().get_id()
         except StopIteration:
             self.loaded = self.loaded[:i]
 

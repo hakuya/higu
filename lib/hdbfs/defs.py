@@ -1,7 +1,7 @@
 import logging
 import os
 
-import model
+import hdbfs.model as model
 
 VERSION = 1
 REVISION = 0

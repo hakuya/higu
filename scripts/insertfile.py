@@ -85,7 +85,7 @@ if( __name__ == '__main__' ):
 
     if( create_album and opts.text_data is not None ):
         textfile = open( opts.text_data, 'r' )
-        text_data = unicode( textfile.read( MAX_TEXT_LEN ), 'utf-8' )
+        text_data = textfile.read( MAX_TEXT_LEN )
         assert textfile.read( 1 ) == '', 'Text file too long'
     else:
         text_data = None

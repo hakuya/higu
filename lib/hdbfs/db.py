@@ -60,7 +60,7 @@ class Query:
 
             return ResultSet( c )
 
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
 class ResultSet:
@@ -368,7 +368,7 @@ class Table:
                 c.execute( 'CREATE TEMPORARY TABLE %s (%s)' % ( self.name, s ) )
             else:
                 c.execute( 'CREATE TABLE %s (%s)' % ( self.name, s ) )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def drop( self ):
@@ -376,7 +376,7 @@ class Table:
         try:
             c = self.db.cursor()
             c.execute( 'DROP TABLE %s' % ( self.name ) )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def add_col( self, name, type, default = None ):
@@ -391,7 +391,7 @@ class Table:
         try:
             c = self.db.cursor()
             c.execute( query )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def insert( self, rows, select = None ):
@@ -413,7 +413,7 @@ class Table:
             c.execute( 'INSERT INTO %s(%s) VALUES (%s)' % ( self.name, s, t ), map( lambda x: x[1], rows ) )
 
             return self.select( rows = select, query = [ ( '_ROWID_', c.lastrowid, ) ] )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def insert_selection( self, selection, table, rows = None ):
@@ -443,7 +443,7 @@ class Table:
                 c.execute( q, k )
             else:
                 c.execute( q )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def delete( self, query ):
@@ -460,7 +460,7 @@ class Table:
         try:
             c = self.db.cursor()
             c.execute( q, constraints )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def update( self, rows, query = None ):
@@ -490,7 +490,7 @@ class Table:
         try:
             c = self.db.cursor()
             c.execute( q, p )
-        except sqlite3.OperationalError, ex:
+        except sqlite3.OperationalError as ex:
             raise QueryError( ex )
 
     def select( self, rows = None, query = None, order = None, group = None, descending = False, distinct = False ):

@@ -4,32 +4,25 @@ import re
 import sys
 import time
 
-from hash import calculate_details
+from hdbfs.hash import calculate_details
 
-import ark
-import imgdb
-import model
-import query
+import hdbfs.ark as ark
+import hdbfs.imgdb as imgdb
+import hdbfs.model as model
+import hdbfs.query as query
 
-from basic_objs import *
-from defs import *
-from imgdb import ImageStream, ImageFile, Album
-from hooks import *
-from obj_factory import *
+from hdbfs.basic_objs import *
+from hdbfs.defs import *
+from hdbfs.imgdb import ImageStream, ImageFile, Album
+from hdbfs.hooks import *
+from hdbfs.obj_factory import *
 
 _LIBRARY = None
 
 def check_tag_name( s ):
 
     if( re.match( '^[\w\-_:]+$', s ) is None ):
-        raise ValueError, '"%s" is not a valid tag name' % ( s, )
-
-def make_unicode( s ):
-
-    if( not isinstance( s, unicode ) ):
-        return unicode( s, 'utf-8' )
-    else:
-        return s
+        raise ValueError( f'"{s}" is not a valid tag name' )
 
 class _AccessContext:
 
@@ -55,7 +48,7 @@ class _AccessContext:
         self.__manager._end_access( self, type is not None )
 
         if( type is not None ):
-            raise type, value, trace
+            raise type.with_traceback( value, trace )
 
     def is_transaction( self ):
         return self.__transaction
@@ -159,10 +152,13 @@ class Database:
 
         self.obj_del_list = []
 
-    def __del__( self ):
+    def __enter__( self ):
 
-        if( self.session is not None ):
-            self.session.close()
+        return self
+
+    def __exit__( self, type, value, tb ):
+
+        self.close()
 
     def _begin( self ):
 
@@ -277,7 +273,7 @@ class Database:
                 .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
                 .filter( model.Object.name == name ).first()
         if( obj is None ):
-            raise KeyError, 'No such tag "%s"' % ( name, )
+            raise KeyError( f'No such tag "{name}"' )
 
         return model_obj_to_higu_obj( self, obj )
 
@@ -387,10 +383,10 @@ class Database:
             album = model_obj_to_higu_obj( self, album )
 
             if( name is not None ):
-                album.obj.name = make_unicode( name )
+                album.obj.name = name
 
             if( text is not None ):
-                album.obj['text'] = make_unicode( text )
+                album.obj['text'] = text
 
             for t in tags:
                 album.assign( t, None )
@@ -402,7 +398,7 @@ class Database:
         import mimetypes
 
         if( name is None ):
-            name = os.path.split( path )[1].decode( sys.getfilesystemencoding() )
+            name = os.path.split( path )[1]
 
         ext = os.path.splitext( name )[1]
         assert ext[0] == '.'
