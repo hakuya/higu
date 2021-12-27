@@ -307,7 +307,9 @@ class Obj:
             if( force ):
                 assert parent.obj.object_type == model.TYPE_PUBLISHED
             else:
-                assert False
+                return self.get_original_file().__assign(
+                            parent, order, name,
+                            is_duplicate, force )
 
         else:
             assert False

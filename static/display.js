@@ -558,7 +558,14 @@ DisplayableObject = function( obj_id, info, fields )
 
             if( this.info.type == 'file') {
                 alert( 'delete ' + repr );
-            } else if( this.info.type == 'album' ) {
+            } else if( this.info.type == 'album' || this.info.type == 'published' ) {
+
+                if( this.info.type == 'published'
+                 && !confirm( 'Are you sure you want to remove this published album?' ) )
+                {
+                    return;
+                }
+
                 if( obj_id == this.obj_id ) {
                     this.rm_group();
                     return;
@@ -582,8 +589,6 @@ DisplayableObject = function( obj_id, info, fields )
                         [ this.obj_id ] } );
                 tabs.on_event( { type: 'info_changed', affected:
                         [ obj_id ].concat( targets ) } );
-            } else if( this.info.type == 'published' ) {
-                alert( 'Published albums may not be modified' );
             }
         } else if( e.type == 'replaced' ) {
             this.obj_id = e.new_id;
