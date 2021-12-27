@@ -100,7 +100,7 @@ def _decode_exif_aperture_value( v ):
 def _decode_exif_focal_length( v ):
 
     v = float( v[0] / v[1] )
-    return f'{v}mm'
+    return f'{v:.1f}mm'
 
 def _decode_exif_rational( v ):
 
@@ -117,23 +117,23 @@ def _decode_exif_exposure_time( v ):
 
 def _decode_exif_lens_spec( v ):
 
-    focal_len = [_decode_exif_focal_length( it )
+    focal_len = [float( it[0] / it[1] )
                     for it in v[0:2]
                     if it != ( 0, 0 )]
-    if( len( focal_len ) == 2 ):
-        r = f'{focal_len[0]} - {focal_len[1]}'
-    elif( len( focal_len ) == 1 ):
-        r = f'{focal_len[0]}'
+    if( len( focal_len ) == 2 and focal_len[1] != focal_len[0] ):
+        r = f'{focal_len[0]:.2f}-{focal_len[1]:.2f}mm'
+    elif( len( focal_len ) >= 1 ):
+        r = f'{focal_len[0]:.2f}mm'
     else:
         return None
 
-    ap = [_decode_exif_rational( it )
+    ap = [float( it[0] / it[1] )
             for it in v[2:4]
             if it != ( 0, 0 )]
-    if( len( ap ) == 2 ):
-        return f'{r}, {ap[0]} - {ap[1]}'
-    elif( len( ap ) == 1 ):
-        return f'{r}, {ap[0]}'
+    if( len( ap ) == 2 and ap[1] != ap[0] ):
+        return f'{r}, f/{ap[0]}-{ap[1]}'
+    elif( len( ap ) >= 1 ):
+        return f'{r}, f/{ap[0]}'
     else:
         return r
 
