@@ -107,8 +107,12 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                         .split( '.' )[0][len( thumb_base ):]
 
                 if( exp == 'max' ):
-                    w = obj['width']
-                    h = obj['height']
+                    if( obj.info is None ):
+                        os.remove( t )
+                        continue
+
+                    w = obj.info.width
+                    h = obj.info.height
 
                     e = 0
                     while( 2**e < w or 2**e < h ):
@@ -119,6 +123,7 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                     try:
                         exp = int( exp )
                     except ValueError:
+                        os.remove( t )
                         continue
 
                 details = calculate_details( t )

@@ -75,7 +75,8 @@ run python2 8.1 88e291f5b6b823513741fc846fc2f94d55122e31
 run python2 9.0 70816940bd0c22b3c54c1da44b05dac62e712ec4
 run python2 10.0 0ef7a25f1bf979bc84529c1dd4efc2893ac510b8
 run python2 11.0 c4e225a0835784ffe24a68012347203183fce750
-run python3 12.0 origin/HEAD
+run python3 12.0 54bcea2a6df66be0c2d6f7c7d24587d9b66ce616
+run python3 13.0 origin/HEAD
 
 cd
 rm -rf $WORK_DIR

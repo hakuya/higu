@@ -134,9 +134,9 @@ class JsonInterface:
         if( isinstance( target, hdbfs.Album ) and 'files' in items ):
             files = target.get_files()
             info['files'] = list( map( make_obj_tuple, files ) )
-        if( isinstance( target, hdbfs.File ) and 'thumb_gen' in items ):
+        if( isinstance( target, hdbfs.ImageFile ) and 'thumb_gen' in items ):
             try:
-                info['thumb_gen'] = int( target['.tbinfo'].split( ':' )[0] )
+                info['thumb_gen'] = target.get_generation()
             except:
                 info['thumb_gen'] = 0
 

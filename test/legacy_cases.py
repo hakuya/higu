@@ -376,6 +376,14 @@ class LegacyCases( testutil.TestCase ):
                 else:
                     self.fail( 'Unexpected stream name' )
 
+    def subtest_check_orientation( self, ver ):
+
+        h = hdbfs.Database()
+        white = self._single( h, [ 'white' ] )
+
+        if( ver[0] > 7 ):
+            self.assertEqual( white.get_orientation(), 6, 'Unexpected orientation' )
+
     def subtest_check_generation( self, ver ):
 
         h = hdbfs.Database()
@@ -384,8 +392,8 @@ class LegacyCases( testutil.TestCase ):
 
         if( ver[0] > 9 ):
             # White has a generation bump because it has been rotated
-            self.assertEqual( white['.tbinfo'].split( ':' )[0], '1', 'Unexpected gen for white' )
-            self.assertEqual( grey['.tbinfo'].split( ':' )[0], '0', 'Unexpected gen for grey' )
+            self.assertEqual( white.get_generation(), 1, 'Unexpected gen for white' )
+            self.assertEqual( grey.get_generation(), 0, 'Unexpected gen for grey' )
 
 class BoundSubtest:
 
@@ -417,7 +425,7 @@ def build_cases():
         VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
                      ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
                      ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
-                     ( 11, 0, ), ( 12, 0, ), ]
+                     ( 11, 0, ), ( 12, 0, ), ( 13, 0, ) ]
 
     for ver in VERSIONS:
 

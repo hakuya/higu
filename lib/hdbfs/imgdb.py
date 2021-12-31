@@ -21,7 +21,7 @@ IMGDB_THUMB_PATH = 'tbdat'
 
 MIN_THUMB_EXP = 7
 
-METADATA_VERSION = 2
+METADATA_VERSION = 3
 
 _METADATA_INIT_REQUIRED = []
 def _require_metadata_init( obj, stream ):
@@ -59,10 +59,8 @@ class StreamInfo:
 
         self.imgdb = imgdb
         self.stream = stream
+        self.info = None
 
-        self.w = None
-        self.h = None
-        self.orientation = None
         self.fd = None
         self.img = None
         self.origin_time = None
@@ -74,6 +72,25 @@ class StreamInfo:
     def __exit__( self, type, value, tb ):
 
         self.close()
+
+    def __get_info( self ):
+
+        if( self.info is None ):
+            self.info = self.stream.stream.info
+
+        if( self.info is None ):
+            try:
+                self.get_img()
+                if( self.img is None ):
+                    return None
+
+                self.info = model.StreamInfo( self.stream.stream,
+                                self.img.size[0], self.img.size[1] )
+                self.stream.db.session.add( self.info )
+            except IOError:
+                return None
+
+        return self.info
 
     def close( self ):
 
@@ -111,28 +128,11 @@ class StreamInfo:
 
     def get_orientation( self ):
 
-        if( self.orientation is None ):
-            try:
-                self.orientation = self.stream['orientation']
-            except:
-                pass
+        info = self.__get_info()
+        if( info is None ):
+            return None
 
-        if( self.orientation is None ):
-            try:
-                rot = self.stream['rotation']
-                if( rot == 0 ):
-                    self.orientation = 1
-                elif( rot == 1 ):
-                    self.orientation = 6
-                elif( rot == 2 ):
-                    self.orientation = 3
-                elif( rot == 3 ):
-                    self.orientation = 8
-                del self.stream['rotation']
-            except:
-                pass
-
-        if( self.orientation is None ):
+        if( info.orientation is None ):
             self.get_img()
             if( self.img is not None and 'exif' in self.img.info ):
                 ORIENTATION = 274
@@ -144,44 +144,32 @@ class StreamInfo:
                 if( ORIENTATION in exif \
                 and exif[ORIENTATION] != '' ):
 
-                    self.orientation = int( exif[ORIENTATION] )
-                    if( self.orientation < 1 or self.orientation > 8 ):
-                        self.orientation = 1
+                    orientation = int( exif[ORIENTATION] )
+                    if( orientation < 1 or orientation > 8 ):
+                        orientation = 1
 
-            if( self.orientation is None ):
-                self.orientation = 1
-            self.stream['orientation'] = self.orientation
+                    info.orientation = orientation
 
-        return self.orientation
+            if( info.orientation is None ):
+                info.orientation = 1
+
+        return info.orientation
+
+    def set_orientation( self, orientation ):
+
+        info = self.__get_info()
+        if( info is None ):
+            return
+
+        info.orientation = orientation
 
     def get_dims( self ):
 
-        if( self.w is None or self.h is None ):
-            try:
-                self.w = self.stream['width']
-            except:
-                pass
+        info = self.__get_info()
+        if( info is None ):
+            return None
 
-            try:
-                self.h = self.stream['height']
-            except:
-                pass
-
-        # Image info is not present, we need to read it from the file
-        if( self.w is None or self.h is None ):
-            try:
-                self.get_img()
-                if( self.img is None ):
-                    return None, None
-
-                self.w, self.h = self.img.size
-            except IOError:
-                return None, None
-
-            self.stream['width'] = self.w
-            self.stream['height'] = self.h
-
-        return self.w, self.h
+        return info.width, info.height
 
     def get_origin_time( self ):
 
@@ -245,13 +233,7 @@ class ImageInfo:
         self.imgdb = imgdb
         self.obj = obj
         self.root_si = None
-
-        self.tb_gen = None
-        self.max_e = None
-        self.use_root = None
-
-        self.obj_w = None
-        self.obj_h = None
+        self.info = None
 
         self.origin_time = None
 
@@ -262,6 +244,38 @@ class ImageInfo:
     def __exit__( self, type, value, tb ):
 
         self.close()
+
+    def __compute_dims( self ):
+
+        root_si = self.get_root_stream_info()
+        if( root_si is None ):
+            return None, None
+
+        w, h = self.get_dims()
+        orientation = self.get_orientation()
+
+        if( w is None or h is None ):
+            return None, None
+
+        if( orientation is not None and orientation > 4 ):
+            w, h = h, w
+
+        return w, h
+
+    def __get_info( self ):
+
+        if( self.info is None ):
+            self.info = self.obj.obj.info
+
+        if( self.info is None ):
+            w, h = self.__compute_dims()
+            if( w is None or h is None ):
+                return None
+
+            self.info = model.ImageInfo( self.obj.obj, w, h )
+            self.obj.db.session.add( self.info )
+
+        return self.info
 
     def close( self ):
 
@@ -330,81 +344,93 @@ class ImageInfo:
 
     def get_obj_dims( self, verify = False ):
 
-        if( self.obj_w is None or self.obj_h is None ):
+        info = self.__get_info()
+        if( info is None ):
+            return None
 
-            try:
-                self.obj_w = self.obj['width']
-            except:
-                pass
+        if( verify ):
+            w, h = self.__compute_dims()
 
-            try:
-                self.obj_h = self.obj['height']
-            except:
-                pass
+            if( w is not None and h is not None ):
+                if( w != info.width or h != info.height ):
+                    info.width = w
+                    info.height = h
 
-        if( verify or self.obj_w is None or self.obj_h is None ):
+        return info.width, info.height
 
-            w, h = self.get_dims()
+    def get_max_e( self ):
+
+        info = self.__get_info()
+        if( info is None ):
+            return None
+
+        if( info.max_e is None ):
+            max_e = 0
+
+            while( 2**max_e < info.width or 2**max_e < info.height ):
+                max_e += 1
+
+            info.max_e = max_e
+
+        return info.max_e
+
+    def get_use_root( self ):
+
+        info = self.__get_info()
+        if( info is None ):
+            return None
+
+        if( info.use_root is None ):
             orientation = self.get_orientation()
 
-            if( orientation > 4 ):
-                w, h = h, w
+            if( orientation == 1 ):
+                info.use_root = 1
+            else:
+                info.use_root = 0
 
-            if( self.obj_w != w or self.obj_h != h ):
-                self.obj_w = w
-                self.obj_h = h
+        return info.use_root
 
-                self.obj['width'] = w
-                self.obj['height'] = h
+    def reorient( self, orientation = None, remap = None ):
 
-        return self.obj_w, self.obj_h
+        # We need to purge our info
+        self.obj.obj.info = None
 
-    def get_tb_info( self, bump_gen = False ):
+        root_si = self.get_root_stream_info()
 
-        if( self.tb_gen is None
-         or self.max_e is None
-         or self.use_root is None ):
+        if( remap is not None ):
+            orientation = root_si.get_orientation()
+            orientation = remap[orientation-1]
 
-            try:
-                tb_info = list( map( int, self.obj['.tbinfo'].split( ':' ) ) )
+        root_si.set_orientation( orientation )
 
-                self.tb_gen = tb_info[0]
-                self.max_e = tb_info[1]
-                self.use_root = tb_info[2]
+        # And regen now
+        self.__get_info()
 
-            except:
-                pass
+    def get_gen( self ):
 
-        if( bump_gen
-         or self.tb_gen is None
-         or self.max_e is None
-         or self.use_root is None ):
+        info = self.__get_info()
+        if( info is None ):
+            return 0
 
-            w, h = self.get_dims()
-            orientation = self.get_orientation()
+        return info.gen
 
-            if( w is not None
-            and h is not None
-            and orientation is not None ):
+    def regen( self ):
 
-                if( self.tb_gen is not None ):
-                    self.tb_gen += 1
-                else:
-                    self.tb_gen = 0
+        info = self.__get_info()
+        if( info is None ):
+            return
 
-                self.max_e = 0
-                if( orientation == 1 ):
-                    self.use_root = 1
-                else:
-                    self.use_root = 0
+        info.gen += 1
+        info.avail_e = None
 
-                while( 2**self.max_e < w or 2**self.max_e < h ):
-                    self.max_e += 1
+    def mark_avail_e( self, exp ):
 
-                tb_info = [ self.tb_gen, self.max_e, self.use_root ]
-                self.obj['.tbinfo'] = ':'.join( map( str, tb_info ) )
+        info = self.__get_info()
+        if( info is None ):
+            return
 
-        return self.tb_gen, self.max_e, self.use_root
+        base = info.avail_e if( info.avail_e is not None ) else 0
+        info.avail_e = (base | (1 << exp))
 
 class ImageStream( Stream ):
 
@@ -477,67 +503,36 @@ class ImageFile( File ):
         except KeyError:
             return None
 
-    def __reorient( self, remap ):
+    def __drop_info( self ):
 
-        with self.db._access( write = True ):
-            if( self.obj.root_stream is None ):
-                return
-
-            try:
-                orientation = self.obj.root_stream['orientation']
-            except:
-                orientation = 1
-
-            orientation = remap[orientation-1]
-            self.obj.root_stream['orientation'] = orientation
-
-            # We need to purge the size
-            try:
-                del self.obj['width']
-            except KeyError:
-                pass
-
-            try:
-                del self.obj['height']
-            except KeyError:
-                pass
-
-        self.db.tbcache.purge_thumbs( self )
+        this.obj.info = None
 
     def rotate_cw( self ):
 
         CW_REMAP = [ 6, 5, 8, 7, 4, 3, 2, 1 ]
-        self.__reorient( CW_REMAP )
+        self.db.tbcache.reorient_image( self, remap = CW_REMAP )
 
     def rotate_ccw( self ):
 
         CCW_REMAP = [ 8, 7, 6, 5, 2, 1, 4, 3 ]
-        self.__reorient( CCW_REMAP )
+        self.db.tbcache.reorient_image( self, remap = CCW_REMAP )
 
     def mirror( self ):
 
         MIRROR_REMAP = [ 2, 1, 4, 3, 8, 7, 6, 5 ]
-        self.__reorient( MIRROR_REMAP )
+        self.db.tbcache.reorient_image( self, remap = MIRROR_REMAP )
 
     def auto_orientation( self ):
 
-        with self.db._access( write = True ):
-            try:
-                del self.obj.root_stream['orientation']
-            except KeyError:
-                pass
+        self.db.tbcache.reorient_image( self )
 
-            try:
-                del self.obj['width']
-            except KeyError:
-                pass
+    def get_orientation( self ):
 
-            try:
-                del self.obj['height']
-            except KeyError:
-                pass
+        return self.db.tbcache.get_orientation( self )
 
-        self.db.tbcache.purge_thumbs( self )
+    def get_generation( self ):
+
+        return self.db.tbcache.get_generation( self )
 
     def get_thumb_stream( self, exp ):
 
@@ -566,6 +561,20 @@ class ImageFile( File ):
         File.assign( self, parent, order, name, is_duplicate, force )
         if( self.obj.object_type == model.TYPE_DUPLICATE ):
             self.db.tbcache.purge_thumbs( self )
+
+    def __getitem__( self, key ):
+
+        if( key == 'width' ):
+            return self.get_dimensions()[0]
+        elif( key == 'height' ):
+            return self.get_dimensions()[1]
+        else:
+            return Obj.__getitem__( self, key )
+
+    def __setitem__( self, key, value ):
+
+        assert key not in [ 'width', 'height' ]
+        return Obj.__setitem__( self, key, value )
 
 class Album( OrderedGroup ):
 
@@ -658,6 +667,22 @@ class ThumbCache:
             return datetime.datetime\
                     .utcfromtimestamp( origin_ts )
 
+    def reorient_image( self, obj, orientation = None, remap = None ):
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+            imginfo.reorient( orientation, remap )
+            self.purge_thumbs( obj )
+
+    def get_orientation( self, obj ):
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+            return imginfo.get_orientation()
+
+    def get_generation( self, obj ):
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+            return imginfo.get_gen()
+
     def init_stream_metadata( self, stream ):
 
         with stream.db._access( write = True ):
@@ -731,7 +756,8 @@ class ThumbCache:
 
         with ImageInfo( self.imgdb, obj ) as imginfo:
 
-            gen, max_e, use_root = imginfo.get_tb_info()
+            max_e = imginfo.get_max_e()
+            use_root = imginfo.get_use_root()
 
             if( exp < MIN_THUMB_EXP ):
                 exp = MIN_THUMB_EXP
@@ -796,6 +822,8 @@ class ThumbCache:
                 # Save the image
                 img.save( t[1] )
 
+                imginfo.mark_avail_e( exp )
+
                 # Now load the thumb into the database
                 return obj.db.register_thumb( t[1], obj,
                                               imginfo.get_root_stream(),
@@ -809,7 +837,7 @@ class ThumbCache:
         obj.drop_expendable_streams()
 
         with ImageInfo( self.imgdb, obj ) as imginfo:
-            imginfo.get_tb_info( True )
+            imginfo.regen()
 
 def _img_stream_factory( db, stream ):
 
@@ -840,7 +868,7 @@ def _commit_hook( db, is_rollback ):
             try:
                 db.tbcache.init_metadata( obj, stream )
             except:
-                LOG.warning( 'Failed loading metadata for "%s:%s": %s',
+                LOG.warning( 'Failed loading metadata for "%s": %s',
                              obj.get_repr(), str( sys.exc_info()[1] ) )
 
 def init_module():

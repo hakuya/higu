@@ -538,3 +538,110 @@ def upgrade_from_11_to_12( log, session ):
 
     return 12, 0
 
+def upgrade_from_12_to_13( log, session ):
+
+    log.info( 'Database upgrade from VER 12 -> VER 13' )
+
+    # Ver 13 just has two new tables
+    session.execute( """
+        CREATE TABLE imageinfo (
+            object_id         INTEGER PRIMARY KEY,
+            width             INTEGER NOT NULL,
+            height            INTEGER NOT NULL,
+            gen               INTEGER NOT NULL DEFAULT 0,
+            max_e             INTEGER,
+            use_root          INTEGER,
+            avail_e           INTEGER,
+            FOREIGN KEY ( object_id )
+                REFERENCES objects( object_id ) )
+    """ )
+
+    session.execute( """
+        CREATE TABLE streaminfo (
+            stream_id         INTEGER PRIMARY KEY,
+            width             INTEGER NOT NULL,
+            height            INTEGER NOT NULL,
+            orientation       INTEGER,
+            FOREIGN KEY ( stream_id )
+                REFERENCES streams( stream_id ) )
+    """ )
+
+    # Now, we need to copy the info from the metadata tables to the new info tables
+    session.execute( """
+        INSERT INTO imageinfo
+        SELECT
+            objects.object_id as object_id,
+            w_meta.numeric as width,
+            h_meta.numeric as height,
+            coalesce( cast( substr( tbi_meta.value, 1, instr( tbi_meta.value, ':' ) - 1 )
+                    as INTEGER ), 0 )
+                as gen,
+            cast( substr( substr( tbi_meta.value, instr( tbi_meta.value, ':' ) + 1 ),
+                            1, instr( substr( tbi_meta.value, instr( tbi_meta.value, ':' ) + 1 ), ':' ) - 1 )
+                    as INTEGER )
+                as max_e,
+            cast( substr( substr( tbi_meta.value, instr( tbi_meta.value, ':' ) + 1 ),
+                            instr( substr( tbi_meta.value, instr( tbi_meta.value, ':' ) + 1 ), ':' ) + 1 )
+                    as INTEGER )
+                as use_root,
+            NULL as avail_e
+        FROM objects
+        INNER JOIN object_metadata w_meta
+                ON w_meta.object_id = objects.object_id
+               AND w_meta.key = 'width'
+        INNER JOIN object_metadata h_meta
+                ON h_meta.object_id = objects.object_id
+               AND h_meta.key = 'height'
+        LEFT JOIN object_metadata tbi_meta
+               ON tbi_meta.object_id = objects.object_id
+              AND tbi_meta.key = '.tbinfo'
+        WHERE objects.object_type in (1000, 1001)
+          AND w_meta.numeric is not NULL
+          AND h_meta.numeric is not NULL
+    """ )
+
+    session.execute( """
+        INSERT INTO streaminfo
+        SELECT
+            streams.stream_id as stream_id,
+            w_meta.numeric as width,
+            h_meta.numeric as height,
+            COALESCE(
+                ori_meta.numeric,
+                CASE rot_meta.numeric
+                        WHEN 0 THEN 1
+                        WHEN 1 THEN 6
+                        WHEN 2 THEN 3
+                        WHEN 3 THEN 8
+                        ELSE NULL
+                END
+            ) as orientation
+        FROM streams
+        INNER JOIN stream_metadata w_meta
+                ON w_meta.stream_id = streams.stream_id
+               AND w_meta.key = 'width'
+        INNER JOIN stream_metadata h_meta
+                ON h_meta.stream_id = streams.stream_id
+               AND h_meta.key = 'height'
+        LEFT JOIN stream_metadata rot_meta
+               ON rot_meta.stream_id = streams.stream_id
+              AND rot_meta.key = 'rotation'
+        LEFT JOIN stream_metadata ori_meta
+               ON ori_meta.stream_id = streams.stream_id
+              AND ori_meta.key = 'orientation'
+        WHERE w_meta.numeric is not NULL
+          AND h_meta.numeric is not NULL
+    """ )
+
+    # And, delete the metadata entries
+    session.execute( """
+        DELETE FROM object_metadata
+        WHERE key in ( 'width', 'height', '.tbinfo', '.metaver' )
+    """ )
+    session.execute( """
+        DELETE FROM stream_metadata
+        WHERE key in ( 'width', 'height', 'rotation', 'orientation', '.metaver' )
+    """ )
+
+    return 13, 0
+

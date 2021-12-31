@@ -27,7 +27,7 @@ SP_EXPENDABLE = 1000
 SP_NORMAL     = 2000
 SP_PRIORITY   = 3000
 
-VERSION = 12
+VERSION = 13
 REVISION = 0
 
 IMGDB_VERSION = 1
@@ -353,6 +353,60 @@ class StreamMetadata( Base ):
 
         return 'StreamMetadata( %r, %r, %r, %r )' % (
                 self.object_id, self.key, self.value, self.numeric )
+
+class ImageInfo( Base ):
+    __tablename__ = 'imageinfo'
+
+    object_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
+
+    width = Column( Integer, nullable = False )
+    height = Column( Integer, nullable = False )
+    gen = Column( Integer, nullable = False, default = 0 )
+    max_e = Column( Integer )
+    use_root = Column( Integer )
+    avail_e = Column( Integer )
+
+    obj = relation( 'Object',
+                    backref = backref( 'info',
+                                       uselist = False,
+                                       cascade = 'all, delete-orphan' ) )
+
+    def __init__( self, obj, width, height ):
+
+        self.obj = obj
+        self.width = width
+        self.height = height
+        self.gen = 0
+
+    def __repr__( self ):
+
+        return 'ImageInfo( {object_id}, {width}x{height}, g{gen}, {max_e}, {use_root}, {avail_e:x} )' \
+                    .format( self )
+
+class StreamInfo( Base ):
+    __tablename__ = 'streaminfo'
+
+    stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ), primary_key = True )
+
+    width = Column( Integer, nullable = False )
+    height = Column( Integer, nullable = False )
+    orientation = Column( Integer )
+
+    stream = relation( 'Stream',
+                       backref = backref( 'info',
+                                          uselist = False,
+                                          cascade = 'all, delete-orphan' ) )
+
+    def __init__( self, stream, width, height ):
+
+        self.stream = stream
+        self.width = width
+        self.height = height
+
+    def __repr__( self ):
+
+        return 'ImageInfo( {object_id}, {width}x{height}, {max_e}, {use_root}, {avail_e:x} )' \
+                    .format( self )
 
 dbfile = None
 Session = None
