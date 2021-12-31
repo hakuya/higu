@@ -366,7 +366,7 @@ class ImageInfo:
          or self.use_root is None ):
 
             try:
-                tb_info = map( int, self.obj['.tbinfo'].split( ':' ) )
+                tb_info = list( map( int, self.obj['.tbinfo'].split( ':' ) ) )
 
                 self.tb_gen = tb_info[0]
                 self.max_e = tb_info[1]

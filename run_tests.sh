@@ -55,9 +55,9 @@ fi
 if [ -z $1 ] || [ $1 == "legacy" ]; then
     echo 'Creating databases for next tests'
     echo '============================================================'
-    test/build_legacy_dbs.sh || exit $?
+    test/build_legacy_dbs.sh $2 || exit $?
 
     echo 'Testing legacy support'
     echo '============================================================'
-    $PYTHON test/legacy_cases.py || exit $?
+    $PYTHON test/legacy_cases.py $2 || exit $?
 fi

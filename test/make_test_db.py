@@ -25,8 +25,11 @@ def make_db( h ):
     ko = h.register_file( 'black_sq.png' )
 
     if( ver[0] >= 10 ):
+        # Force a thumb to be generated so that info is initalized
+        wo.get_thumb_stream( 4 )
         wo.rotate_cw()
     elif( ver[0] > 7 ):
+        wo.read_thumb( 4 )
         wo.rotate( 1 )
 
     if( ver[0] < 5 ):

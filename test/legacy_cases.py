@@ -376,6 +376,17 @@ class LegacyCases( testutil.TestCase ):
                 else:
                     self.fail( 'Unexpected stream name' )
 
+    def subtest_check_generation( self, ver ):
+
+        h = hdbfs.Database()
+        white = self._single( h, [ 'white' ] )
+        grey = self._single( h, [ 'grey' ] )
+
+        if( ver[0] > 9 ):
+            # White has a generation bump because it has been rotated
+            self.assertEqual( white['.tbinfo'].split( ':' )[0], '1', 'Unexpected gen for white' )
+            self.assertEqual( grey['.tbinfo'].split( ':' )[0], '0', 'Unexpected gen for grey' )
+
 class BoundSubtest:
 
     def __init__( self, fn, ver ):
@@ -395,13 +406,18 @@ class BoundSubtest:
 def build_cases():
 
     import functools
+    import sys
 
     cls = LegacyCases
 
-    VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
-                 ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
-                 ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
-                 ( 11, 0, ), ( 12, 0, ), ]
+    if( len( sys.argv ) > 1 ):
+        VERSIONS = [ tuple( map( int, sys.argv[1].split( '.' ) ) ) ]
+        sys.argv = sys.argv[0:1] + sys.argv[2:]
+    else:
+        VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
+                     ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
+                     ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
+                     ( 11, 0, ), ( 12, 0, ), ]
 
     for ver in VERSIONS:
 

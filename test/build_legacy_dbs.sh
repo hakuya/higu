@@ -4,6 +4,8 @@ HIGU_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
 DATA_DIR="$HIGU_DIR/test/data"
 WORK_DIR="$( mktemp -d )"
 
+REQUESTED=$1
+
 export PYTHONPATH="$WORK_DIR/lib"
 export MKDB_LIB_PATH="$WORK_DIR/lib.db"
 
@@ -24,6 +26,10 @@ run() {
     PYTHON="$1"
     VERSION="$2"
     COMMIT="$3"
+
+    if ! [ -z $REQUESTED ] && [ $VERSION != $REQUESTED ]; then
+        return
+    fi
 
     echo "Making database for v$VERSION"
     echo "==============================="
@@ -55,6 +61,7 @@ git clone $HIGU_DIR $WORK_DIR
 
 cd $WORK_DIR
 clean
+
 run python2 1.0 d87edb56bb3f1cc81181fe1a8d78456a7246cd93
 run python2 1.1 64786758ed87200e2c296c839b7ed4b2e104fa6d
 run python2 2.0 9d6d91e34353b70eb6e86da069e88ff2116884a5
