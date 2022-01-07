@@ -242,6 +242,7 @@ public_SelectionProvider = function()
     {
         this.selection = displib.make_selection_display();
         this.selection_id = displib.register_selection( this.selection.disp );
+        this.init_query = null;
 
         this.index = null;
         this.count = 1;
@@ -254,7 +255,33 @@ public_SelectionProvider = function()
     // Member functions
     public_SelectionProvider.prototype.init = function( obj, callback )
     {
-        eval( 'obj.' + callback + '( this.selection )' );
+        if( this.init_query != null ) {
+            var request = {
+                action: 'search',
+                info: [ 'object_id', 'repr', 'type' ],
+                fields: [],
+                query: this.init_query,
+                count: 1000,
+                oneshot: true,
+            };
+
+            load_async( request, this, 'on_init_load', {
+                obj: obj,
+                callback: callback,
+            });
+        } else {
+            eval( 'obj.' + callback + '( this.selection )' );
+        }
+    };
+
+    public_SelectionProvider.prototype.on_init_load = function( data, response )
+    {
+        if( response.result == 'ok' && response.results > 0 ) {
+            this.selection.disp.objs = response.items.map( ( it ) => {
+                                            return [ it.object_id, it.repr, it.type ];
+                                        } );
+        }
+        eval( 'data.obj.' + data.callback + '( this.selection )' );
     };
 
     public_SelectionProvider.prototype.close = function()

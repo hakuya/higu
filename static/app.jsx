@@ -56,10 +56,19 @@ class QueryBox extends React.Component
     handleSubmit( evt ) {
         evt.preventDefault();
 
-        var tags = $( this.el ).children( 'input' ).val();
-
-        var provider = new tabs.SearchProvider( { query: tags } );
-        tabs.create_display_tab( tags, provider );
+        var query = $( this.el ).children( 'input' ).val();
+        if( query.startsWith( ">" ) ) {
+            if( query.startsWith( ">sel " ) ) {
+                var provider = new tabs.SelectionProvider();
+                provider.init_query = query.replace( ">sel ", "$type:file " );
+                tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
+            } else {
+                alert( "Bad target" );
+            }
+        } else {
+            var provider = new tabs.SearchProvider( { query: query } );
+            tabs.create_display_tab( query, provider );
+        }
 
         $( this.el ).children( 'input' ).val( '' );
         $( document ).focus();

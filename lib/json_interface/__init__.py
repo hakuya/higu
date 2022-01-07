@@ -463,6 +463,7 @@ class JsonInterface:
                     self.__session_id, selid )
             return json_ok( results = 0 )
 
+        oneshot = data['oneshot'] if( 'oneshot' in data ) else False
         idx = data['index'] if( 'index' in data ) else 0
         count = data['count'] if( 'count' in data ) else None
         info = data['info'] if( 'info' in data ) else None
@@ -475,7 +476,6 @@ class JsonInterface:
             count = results - idx
 
         result = {
-            'selection' : selid,
             'results' : results,
             'index' : idx,
         }
@@ -491,13 +491,19 @@ class JsonInterface:
                 result['fields'] = self.__fetch_fields( fields, target )
         else:
             if( info is not None ):
-                targets = map( self.__db.get_object_by_id, sel[idx:idx+count] )
-                result['items'] = list( map( lambda it: self.__fetch_info( items, it, **ctx ), targets ) )
+                targets = map( lambda i: self.__db.get_object_by_id( sel[i] ),
+                               range( idx, idx + count ) )
+                result['items'] = list( map( lambda it: self.__fetch_info( info, it, **ctx ), targets ) )
             else:
-                result['items'] = sel[idx:idx+count]
+                result['items'] = list( map( sel[i], range( idx, idx + count ) ) )
 
             if( fields is not None ):
                 result['fields'] = list( map( lambda it: self.__fetch_fields( fields, it ), targets ) )
+
+        if( oneshot ):
+            self.__cache.close_selection( self.__session_id, selid )
+        else:
+            result['selection'] = selid
 
         return json_ok( **result )
 
