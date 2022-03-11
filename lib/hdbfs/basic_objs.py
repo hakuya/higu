@@ -176,20 +176,24 @@ class Obj:
         with self.db._access():
             return self.obj.object_type
 
-    def get_parents( self, obj_type ):
+    def get_parents( self, obj_type, limit = None ):
 
         obj_type = [ obj_type ] if( not isinstance( obj_type, list ) ) else obj_type
 
         with self.db._access():
             objs = [ obj for obj in self.obj.parents if obj.object_type in obj_type ]
+            if( limit is not None and len( objs ) > limit ):
+                objs = objs[:limit]
             return list( map( lambda x: model_obj_to_higu_obj( self.db, x ), objs ) )
 
-    def get_children( self, obj_type ):
+    def get_children( self, obj_type, limit = None ):
 
         obj_type = [ obj_type ] if( not isinstance( obj_type, list ) ) else obj_type
 
         with self.db._access():
             objs = [ obj for obj in self.obj.children if obj.object_type in obj_type ]
+            if( limit is not None and len( objs ) > limit ):
+                objs = objs[:limit]
             return list( map( lambda x: model_obj_to_higu_obj( self.db, x ), objs ) )
 
     def get_creation_time( self ):
@@ -492,12 +496,12 @@ class Group( Obj ):
 
         return False
 
-    def get_files( self ):
+    def get_files( self, limit = None ):
 
         return self.get_children( [
                     model.TYPE_FILE,
                     model.TYPE_DUPLICATE
-                ] )
+                ], limit )
 
 class OrderedGroup( Group ):
 

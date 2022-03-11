@@ -131,6 +131,9 @@ class JsonInterface:
         if( isinstance( target, hdbfs.File ) and 'albums' in items ):
             albums = target.get_albums()
             info['albums'] = list( map( make_obj_tuple, albums ) )
+        if( isinstance( target, hdbfs.Album ) and 'short_files' in items ):
+            files = target.get_files( limit = 10 )
+            info['files'] = list( map( make_obj_tuple, files ) )
         if( isinstance( target, hdbfs.Album ) and 'files' in items ):
             files = target.get_files()
             info['files'] = list( map( make_obj_tuple, files ) )

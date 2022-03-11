@@ -98,7 +98,7 @@ function activate_links( par )
         });
     });
 
-    par.find( '.albumlink' ).each( function( idx ) {
+    par.find( '.tilelink' ).each( function( idx ) {
         $( this ).click( function() {
             var target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
 

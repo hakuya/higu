@@ -509,7 +509,7 @@ class ThumbTile extends React.Component
                      width: this.props.metrics.size,
                      height: this.props.metrics.size
                  }}
-                 className={ 'albumlink objitem sortable' + (this.props.selected ? ' selected' : '') }>
+                 className={ 'thumbtile tilelink objitem sortable' + (this.props.selected ? ' selected' : '') }>
                 <img src={ '/img?id=' + this.props.obj_id + '&exp=' + this.props.metrics.exp_i }
                      style={{
                             maxWidth: '100%',
@@ -524,7 +524,117 @@ class ThumbTile extends React.Component
     }
 }
 
-class ThumbItem extends React.Component
+class AlbumThumb extends React.Component
+{
+    render() {
+        return (
+            <div style={{
+                     width: this.props.metrics.size,
+                     height: this.props.metrics.size
+                 }}>
+                <img src={ '/img?id=' + this.props.obj_id + '&exp=' + this.props.metrics.exp_i }
+                     style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                        }}/>
+            </div>
+        );
+    }
+}
+
+class AlbumTile extends React.Component
+{
+    constructor( props ) {
+        super( props );
+        this.state = {}
+    }
+    componentDidMount() {
+        this.drop_data = {
+            view:   this.props.view,
+
+            obj_id: this.props.obj_id,
+            repr:   this.props.repr,
+            type:   this.props.type,
+
+            get_object: function() { return this.obj_id; },
+            get_repr:   function() { return this.repr; },
+            get_type:   function() { return this.type; },
+
+            get_files: function() {
+                if( this.view.selectionIndexOf( this.obj_id ) >= 0 ) {
+                    return this.view.state.selection;
+                } else {
+                    return [ [ this.obj_id, this.repr, this.type ] ];
+                }
+            },
+        };
+        util.make_draggable( $( this.el ), this.drop_data );
+
+        if( !this.state.files ) {
+            this.loadContent();
+        }
+    }
+    componentDidUpdate() {
+        $( this.el ).draggable( 'destroy' );
+        this.componentDidMount();
+    }
+    loadContent()
+    {
+        var request = {
+            action:     'info',
+            target:     this.props.obj_id,
+            items:      [ 'short_files' ],
+            fields:     [],
+        };
+
+        load_async( request, this, 'onContentLoaded', {} );
+    }
+    onContentLoaded( data, response ) {
+        if( response.result == 'ok' ) {
+            this.setState( { files: response.info.files } );
+        } else {
+            this.setState( { files: [] } );
+        }
+    }
+    render() {
+        var thumb_list = ( <span>{ 'Loading items...' }</span> );
+
+        if( this.state.files ) {
+            var items = this.state.files.map( it => (
+                    <li key={ it[0] }>
+                        <AlbumThumb obj_id={ it[0] } metrics={ this.props.metrics }/>
+                    </li>
+                ) );
+            thumb_list = (
+                    <ul className={ 'thumbslist' }
+                        style={{
+                            height: this.props.metrics.size
+                        }}>
+                        { items }
+                    </ul>
+                );
+        }
+
+        return (
+            <div ref={ ( el ) => { this.el = el; } }
+                 style={{
+                     width: '100%',
+                     height: this.props.metrics.size + 30,
+                 }}
+                 className={ 'albumtile tilelink objitem sortable' + (this.props.selected ? ' selected' : '') }>
+                <a href='#' onClick={ ( e ) => {
+                            e.preventDefault();
+                            this.props.view.itemClicked( e, this.drop_data );
+                        } }>
+                    { this.props.repr }
+                </a>
+                { thumb_list }
+            </div>
+        );
+    }
+}
+
+class TileView extends React.Component
 {
     componentDidMount() {
         if( this.props.display.is_sortable() ) {
@@ -538,21 +648,38 @@ class ThumbItem extends React.Component
         this.componentDidMount();
     }
     render() {
-        return (
-            <li ref={ ( el ) => { this.el = el; } }>
-                <ThumbTile display={ this.props.display }
-                           view={ this.props.view }
-                           selected={ this.props.selected }
-                           metrics={ this.props.metrics }
-                           obj_id={ this.props.obj_id }
-                           repr={ this.props.repr }
-                           type={ this.props.type }/>
-            </li>
-        );
+        if( this.props.type == 'album' || this.props.type == 'published' ) {
+            return (
+                <li ref={ ( el ) => { this.el = el; } }
+                    style={{
+                        width: '100%'
+                    }}>
+                    <AlbumTile display={ this.props.display }
+                               view={ this.props.view }
+                               selected={ this.props.selected }
+                               metrics={ this.props.metrics }
+                               obj_id={ this.props.obj_id }
+                               repr={ this.props.repr }
+                               type={ this.props.type }/>
+                </li>
+            );
+        } else {
+            return (
+                <li ref={ ( el ) => { this.el = el; } }>
+                    <ThumbTile display={ this.props.display }
+                               view={ this.props.view }
+                               selected={ this.props.selected }
+                               metrics={ this.props.metrics }
+                               obj_id={ this.props.obj_id }
+                               repr={ this.props.repr }
+                               type={ this.props.type }/>
+                </li>
+            );
+        }
     }
 }
 
-class ThumbViewPane extends React.Component
+class TileViewPane extends React.Component
 {
     constructor( props ) {
         super( props );
@@ -642,15 +769,15 @@ class ThumbViewPane extends React.Component
                 <ul className='thumbslist'>
                     {
                         files.map( ( it, i ) => (
-                            <ThumbItem key={ it[0] }
-                                       display={ this.props.display }
-                                       view={ this }
-                                       selected={ this.selectionIndexOf( it[0] ) >= 0 }
-                                       metrics={ metrics }
-                                       obj_id={ it[0] }
-                                       repr={ it[1] }
-                                       type={ it[2] }
-                                       index={ i }/>
+                            <TileView key={ it[0] }
+                                      display={ this.props.display }
+                                      view={ this }
+                                      selected={ this.selectionIndexOf( it[0] ) >= 0 }
+                                      metrics={ metrics }
+                                      obj_id={ it[0] }
+                                      repr={ it[1] }
+                                      type={ it[2] }
+                                      index={ i }/>
                         ) )
                     }
                     <li style={{
@@ -683,9 +810,9 @@ class ViewPane extends React.Component
     render() {
         if( this.props.view.type == 'thumb' ) {
             return (
-                <ThumbViewPane display={ this.props.display }
-                               view={ this.props.view }
-                               gen={ this.props.gen }/>
+                <TileViewPane display={ this.props.display }
+                              view={ this.props.view }
+                              gen={ this.props.gen }/>
             );
         } else {
             return (

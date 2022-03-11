@@ -60,7 +60,7 @@ class QueryBox extends React.Component
         if( query.startsWith( ">" ) ) {
             if( query.startsWith( ">sel " ) ) {
                 var provider = new tabs.SelectionProvider();
-                provider.init_query = query.replace( ">sel ", "$type:file " );
+                provider.init_query = query.replace( ">sel ", "" );
                 tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
             } else {
                 alert( "Bad target" );
