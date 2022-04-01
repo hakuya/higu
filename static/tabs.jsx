@@ -712,9 +712,54 @@ class TileViewPane extends React.Component
             } );
         }
     }
+    selectUntil( drop_data ) {
+        // don't do anything if already selected
+        if( this.selectionIndexOf( drop_data.get_object() ) >= 0 ) return;
+
+        if( this.state.selection.length == 0 ) {
+            this.toggleSelection( drop_data );
+            return;
+        }
+
+        var files = this.props.display.get_files();
+
+        // index of the new item in the list of files
+        var newIdx = files.findIndex( ( it ) => {
+                        return it[0] == drop_data.get_object();
+                    } );
+
+        if( newIdx < 0 ) return;
+
+        // index of the last selection in the list of files
+        var lastIdx = files.findIndex( ( it ) => {
+                        return it[0] == this.state.selection[this.state.selection.length - 1][0];
+                    } );
+
+        if( lastIdx == newIdx ) return;
+
+        if( lastIdx < 0 ) {
+            this.toggleSelection( drop_data );
+            return;
+        }
+
+        var dir = (newIdx > lastIdx ? 1 : -1);
+
+        var new_selection = this.state.selection;
+        for( var i = lastIdx + dir; i != newIdx; i += dir ) {
+            if( this.selectionIndexOf( files[i][0] ) < 0 ) {
+                new_selection = new_selection.concat( [ files[i] ] );
+            }
+        }
+        if( this.selectionIndexOf( files[newIdx][0] ) < 0 ) {
+            new_selection = new_selection.concat( [ files[newIdx] ] );
+        }
+        this.setState( { selection: new_selection } );
+    }
     itemClicked( e, drop_data ) {
         if( e.metaKey ) {
             this.toggleSelection( drop_data );
+        } else if( e.shiftKey ) {
+            this.selectUntil( drop_data );
         } else {
             this.openItem( drop_data );
         }
