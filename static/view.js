@@ -243,6 +243,7 @@ public_SelectionProvider = function()
         this.selection = displib.make_selection_display();
         this.selection_id = displib.register_selection( this.selection.disp );
         this.init_query = null;
+        this.init_objs = null;
 
         this.index = null;
         this.count = 1;
@@ -270,6 +271,9 @@ public_SelectionProvider = function()
                 callback: callback,
             });
         } else {
+            if( this.init_objs != null ) {
+                this.selection.disp.objs = this.init_objs;
+            }
             eval( 'obj.' + callback + '( this.selection )' );
         }
     };

@@ -1,13 +1,15 @@
 // module
 var util = (function() {
 
-function public_make_basic_drop_data( obj_id, repr, type )
+function public_make_basic_drop_data( disp, obj_id, repr, type )
 {
     return {
+        disp:   disp,
         obj_id: obj_id,
         repr:   repr,
         type:   type,
 
+        get_display: function() { return this.disp; },
         get_object: function() { return this.obj_id; },
         get_files: function() { return [ [ this.obj_id, this.repr, this.type ] ]; },
         get_repr:   function() { return this.repr; },
@@ -15,14 +17,16 @@ function public_make_basic_drop_data( obj_id, repr, type )
     };
 }
 
-function public_make_group_drop_data( obj_id, files, repr, type )
+function public_make_group_drop_data( disp, obj_id, files, repr, type )
 {
     return {
+        disp:   disp,
         obj_id: obj_id,
         files:  files,
         repr:   repr,
         type:   type,
 
+        get_display: function() { return this.disp; },
         get_object: function() { return this.obj_id; },
         get_files: function() { return this.files; },
         get_repr:   function() { return this.repr; },
@@ -501,6 +505,7 @@ DisplayableObject = function( obj_id, info, fields )
             }
             return;
         } else if( e.type == 'drop' ) {
+            var disp = e.drop_data.get_display();
             var obj_id = e.drop_data.get_object()
             var repr = e.drop_data.get_repr()
             var type = e.drop_data.get_type()
@@ -548,6 +553,15 @@ DisplayableObject = function( obj_id, info, fields )
                         [ this.obj_id ] } );
                 tabs.on_event( { type: 'info_changed', affected:
                         [ obj_id ] } );
+
+                if( disp ) {
+                    disp.on_event( {
+                            type: 'dropped',
+                            drop_target: this,
+                            drop_method: e.drop_method,
+                            drop_data: e.drop_data,
+                        } );
+                }
             } else if( this.info.type == 'published' ) {
                 alert( 'Published albums may not be modified' );
             }
@@ -603,7 +617,7 @@ DisplayableObject = function( obj_id, info, fields )
             if( this.info.type == 'file') {
                 selection.on_event( {
                     type: 'drop',
-                    drop_data: util.make_basic_drop_data(
+                    drop_data: util.make_basic_drop_data( this,
                                     this.obj_id,
                                     this.info.repr,
                                     this.info.type )
@@ -611,7 +625,7 @@ DisplayableObject = function( obj_id, info, fields )
             } else {
                 selection.on_event( {
                     type: 'drop',
-                    drop_data: util.make_group_drop_data(
+                    drop_data: util.make_group_drop_data( this,
                                     this.obj_id, this.info.files,
                                     this.info.repr, this.info.type )
                 } );
@@ -829,9 +843,10 @@ DisplayableSelection = function()
             }
             return;
         } else if( e.type == 'drop' ) {
-            var files = e.drop_data.get_files()
-            var repr = e.drop_data.get_repr()
-            var type = e.drop_data.get_type()
+            var disp = e.drop_data.get_display();
+            var files = e.drop_data.get_files();
+            var repr = e.drop_data.get_repr();
+            var type = e.drop_data.get_type();
 
             var changed = false;
             for( var i = 0; i < files.length; i++ ) {
@@ -842,8 +857,18 @@ DisplayableSelection = function()
             if( !changed ) return;
 
             this.notify_change( null );
-            alert( 'dropped ' + type + ' ' + repr + ' on selection' );
-        } else if( e.type == 'trash' ) {
+            if( disp ) {
+                disp.on_event( {
+                        type: 'dropped',
+                        drop_target: this,
+                        drop_method: e.drop_method,
+                        drop_data: e.drop_data,
+                    } );
+            }
+        } else if( e.type == 'trash'
+                || (e.type == 'dropped'
+                    && e.drop_method == 'move') )
+        {
             var files = e.drop_data.get_files();
             var removed = false;
 
@@ -1011,6 +1036,7 @@ ThumbView = function()
 
         this.selection = [];
         this.type = 'thumb';
+        this.pane = null;
     };
 
     // extends ViewBase
@@ -1019,8 +1045,8 @@ ThumbView = function()
 
     ThumbView.prototype.on_event = function( e )
     {
-        if( e.type == 'files_changed' ) {
-            return true;
+        if( this.pane ) {
+            this.pane.onEvent( e );
         }
     };
 

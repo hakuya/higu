@@ -87,10 +87,10 @@ class ObjectLabel extends React.Component
         var d = this.props.display;
         if( d.info.type == 'file') {
             util.make_draggable( $( this.el ), util.make_basic_drop_data(
-                d.obj_id, d.info.repr, d.info.type ) );
+                d, d.obj_id, d.info.repr, d.info.type ) );
         } else {
             util.make_draggable( $( this.el ), util.make_group_drop_data(
-                d.obj_id, d.info.files, d.info.repr, d.info.type ) );
+                d, d.obj_id, d.info.files, d.info.repr, d.info.type ) );
         }
     }
     componentDidUpdate() {
@@ -148,6 +148,7 @@ class SelectionLabel extends React.Component
         util.make_draggable( $( this.el ), {
             selection: this,
 
+            get_display: function() { return d; },
             get_object: function() { return null; },
             get_files:  function() { return d.get_files(); },
             get_repr:   function() { return 'Selection'; },
@@ -479,11 +480,13 @@ class ThumbTile extends React.Component
     componentDidMount() {
         this.drop_data = {
             view:   this.props.view,
+            disp:   this.props.display,
 
             obj_id: this.props.obj_id,
             repr:   this.props.repr,
             type:   this.props.type,
 
+            get_display: function() { return this.disp; },
             get_object: function() { return this.obj_id; },
             get_repr:   function() { return this.repr; },
             get_type:   function() { return this.type; },
@@ -551,11 +554,13 @@ class AlbumTile extends React.Component
     componentDidMount() {
         this.drop_data = {
             view:   this.props.view,
+            disp:   this.props.display,
 
             obj_id: this.props.obj_id,
             repr:   this.props.repr,
             type:   this.props.type,
 
+            get_display: function() { return this.disp; },
             get_object: function() { return this.obj_id; },
             get_repr:   function() { return this.repr; },
             get_type:   function() { return this.type; },
@@ -686,6 +691,8 @@ class TileViewPane extends React.Component
         this.state = {
             selection: []
         };
+
+        this.props.view.pane = this;
     }
     openItem( drop_data ) {
         var provider = this.props.display.create_provider( { start_id: drop_data.get_object() } );
@@ -695,6 +702,12 @@ class TileViewPane extends React.Component
         }
 
         tabs.create_display_tab( drop_data.get_repr(), provider );
+    }
+    removeItem( drop_data ) {
+        this.props.display.on_event( {
+                type: 'trash',
+                drop_data: drop_data,
+            } );
     }
     toggleSelection( drop_data ) {
         if( this.selectionIndexOf( drop_data.get_object() ) < 0 ) {
@@ -757,11 +770,65 @@ class TileViewPane extends React.Component
     }
     itemClicked( e, drop_data ) {
         if( e.metaKey ) {
-            this.toggleSelection( drop_data );
+            if( e.shiftKey ) {
+                this.removeItem( drop_data );
+            } else {
+                this.toggleSelection( drop_data );
+            }
         } else if( e.shiftKey ) {
             this.selectUntil( drop_data );
         } else {
             this.openItem( drop_data );
+        }
+    }
+    onEvent( e ) {
+        if( e.type == 'key' ) {
+            switch( e.charCode ) {
+                case 46: // .
+                case 62: // >
+                    var provider = new tabs.SelectionProvider();
+                    var objs = this.state.selection;
+
+                    if( objs.length == 0 ) {
+                        objs = this.props.display.get_files();
+                    }
+
+                    provider.init_objs = [...objs]; 
+                    tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
+
+                    if( objs.length > 0 ) {
+                        var drop_data = {
+                            view:   this,
+                            disp:   this.props.display,
+
+                            obj_id: objs[0][0],
+                            repr:   objs[0][1],
+                            type:   objs[0][2],
+
+                            files:  [...objs],
+
+                            get_display: function() { return this.disp; },
+                            get_object: function() { return this.obj_id; },
+                            get_repr:   function() { return this.repr; },
+                            get_type:   function() { return this.type; },
+
+                            get_files: function() {
+                                return this.files;
+                            },
+                        };
+
+                        this.props.display.on_event( {
+                                type: 'dropped',
+                                drop_target: provider.selection,
+                                drop_method: e.charCode == 62 ? 'move' : 'add',
+                                drop_data: drop_data
+                            } );
+                    }
+
+                    break;
+                default:
+                    break;
+            }
         }
     }
     selectionIndexOf( obj_id )
@@ -961,9 +1028,15 @@ class DisplayTab extends React.Component
                 var tab = $( this ).data( 'tab' );
                 var item = $( ui.draggable );
 
+                var drop_method = 'add';
+                if( event.metaKey ) {
+                    drop_method = 'move';
+                }
+
                 if( tab && tab.onEvent ) {
                     tab.onEvent( {
                         type: 'drop',
+                        drop_method: drop_method,
                         drop_data: item.data( 'drop_data' )
                     } );
                 }

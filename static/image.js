@@ -139,7 +139,7 @@ ImageViewer = function( pane, image_info )
 
         this.apply_zoom_css( img_tag );
 
-        util.make_draggable( img_tag, util.make_basic_drop_data(
+        util.make_draggable( img_tag, util.make_basic_drop_data( null,
                                             this.image_info.obj_id,
                                             this.image_info.repr,
                                             this.image_info.type ) );
