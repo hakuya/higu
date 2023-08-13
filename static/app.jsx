@@ -248,14 +248,16 @@ class TagDialog extends React.Component
         this.state = {
             show: false,
             query: '',
-            errText: ''
+            errText: '',
+            badKey: null
         }
     }
     show( data ) {
         this.setState( {
             show: true,
             query: this.state.query,
-            errText: ''
+            errText: '',
+            badKey: null
         } );
         this.obj = data.obj;
     }
@@ -270,13 +272,22 @@ class TagDialog extends React.Component
             this.setState( {
                 show: false,
                 query: tags,
-                errText: ''
+                errText: '',
+                badKey: null
             } );
         } else {
+            var badKey = null;
+            if( r.msg ) {
+                const match_res = r.msg.match( new RegExp( "\"(.*)\"" ) );
+                if( match_res ) {
+                    badKey = match_res[1];
+                }
+            }
             this.setState( {
                 show: true,
                 query: tags,
-                errText: r.msg
+                errText: r.msg,
+                badKey: badKey
             } );
         }
     }
@@ -293,6 +304,18 @@ class TagDialog extends React.Component
     }
     componentDidMount() {
         dialogs.register_dialog( 'tag', this );
+    }
+    componentDidUpdate( prevProps, prevState ) {
+        if( this.state.show
+         && this.state.badKey
+         && this.state.badKey != prevState.badKey )
+        {
+            var tags = $( '#tags' ).val();
+            var index = tags.indexOf( this.state.badKey );
+            if( index >= 0 ) {
+                $( '#tags' )[0].setSelectionRange( index, index + this.state.badKey.length );
+            }
+        }
     }
     render() {
         var Button = ReactBootstrap.Button;
