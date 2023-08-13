@@ -401,15 +401,28 @@ class Query:
         else:
             raise ValueError( 'Bad Command' )
 
+    def __process_sorts( self, sorts ):
+
+        if( len( sorts ) == 0 ):
+            return
+
+        if( sorts[0][0] == '!' ):
+            self.set_order( sorts[0][1:], True )
+        else:
+            self.set_order( sorts[0], False )
+
     def from_string( self, s ):
 
         clauses = s.split( ' ' )
         clauses = [i for i in clauses if( len( i ) > 0 )]
 
         commands = [i[1:] for i in clauses if( i[0] == '$' )]
+        sorts = [i[1:] for i in clauses if( i[0] == '^' )]
         add = [i[1:] for i in clauses if( i[0] == '?' )]
         sub = [i[1:] for i in clauses if( i[0] == '!' )]
-        req = [i for i in clauses if( i[0] != '$' and i[0] != '?' and i[0] != '!' )]
+        req = [i for i in clauses if( i[0] not in [ '$', '?', '!', '^' ] )]
+
+        self.__process_sorts( sorts )
 
         for c in commands:
             self.__process_command( c )
