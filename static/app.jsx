@@ -248,6 +248,7 @@ class TagDialog extends React.Component
         this.state = {
             show: false,
             query: '',
+            history: [],
             errText: '',
             badKey: null
         }
@@ -256,6 +257,7 @@ class TagDialog extends React.Component
         this.setState( {
             show: true,
             query: this.state.query,
+            history: this.state.history,
             errText: '',
             badKey: null
         } );
@@ -272,6 +274,9 @@ class TagDialog extends React.Component
             this.setState( {
                 show: false,
                 query: tags,
+                history: this.state.history.filter( ( it ) => {
+                                return it != tags;
+                            } ).concat( [ tags ] ),
                 errText: '',
                 badKey: null
             } );
@@ -286,6 +291,7 @@ class TagDialog extends React.Component
             this.setState( {
                 show: true,
                 query: tags,
+                history: this.state.history,
                 errText: r.msg,
                 badKey: badKey
             } );
@@ -295,8 +301,35 @@ class TagDialog extends React.Component
         this.setState( {
             show: false,
             query: this.state.query,
-            errText: ''
+            history: this.state.history,
+            errText: '',
+            badKey: null
         } );
+    }
+    onInputKey( evt ) {
+        if( evt.keyCode != 38 && evt.keyCode != 40 ) return;
+        evt.preventDefault();
+
+        var query = $( '#tags' ).val();
+        var idx = this.state.history.findIndex( ( it ) => {
+                        return it == query;
+                    } );
+        if( evt.keyCode == 38 ) {
+            if( idx < 0 ) {
+                idx = this.state.history.length;
+            }
+            idx -= 1;
+            if( idx < 0 ) {
+                return;
+            }
+        } else if( evt.keyCode == 40 ) {
+            idx += 1;
+            if( idx <= 0 || idx >= this.state.history.length ) {
+                return;
+            }
+        }
+
+        $( '#tags' ).val( this.state.history[idx] );
     }
     onEntered() {
         $( '#tags' ).focus();
@@ -333,8 +366,15 @@ class TagDialog extends React.Component
                     Prefix a tag with a dash to remove it<br/>
                     <span id='tag-err-text' className='err-text'>{ this.state.errText }</span></p>
                     <form id='tag-dialog-form' onSubmit={ this.onApply.bind( this ) }><fieldset>
-                    <label htmlFor='tags'>Tags</label>
-                    <input type='text' name='tags' id='tags' defaultValue={ this.state.query }/>
+                    <label htmlFor='tags' style={{ paddingRight: '6px' }}>Tags</label>
+                    <input type='text'
+                           name='tags'
+                           id='tags'
+                           style={{
+                                width: '90%',
+                            }}
+                           defaultValue={ this.state.query }
+                           onKeyDown={ this.onInputKey.bind( this ) }/>
                     </fieldset></form>
                 </Modal.Body>
                 <Modal.Footer>
