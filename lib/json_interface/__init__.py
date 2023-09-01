@@ -394,7 +394,7 @@ class JsonInterface:
         db = self.__db
 
         tags = db.all_tags()
-        tags = list( map( lambda x: x.get_name(), tags ) )
+        tags = list( map( lambda x: ( x, tags[x][1] ), tags ) )
 
         return json_ok( tags = tags )
 

@@ -261,11 +261,21 @@ class Database:
 
     def all_tags( self ):
 
-        objs = self.session.query( model.Object ) \
+        from sqlalchemy import func
+
+        q = self.session.query( model.Object.name,
+                                model.Object,
+                                func.count( model.Relation.child_id ) ) \
+                .join( model.Relation, model.Object.object_id == model.Relation.parent_id ) \
                 .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
+                .group_by( model.Relation.parent_id ) \
                 .order_by( model.Object.name )
 
-        return ModelObjToHiguObjIterator( self, objs )
+        result = {}
+        for name, obj, count in q.all():
+            result[name] = ( model_obj_to_higu_obj( self, obj ), count )
+
+        return result
 
     def get_tag( self, name ):
 

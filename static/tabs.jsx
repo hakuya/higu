@@ -46,7 +46,7 @@ class TagLink extends React.Component
                onClick={ () => {
                     var provider = new tabs.SearchProvider( { query: this.props.tag } );
                     tabs.create_display_tab( this.props.tag, provider );
-                } }>{ this.props.tag }</a>
+                } }>{ this.props.label }</a>
         );
     }
 }
@@ -353,7 +353,7 @@ class ObjectInfoPane extends React.Component
                 <ul className='infotaglist'>
                     { info.tags &&
                         info.tags.map( ( it ) => (
-                            <li key={ it }><TagLink tag={ it }/></li>
+                            <li key={ it }><TagLink label={ it } tag={ it }/></li>
                         ) )
                     }
                 </ul>
@@ -1266,13 +1266,13 @@ class TaglistTab extends React.Component {
     render() {
         if( this.state.tags ) {
             var tags = this.state.tags.map( it => {
-                        var m = it.match( /(.*):(.*)/ );
-                        return (m == null) ? [ null, it ] : [ m[1], it ];
+                        var m = it[0].match( /(.*):(.*)/ );
+                        return (m == null) ? [ null, it[0], it[0], it[1] ] : [ m[1], m[2], it[0], it[1] ];
                     } );
             var groups = [];
             while( tags.length > 0 ) {
                 var group = tags[0][0];
-                var gtags = tags.filter( it => it[0] == group ).map( it => it[1] );
+                var gtags = tags.filter( it => it[0] == group ).map( it => [ it[1], it[2], it[3] ] );
                 tags = tags.filter( it => it[0] != group );
                 groups.push( [ group, gtags ] );
             }
@@ -1280,7 +1280,7 @@ class TaglistTab extends React.Component {
                 <div key={ it[0] } className='taggroup'>
                   { it[0] != null && <h1>{ it[0] }</h1> }
                   <ul className='taglist'>
-                    { it[1].map( jt => ( <li key={ jt }><TagLink tag={ jt }/></li> ) ) }
+                    { it[1].map( jt => ( <li key={ jt[1] }><TagLink label={ jt[0] + ' (' + jt[2] + ')' } tag={ jt[1] }/></li> ) ) }
                   </ul>
                 </div>
             ) );
