@@ -220,6 +220,19 @@ class Obj:
                              .order_by( model.Object.name ) ]
             return list( map( lambda x: Tag( self.db, x ), tag_objs ) )
 
+    def has_tag( self, tag ):
+
+        tags = self.get_tags()
+
+        if( tag in tags ):
+            return True
+
+        for t in tags:
+            if( tag == t.obj.name ):
+                return True
+        else:
+            return False
+
     def __assign_duplicate( self, parent, rel ):
 
         from sqlalchemy import or_
