@@ -389,6 +389,8 @@ class Query:
                 self.set_type( hdbfs.TYPE_FILE );
             elif( cmd[1] == 'album' ):
                 self.set_type( hdbfs.TYPE_ALBUM );
+            elif( cmd[1] == 'pub' ):
+                self.set_type( hdbfs.TYPE_PUBLISHED );
             else:
                 raise ValueError( 'Bad type' )
 
