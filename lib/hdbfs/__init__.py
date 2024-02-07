@@ -259,17 +259,22 @@ class Database:
 
         return self.unowned_files()
 
-    def all_tags( self ):
+    def all_tags( self, scope = None ):
 
-        from sqlalchemy import func
+        from sqlalchemy import func, or_
 
         q = self.session.query( model.Object.name,
                                 model.Object,
                                 func.count( model.Relation.child_id ) ) \
                 .join( model.Relation, model.Object.object_id == model.Relation.parent_id ) \
-                .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
-                .group_by( model.Relation.parent_id ) \
-                .order_by( model.Object.name )
+                .filter( model.Object.object_type == TYPE_CLASSIFIER )
+
+        if( scope is not None ):
+            q = q.filter( or_( model.Object.name == scope,
+                               model.Object.name.like( scope + ':%' ) ) )
+
+        q = q.group_by( model.Relation.parent_id ) \
+             .order_by( model.Object.name )
 
         result = {}
         for name, obj, count in q.all():
@@ -304,8 +309,9 @@ class Database:
 
     def delete_tag( self, tag ):
 
-        tag = self.get_tag( tag )
-        self.delete_object( tag )
+        tags = self.all_tags( tag )
+        for tag, count in tags.values():
+            self.delete_object( tag )
 
     def move_tag( self, tag, target ):
 
@@ -314,27 +320,32 @@ class Database:
         with self._access( write = True ):
 
             check_tag_name( target )
-            c = self.get_tag( tag ).obj
+            tags = self.all_tags( tag )
 
-            try:
-                d = self.get_tag( target ).obj
+            for t, count in tags.values():
 
-                # Remove tag where it would be a duplicate
-                dups = self.session.query( model.Relation.child_id ) \
-                    .filter( model.Relation.parent_id == d.object_id ) \
-                    .subquery()
-                self.session.query( model.Relation ) \
-                    .filter( and_( model.Relation.parent_id == c.object_id,
-                                   model.Relation.child_id.in_( dups ) ) ) \
-                    .delete( synchronize_session = 'fetch' )
-                self.session.flush()
-                self.session.query( model.Relation ) \
-                    .filter( model.Relation.parent_id == c.object_id ) \
-                    .update( { 'parent_id' : d.object_id } )
-                self.session.delete( c )
+                c = t.obj
+                new_name = target + c.name[len( tag ):]
 
-            except KeyError:
-                c.name = target
+                try:
+                    d = self.get_tag( new_name ).obj
+
+                    # Remove tag where it would be a duplicate
+                    dups = self.session.query( model.Relation.child_id ) \
+                        .filter( model.Relation.parent_id == d.object_id ) \
+                        .subquery()
+                    self.session.query( model.Relation ) \
+                        .filter( and_( model.Relation.parent_id == c.object_id,
+                                       model.Relation.child_id.in_( dups ) ) ) \
+                        .delete( synchronize_session = 'fetch' )
+                    self.session.flush()
+                    self.session.query( model.Relation ) \
+                        .filter( model.Relation.parent_id == c.object_id ) \
+                        .update( { 'parent_id' : d.object_id } )
+                    self.session.delete( c )
+
+                except KeyError:
+                    c.name = new_name
 
     def copy_tag( self, tag, target ):
 
