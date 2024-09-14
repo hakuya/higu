@@ -312,6 +312,7 @@ class Query:
 
         self.__obj_type = None
         self.__order_by = None
+        self.__limit = None
         self.__expand = False
         self.__nochild = False
 
@@ -402,6 +403,9 @@ class Query:
         elif( cmd[0] == 'untagged' ):
             self.set_untagged()
 
+        elif( cmd[0] == 'limit' ):
+            self.set_limit( int( cmd[1] ) )
+
         else:
             raise ValueError( 'Bad Command' )
 
@@ -459,6 +463,11 @@ class Query:
     def set_order( self, prop, desc = False ):
 
         self.__order_by = ( prop, desc )
+        return self
+
+    def set_limit( self, limit ):
+
+        self.__limit = limit
         return self
 
     def add_require_constraint( self, constraint ):
@@ -587,6 +596,9 @@ class Query:
             else:
                 query = query.order_by( model.ObjectMetadata.numeric.desc(),
                                         model.Object.object_id.desc() )
+
+        if( self.__limit is not None ):
+            query = query.limit( self.__limit )
 
         return hdbfs.ModelObjToHiguObjIterator( db, query ) 
 
