@@ -24,7 +24,7 @@ var field_set = [ 'rating' ];
 /**
  * create_tab( title ) - creates a tab with the given title
  */
-create_tab = function( title, type )
+var create_tab = function( title, type )
 {
     var count = tabs_counter;
     var id_val = 'tabs-' + count;
@@ -43,7 +43,7 @@ create_tab = function( title, type )
 /**
  * add_tab( tab ) - adds the given tab
  */
-add_tab = function( tab )
+var add_tab = function( tab )
 {
     all_tabs.push( tab );
     active_tab_id = tab.id;
@@ -57,12 +57,12 @@ add_tab = function( tab )
 var public_init = function()
 {};
 
-public_get_info_set = function()
+var public_get_info_set = function()
 {
     return info_set;
 }
 
-public_get_field_set = function()
+var public_get_field_set = function()
 {
     return field_set;
 }
@@ -116,7 +116,7 @@ var public_on_select = function()
 /**
  * select( tab ) - selects the given tab
  */
-public_select = function( tab_id )
+var public_select = function( tab_id )
 {
     if( active_tab_id == tab_id ) return;
 
@@ -130,7 +130,7 @@ public_select = function( tab_id )
 /**
  * create_display_tab( title, provider ) - creates a new display tab
  */
-public_create_display_tab = function( title, provider )
+var public_create_display_tab = function( title, provider )
 {
     var dt = create_tab( title, 'display' );
 
@@ -146,7 +146,7 @@ public_create_display_tab = function( title, provider )
 /**
  * show_login_tab() - shows the login tab
  */
-public_show_login_tab = function()
+var public_show_login_tab = function()
 {
     if( login_tab != null ) {
         public_select( login_tab );
@@ -165,7 +165,7 @@ public_show_login_tab = function()
 /**
  * show_admin_tab() - shows the admin tab
  */
-public_show_admin_tab = function()
+var public_show_admin_tab = function()
 {
     if( admin_tab != null ) {
         public_select( admin_tab );
@@ -184,7 +184,7 @@ public_show_admin_tab = function()
 /**
  * show_taglist_tab() - shows the taglist tab
  */
-public_show_tagslist_tab = function()
+var public_show_tagslist_tab = function()
 {
     if( tagslist_tab != null ) {
         public_select( tagslist_tab );
@@ -203,7 +203,7 @@ public_show_tagslist_tab = function()
 /**
  * remove( elem ) - removes the given tab
  */
-public_remove = function( tab )
+var public_remove = function( tab )
 {
     var idx = all_tabs.findIndex( function( it ) { return it === tab; } );
     if( idx >= 0 ) {
@@ -223,38 +223,49 @@ public_remove = function( tab )
 /**
  * class Provider
  */
-var public_Provider = function() {};
+class public_Provider
+{
+    init()
+    {}
 
-    public_Provider.prototype.init = function() {}
-    public_Provider.prototype.close = function() {}
-    public_Provider.prototype.repr = 0;
-    public_Provider.prototype.fetch = function( idx ) { return null; }
-    public_Provider.prototype.offset = function( off ) { return null; }
-    public_Provider.prototype.next = function() { return null; }
-    public_Provider.prototype.prev = function() { return null; }
+    close()
+    {}
+
+    repr()
+    { return null; }
+
+    fetch( idx )
+    { return null; }
+
+    offset( off )
+    { return null; }
+
+    next()
+    { return null; }
+
+    prev()
+    { return null; }
+}
 
 /**
  * class SelectionProvider
  */
-public_SelectionProvider = function()
-
-    // Constructor
+class public_SelectionProvider extends public_Provider
+{
+    constructor()
     {
-        this.selection = displib.make_selection_display();
-        this.selection_id = displib.register_selection( this.selection.disp );
+        super();
+
+        this.selection = window.displib.make_selection_display();
+        this.selection_id = window.displib.register_selection( this.selection.disp );
         this.init_query = null;
         this.init_objs = null;
 
         this.index = null;
         this.count = 1;
-    };
+    }
 
-    // extends Provider
-    public_SelectionProvider.prototype = new public_Provider();
-    public_SelectionProvider.prototype.constructor = public_SelectionProvider;
-
-    // Member functions
-    public_SelectionProvider.prototype.init = function( obj, callback )
+    init( obj, callback )
     {
         if( this.init_query != null ) {
             var request = {
@@ -276,9 +287,9 @@ public_SelectionProvider = function()
             }
             eval( 'obj.' + callback + '( this.selection )' );
         }
-    };
+    }
 
-    public_SelectionProvider.prototype.on_init_load = function( data, response )
+    on_init_load( data, response )
     {
         if( response.result == 'ok' && response.results > 0 ) {
             this.selection.disp.objs = response.items.map( ( it ) => {
@@ -286,51 +297,49 @@ public_SelectionProvider = function()
                                         } );
         }
         eval( 'data.obj.' + data.callback + '( this.selection )' );
-    };
+    }
 
-    public_SelectionProvider.prototype.close = function()
+    close()
     {
-        displib.unregister_selection( this.selection.disp );
-    };
+        window.displib.unregister_selection( this.selection.disp );
+    }
 
-    public_SelectionProvider.prototype.repr = function()
+    repr()
     {
         return 'Single';
-    };
+    }
 
-    public_SelectionProvider.prototype.fetch = function( idx )
+    fetch( idx )
     {
         if( idx == 0 ) {
             return this.selection;
         } else {
             return null;
         }
-    };
+    }
 
-    public_SelectionProvider.prototype.offset = function( off )
+    offset( off )
     {
         return this.fetch( off );
-    };
+    }
+}
 
 /**
  * class SingleProvider
  */
-public_SingleProvider = function( obj_id )
-
-    // Constructor
+class public_SingleProvider extends public_Provider
+{
+    constructor( obj_id )
     {
+        super();
+
         this.obj_id = obj_id;
         this.info = null;
         this.index = null;
         this.count = 1;
-    };
+    }
 
-    // extends Provider
-    public_SingleProvider.prototype = new public_Provider();
-    public_SingleProvider.prototype.constructor = public_SingleProvider;
-
-    // Member functions
-    public_SingleProvider.prototype.init = function( obj, callback )
+    init( obj, callback )
     {
         var request = {
             action:     'info',
@@ -343,55 +352,54 @@ public_SingleProvider = function( obj_id )
             obj: obj,
             callback: callback,
         });
-    };
+    }
 
-    public_SingleProvider.prototype.on_init_load = function( data, response )
+    on_init_load( data, response )
     {
         this.info = response.info;
         this.fields = response.fields;
 
-        display = displib.make_object_display( this.info, this.fields );
+        var display = window.displib.make_object_display( this.info, this.fields );
         eval( 'data.obj.' + data.callback + '( display )' );
-    };
+    }
 
-    public_SingleProvider.prototype.repr = function()
+    repr()
     {
         return 'Single';
-    };
+    }
 
-    public_SingleProvider.prototype.fetch = function( idx )
+    fetch( idx )
     {
         if( idx == 0 ) {
-            return displib.make_object_display( this.info, this.fields );
+            return window.displib.make_object_display( this.info, this.fields );
         } else {
             return null;
         }
-    };
+    }
 
-    public_SingleProvider.prototype.offset = function( off )
+    offset( off )
     {
         return this.fetch( off );
-    };
+    }
+}
 
 /**
  * class SearchProvider
  */
-public_SearchProvider = function( query )
-
-    // Constructor
+class public_SearchProvider extends public_Provider
+{
+    constructor( query )
     {
+        super();
+
         this.query = query;
         this.sid = null;
 
         this.index = null;
         this.count = null;
-    };
+    }
 
-    // extends Provider
-    public_SearchProvider.prototype = new public_Provider();
-    public_SearchProvider.prototype.constructor = public_SearchProvider;
-
-    public_SearchProvider.prototype.init = function( obj, callback )
+    init( obj, callback )
     {
         if( this.sid ) {
             return this.fetch( this.index );
@@ -421,20 +429,22 @@ public_SearchProvider = function( query )
             obj: obj,
             callback: callback,
         });
-    };
+    }
 
-    public_SearchProvider.prototype.on_init_load = function( data, response )
+    on_init_load( data, response )
     {
+        var display = null;
+
         if( response.result != 'ok' ) {
             this.sid = null;
             this.index = null;
             this.count = null;
 
             if( response.msg ) {
-                display = displib.make_dummy_display(
+                display = window.displib.make_dummy_display(
                     'The search failed: ' + response.msg );
             } else {
-                display = displib.make_dummy_display(
+                display = window.displib.make_dummy_display(
                     'The search failed: ' + response.except + ' error' );
             }
         } else if( response.results > 0 ) {
@@ -442,18 +452,19 @@ public_SearchProvider = function( query )
             this.index = response.index;
             this.count = response.results;
 
-            display = displib.make_object_display( response.first, response.fields );
+            display = window.displib.make_object_display( response.first, response.fields );
         } else {
             this.sid = null;
             this.index = null;
             this.count = null;
 
-            display = displib.make_dummy_display( 'The search had no results' );
+            display = window.displib.make_dummy_display( 'The search had no results' );
         }
-        eval( 'data.obj.' + data.callback + '( display )' );
-    };
 
-    public_SearchProvider.prototype.close = function()
+        eval( 'data.obj.' + data.callback + '( display )' );
+    }
+
+    close()
     {
         if( !this.sid ) return null;
         
@@ -462,14 +473,14 @@ public_SearchProvider = function( query )
             'selection' : this.sid,
         }
         load_sync( request );
-    };
+    }
 
-    public_SearchProvider.prototype.repr = function()
+    repr()
     {
         return this.query;
-    };
+    }
 
-    public_SearchProvider.prototype.fetch = function( idx )
+    fetch( idx )
     {
         if( !this.sid ) return null;
 
@@ -480,51 +491,49 @@ public_SearchProvider = function( query )
             info:       info_set,
             fields:     field_set,
         };
-        response = load_sync( request );
+        var response = load_sync( request );
 
         if( response == null || response.result != 'ok' ) {
             return null;
         }
 
         this.index = idx;
-        display = displib.make_object_display( response.info, response.fields );
-        return display;
-    };
+        return window.displib.make_object_display( response.info, response.fields );
+    }
 
-    public_SearchProvider.prototype.offset = function( off )
+    offset( off )
     {
         return this.fetch( this.index + off );
-    };
+    }
 
-    public_SearchProvider.prototype.next = function()
+    next()
     {
         return this.offset( 1 );
-    };
+    }
 
-    public_SearchProvider.prototype.prev = function()
+    prev()
     {
         return this.offset( -1 );
-    };
+    }
+}
 
 /**
  * class ListProvider
  */
-public_ListProvider = function( list )
-
-    // Constructor
+class public_ListProvider extends public_Provider
+{
+    constructor( list )
     {
+        super();
+
         this.list = list;
         this.obj_id = null;
 
         this.index = null;
         this.count = list.length;
-    };
+    }
 
-    // extends Provider
-    public_ListProvider.prototype = new public_Provider();
-    public_ListProvider.prototype.constructor = public_ListProvider;
-
-    public_ListProvider.prototype.init = function( obj, callback )
+    init( obj, callback )
     {
         if( this.obj_id ) {
             this.index = this.list.findIndex( ( it ) =>
@@ -548,20 +557,20 @@ public_ListProvider = function( list )
             obj: obj,
             callback: callback,
         });
-    };
+    }
 
-    public_ListProvider.prototype.on_init_load = function( data, response )
+    on_init_load( data, response )
     {
-        display = displib.make_object_display( response.info, response.fields );
+        var display = window.displib.make_object_display( response.info, response.fields );
         eval( 'data.obj.' + data.callback + '( display )' );
-    };
+    }
 
-    public_ListProvider.prototype.repr = function()
+    repr()
     {
         return 'List';
-    };
+    }
 
-    public_ListProvider.prototype.fetch = function( idx )
+    fetch( idx )
     {
         if( idx < 0 || idx >= this.list.length ) {
             return null;
@@ -577,25 +586,26 @@ public_ListProvider = function( list )
             items:      info_set,
             fields:     field_set,
         };
-        response = load_sync( request );
+        var response = load_sync( request );
 
-        return displib.make_object_display( response.info, response.fields );
-    };
+        return window.displib.make_object_display( response.info, response.fields );
+    }
 
-    public_ListProvider.prototype.offset = function( off )
+    offset( off )
     {
         return this.fetch( this.index + off );
-    };
+    }
 
-    public_ListProvider.prototype.next = function()
+    next()
     {
         return this.offset( 1 );
-    };
+    }
 
-    public_ListProvider.prototype.prev = function()
+    prev()
     {
         return this.offset( -1 );
-    };
+    }
+}
 
 return {
     init: public_init,
@@ -620,3 +630,5 @@ return {
 };
 
 })(); // module tabs
+
+window.tabs = tabs;

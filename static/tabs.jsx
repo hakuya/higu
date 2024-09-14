@@ -86,10 +86,10 @@ class ObjectLabel extends React.Component
     componentDidMount() {
         var d = this.props.display;
         if( d.info.type == 'file') {
-            util.make_draggable( $( this.el ), util.make_basic_drop_data(
+            window.util.make_draggable( $( this.el ), window.util.make_basic_drop_data(
                 d, d.obj_id, d.info.repr, d.info.type ) );
         } else {
-            util.make_draggable( $( this.el ), util.make_group_drop_data(
+            window.util.make_draggable( $( this.el ), window.util.make_group_drop_data(
                 d, d.obj_id, d.info.files, d.info.repr, d.info.type ) );
         }
     }
@@ -145,7 +145,7 @@ class SelectionLabel extends React.Component
 {
     componentDidMount() {
         var d = this.props.display;
-        util.make_draggable( $( this.el ), {
+        window.util.make_draggable( $( this.el ), {
             selection: this,
 
             get_display: function() { return d; },
@@ -499,7 +499,7 @@ class ThumbTile extends React.Component
                 }
             },
         };
-        util.make_draggable( $( this.el ), this.drop_data );
+        window.util.make_draggable( $( this.el ), this.drop_data );
     }
     componentDidUpdate() {
         $( this.el ).draggable( 'destroy' );
@@ -573,7 +573,7 @@ class AlbumTile extends React.Component
                 }
             },
         };
-        util.make_draggable( $( this.el ), this.drop_data );
+        window.util.make_draggable( $( this.el ), this.drop_data );
 
         if( !this.state.files ) {
             this.loadContent();
@@ -643,7 +643,7 @@ class TileView extends React.Component
 {
     componentDidMount() {
         if( this.props.display.is_sortable() ) {
-            util.make_sortable( this.props.display, $( this.el ), this.props.index );
+            window.util.make_sortable( this.props.display, $( this.el ), this.props.index );
         }
     }
     componentDidUpdate() {

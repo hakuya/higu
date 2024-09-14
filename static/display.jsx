@@ -40,8 +40,8 @@ function public_make_draggable( elem, drop_data )
 
     elem.draggable( {
         helper:     function() {
-            orig = $( this );
-            clone = orig.clone();
+            var orig = $( this );
+            var clone = orig.clone();
 
             // FIXME: bugfix to prevent clone from calling onload which
             // causes whacky image resizing when the dragable is created
@@ -75,12 +75,12 @@ function public_make_sortable( disp, elem, index )
                 return false;
             }
 
-            slot = $( this );
-            item = $( ui.draggable );
+            var slot = $( this );
+            var item = $( ui.draggable );
 
-            display = slot.data( 'display' );
-            index = slot.data( 'index' );
-            drop_data = item.data( 'drop_data' );
+            var display = slot.data( 'display' );
+            var index = slot.data( 'index' );
+            var drop_data = item.data( 'drop_data' );
 
             display.reorder( drop_data, index );
 
@@ -93,7 +93,7 @@ function public_make_sortable( disp, elem, index )
 
 function private_make_link( repr, target, extra, action )
 {
-    label = $( '<a href="#">' + repr + '</a>' );
+    var label = $( '<a href="#">' + repr + '</a>' );
     label.data( 'repr', repr );
     label.data( 'target', target );
     if( extra !== null ) {
@@ -108,15 +108,15 @@ function private_make_link( repr, target, extra, action )
 function public_make_link( repr, target, ext_actions )
 {
     main_action = function( e ) {
-        target = $( this ).data( 'target' );
-        repr = $( this ).data( 'repr' );
+        var target = $( this ).data( 'target' );
+        var repr = $( this ).data( 'repr' );
 
-        provider = new tabs.SingleProvider( target );
+        var provider = new tabs.SingleProvider( target );
         tabs.create_display_tab( repr, provider );
     }
 
     if( typeof ext_actions !== 'undefined' && ext_actions.length > 0 ) {
-        span = $( '<span></span>' )
+        var span = $( '<span></span>' )
         span.append( private_make_link( repr, target, null, main_action ) );
         span.append( ' (' )
         span.append( private_make_link( ext_actions[0].label,
@@ -147,7 +147,7 @@ function public_make_link_list( list, ext_actions )
 {
     if( list.length == 0 ) return;
 
-    span = $( '<span></span>' );
+    var span = $( '<span></span>' );
     span.append( public_make_link2( list[0], ext_actions ) );
 
     for( var i = 1; i < list.length; i++ ) {
@@ -175,79 +175,101 @@ var displib = (function() {
 /**
  * class DisplayableBase
  */
-DisplayableBase = function()
-
-    // Constructor
+class DisplayableBase
+{
+    constructor()
     {
         this.change_listeners = [];
-    };
+    }
 
-    DisplayableBase.prototype.is_sortable = function() { return false; }
-    DisplayableBase.prototype.set_field = function(
-            field, value ) {}
-    DisplayableBase.prototype.set_variant = function(
-            original, variant ) {}
-    DisplayableBase.prototype.clear_variant = function(
-            original, variant ) {}
-    DisplayableBase.prototype.link_duplicates = function(
-            original, duplicate ) {}
-    DisplayableBase.prototype.unlink_duplicates = function(
-            original, duplicate ) {}
-    DisplayableBase.prototype.transform = function( xform ) {};
-    DisplayableBase.prototype.reorder = function( drop_data, idx ) {};
-    DisplayableBase.prototype.show_stream = function( stream_id ) {};
-    DisplayableBase.prototype.set_as_main_stream = function() {};
-    DisplayableBase.prototype.on_event = function( e ) { return null; };
-    DisplayableBase.prototype.refresh_info = function( e ) {};
+    is_sortable()
+    {
+        return false;
+    }
 
-    DisplayableBase.prototype.get_obj_id = function() { return null; };
-    DisplayableBase.prototype.get_files = function() { return []; };
-    DisplayableBase.prototype.create_provider = function( args ) { return null; }
+    set_field( field, value )
+    {}
 
-    DisplayableBase.prototype.register_change_listener = function( listener )
+    set_variant( original, variant )
+    {}
+
+    clear_variant( original, variant )
+    {}
+
+    link_duplicates( original, duplicate )
+    {}
+
+    unlink_duplicates( original, duplicate )
+    {}
+
+    transform( xform )
+    {}
+
+    reorder( drop_data, idx )
+    {}
+
+    show_stream( stream_id )
+    {}
+
+    set_as_main_stream()
+    {}
+
+    on_event( e )
+    { return null; }
+
+    refresh_info( e )
+    {}
+
+    get_obj_id()
+    { return null; }
+
+    get_files()
+    { return []; }
+
+    create_provider( args )
+    { return null; }
+
+    register_change_listener( listener )
     {
         this.change_listeners.push( listener );
-    };
+    }
 
-    DisplayableBase.prototype.unregister_change_listener = function( listener )
+    unregister_change_listener( listener )
     {
         var i = this.change_listeners.indexOf( listener );
         this.change_listeners.splice( i, 1 );
-    };
+    }
 
-    DisplayableBase.prototype.notify_change = function( e )
+    notify_change( e )
     {
         for( var i = 0; i < this.change_listeners.length; i++ ) {
             this.change_listeners[i].on_displayable_changed( this, e );
         }
-    };
+    }
+}
 
 /**
  * class DisplayableObject
  */
-DisplayableObject = function( obj_id, info, fields )
-
-    // Constructor
+class DisplayableObject extends DisplayableBase
+{
+    constructor( obj_id, info, fields )
     {
-        DisplayableBase.call( this );
+        super();
 
         this.type = 'object';
         this.obj_id = obj_id;
         this.stream_id = null;
         this.info = info;
         this.fields = fields;
-    };
+    }
 
-    // extends Displayable
-    DisplayableObject.prototype = new DisplayableBase();
-    DisplayableObject.prototype.constructor = DisplayableObject;
-
-    DisplayableObject.prototype.is_sortable = function()
+    is_sortable()
     {
         return this.info.type == 'album';
     }
 
-    DisplayableObject.prototype.rename = function( name, saveold )
+    rename( name, saveold )
     {
         var request = {
             'action' : 'rename',
@@ -260,16 +282,16 @@ DisplayableObject = function( obj_id, info, fields )
         }
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
-    };
+    }
 
-    DisplayableObject.prototype.tag = function( tags )
+    tag( tags )
     {
         var request = {
             'action' : 'tag',
             'targets' : [ this.obj_id ],
             'query' : tags,
         };
-        response = load_sync( request );
+        var response = load_sync( request );
 
         if( response.result == 'ok' ) {
             tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
@@ -277,9 +299,9 @@ DisplayableObject = function( obj_id, info, fields )
         } else {
             return response;
         }
-    };
+    }
 
-    DisplayableObject.prototype.rm_group = function()
+    rm_group()
     {
         var request = {
             action:     'group_delete',
@@ -291,9 +313,9 @@ DisplayableObject = function( obj_id, info, fields )
                 this.obj_id_list() } );
         tabs.on_event( { type: 'removed', affected:
                 [ this.obj_id ] } );
-    };
+    }
 
-    DisplayableObject.prototype.gather_tags = function()
+    gather_tags()
     {
         var request = {
             action:     'gather_tags',
@@ -301,6 +323,8 @@ DisplayableObject = function( obj_id, info, fields )
         };
 
         load_sync( request );
+
+        var affected = null;
         if( this.info.type == 'file') {
             affected = [ this.obj_id ];
         } else {
@@ -309,9 +333,9 @@ DisplayableObject = function( obj_id, info, fields )
         }
 
         tabs.on_event( { type: 'info_changed', affected: affected } );
-    };
+    }
 
-    DisplayableObject.prototype.reorder = function( drop_data, idx )
+    reorder( drop_data, idx )
     {
         var files = drop_data.get_files()
 
@@ -333,7 +357,7 @@ DisplayableObject = function( obj_id, info, fields )
             src_objs.push( this.info.files[src_idxs[i]] )
         }
 
-        output = []
+        var output = []
         for( var i = 0; i < this.info.files.length; i++ ) {
             if( i == idx ) {
                 for( var j = 0; j < src_objs.length; j++ ) {
@@ -355,7 +379,7 @@ DisplayableObject = function( obj_id, info, fields )
         if( !changed ) return;
 
         this.info.files = output;
-        obj_ids = this.obj_id_list();
+        var obj_ids = this.obj_id_list();
         var request = {
             action:     'group_reorder',
             group:      this.obj_id,
@@ -364,10 +388,9 @@ DisplayableObject = function( obj_id, info, fields )
         load_sync( request );
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
-    };
+    }
 
-    DisplayableBase.prototype.set_field = function(
-            field, value )
+    set_field( field, value )
     {
         var request = {
             action:     'set_field',
@@ -380,8 +403,7 @@ DisplayableObject = function( obj_id, info, fields )
         tabs.on_event( { type: 'info_changed', affected: [ this.obj_id, ] } );
     }
 
-    DisplayableObject.prototype.set_variant = function(
-            original, variant )
+    set_variant( original, variant )
     {
         var request = {
             action:     'link_files',
@@ -391,10 +413,9 @@ DisplayableObject = function( obj_id, info, fields )
 
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
-    };
+    }
 
-    DisplayableObject.prototype.clear_variant = function(
-            original, variant )
+    clear_variant( original, variant )
     {
         var request = {
             action:     'clear_variant',
@@ -404,10 +425,9 @@ DisplayableObject = function( obj_id, info, fields )
 
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
-    };
+    }
 
-    DisplayableObject.prototype.link_duplicates = function(
-            original, duplicate )
+    link_duplicates( original, duplicate )
     {
         var request = {
             action:         'link_files',
@@ -418,10 +438,9 @@ DisplayableObject = function( obj_id, info, fields )
 
         load_sync( request );
         tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
-    };
+    }
 
-    DisplayableObject.prototype.unlink_duplicate = function(
-            original, duplicate )
+    unlink_duplicate( original, duplicate )
     {
         var request = {
             action:         'unlink_files',
@@ -433,7 +452,7 @@ DisplayableObject = function( obj_id, info, fields )
         tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
     }
 
-    DisplayableObject.prototype.transform = function( xform )
+    transform( xform )
     {
         if( this.info.type != 'file') {
             return;
@@ -446,16 +465,16 @@ DisplayableObject = function( obj_id, info, fields )
         load_sync( request );
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
-    };
+    }
 
-    DisplayableObject.prototype.show_stream = function( stream_id )
+    show_stream( stream_id )
     {
         this.stream_id = stream_id;
         this.refresh_info( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
-    };
+    }
 
-    DisplayableBase.prototype.set_as_main_stream = function()
+    set_as_main_stream()
     {
         var request = {
             action: 'set_root_stream',
@@ -467,9 +486,9 @@ DisplayableObject = function( obj_id, info, fields )
         this.stream_id = null;
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
-    };
+    }
 
-    DisplayableObject.prototype.on_event = function( e )
+    on_event( e )
     {
         if( e.affected && e.affected.indexOf( this.obj_id ) == -1 ) {
             return;
@@ -611,7 +630,7 @@ DisplayableObject = function( obj_id, info, fields )
         } else if( e.type == 'files_changed' ) {
             this.refresh_info( e );
         } else if( e.type == 'push_selection' ) {
-            selection = displib.get_selection( e.selection );
+            var selection = displib.get_selection( e.selection );
             if( selection == null ) return;
 
             if( this.info.type == 'file') {
@@ -631,9 +650,9 @@ DisplayableObject = function( obj_id, info, fields )
                 } );
             }
         }
-    };
+    }
 
-    DisplayableObject.prototype.refresh_info = function( e )
+    refresh_info( e )
     {
         var request = {
             action:     'info',
@@ -642,14 +661,14 @@ DisplayableObject = function( obj_id, info, fields )
             fields:     tabs.get_field_set(),
         };
         
-        response = load_sync( request );
+        var response = load_sync( request );
         this.info = response.info;
         this.fields = response.fields;
 
         this.notify_change( e );
-    };
+    }
 
-    DisplayableObject.prototype.find_item = function( obj_id )
+    find_item( obj_id )
     {
         for( var i = 0; i < this.info.files.length; i++ ) {
             if( this.info.files[i][0] == obj_id ) {
@@ -657,9 +676,9 @@ DisplayableObject = function( obj_id, info, fields )
             }
         }
         return -1;
-    };
+    }
 
-    DisplayableObject.prototype.obj_id_list = function()
+    obj_id_list()
     {
         var obj_ids = [];
 
@@ -668,24 +687,24 @@ DisplayableObject = function( obj_id, info, fields )
         }
 
         return obj_ids;
-    };
+    }
 
-    DisplayableObject.prototype.get_obj_id = function()
+    get_obj_id()
     {
         return this.obj_id;
-    };
+    }
 
-    DisplayableObject.prototype.get_files = function()
+    get_files()
     {
         return this.info.files;
-    };
+    }
 
-    DisplayableObject.prototype.create_provider = function( args )
+    create_provider( args )
     {
         if( this.info.type == 'album'
          || this.info.type == 'published' )
         {
-            search_args = {
+            var search_args = {
                 mode: 'album',
                 album: this.obj_id,
             }
@@ -703,27 +722,25 @@ DisplayableObject = function( obj_id, info, fields )
             return new tabs.SingleProvider( this.obj_id );
         }
     }
+}
 
 /**
  * class DisplayableSelection
  */
-DisplayableSelection = function()
-
-    // Constructor
+class DisplayableSelection extends DisplayableBase
+{
+    constructor()
     {
-        DisplayableBase.call( this );
+        super();
 
         this.type = 'selection';
         this.objs = [];
     }
 
-    // extends Displayable
-    DisplayableSelection.prototype = new DisplayableBase();
-    DisplayableSelection.prototype.constructor = DisplayableSelection;
+    is_sortable()
+    { return true; }
 
-    DisplayableBase.prototype.is_sortable = function() { return true; }
-
-    DisplayableSelection.prototype.tag = function( tags )
+    tag( tags )
     {
         var targets = this.obj_id_list();
         var request = {
@@ -731,7 +748,7 @@ DisplayableSelection = function()
             'targets' : targets,
             'query' : tags,
         };
-        response = load_sync( request );
+        var response = load_sync( request );
 
         if( response.result == 'ok' ) {
             tabs.on_event( { type: 'info_changed', affected: targets } );
@@ -739,9 +756,9 @@ DisplayableSelection = function()
         } else {
             return response;
         }
-    };
+    }
 
-    DisplayableSelection.prototype.make_group = function()
+    make_group()
     {
         if( this.objs.length == 0 ) {
             alert( 'No objects selected' );
@@ -754,37 +771,37 @@ DisplayableSelection = function()
             targets:    targets,
         };
 
-        response = load_sync( request );
-        provider = new tabs.SingleProvider( response.group );
+        var response = load_sync( request );
+        var provider = new tabs.SingleProvider( response.group );
         tabs.create_display_tab( 'New Album', provider );
         tabs.on_event( { type: 'info_changed', affected: targets } );
-    };
+    }
 
-    DisplayableSelection.prototype.sort_by_id = function()
+    sort_by_id()
     {
         this.objs.sort( function( a, b ) {
             return a[0] - b[0];
         });
 
         this.notify_change( null );
-    };
+    }
 
-    DisplayableSelection.prototype.sort_by_name = function()
+    sort_by_name()
     {
         this.objs.sort( function( a, b ) {
             return a[1].localeCompare( b[0] );
         });
 
         this.notify_change( null );
-    };
+    }
 
-    DisplayableSelection.prototype.reverse_sort = function()
+    reverse_sort()
     {
         this.objs.reverse();
         this.notify_change( null );
-    };
+    }
 
-    DisplayableSelection.prototype.reorder = function( drop_data, idx )
+    reorder( drop_data, idx )
     {
         var files = drop_data.get_files()
 
@@ -806,7 +823,7 @@ DisplayableSelection = function()
             src_objs.push( this.objs[src_idxs[i]] )
         }
 
-        output = []
+        var output = []
         for( var i = 0; i < this.objs.length; i++ ) {
             if( i == idx ) {
                 for( var j = 0; j < src_objs.length; j++ ) {
@@ -829,9 +846,9 @@ DisplayableSelection = function()
 
         this.objs = output;
         this.notify_change( null );
-    };
+    }
 
-    DisplayableSelection.prototype.on_event = function( e )
+    on_event( e )
     {
         if( e.type == 'key' ) {
             switch( e.charCode ) {
@@ -883,9 +900,9 @@ DisplayableSelection = function()
                 this.notify_change( null );
             }
         }
-    };
+    }
 
-    DisplayableSelection.prototype.find_item = function( obj_id )
+    find_item( obj_id )
     {
         for( var i = 0; i < this.objs.length; i++ ) {
             if( this.objs[i][0] == obj_id ) {
@@ -893,9 +910,9 @@ DisplayableSelection = function()
             }
         }
         return -1;
-    };
+    }
 
-    DisplayableSelection.prototype.obj_id_list = function()
+    obj_id_list()
     {
         var obj_ids = [];
 
@@ -904,14 +921,14 @@ DisplayableSelection = function()
         }
 
         return obj_ids;
-    };
+    }
 
-    DisplayableSelection.prototype.get_files = function()
+    get_files()
     {
         return this.objs;
-    };
+    }
 
-    DisplayableSelection.prototype.create_provider = function( args )
+    create_provider( args )
     {
         var provider = new tabs.ListProvider( this.objs );
 
@@ -921,54 +938,48 @@ DisplayableSelection = function()
 
         return provider;
     }
+}
 
 /**
  * class ViewBase
  */
-ViewBase = function() {}
-
-    ViewBase.prototype.display_view = function( disp, div ) 
+class ViewBase
+{
+    display_view( disp, div ) 
     {
         div.html( '&nbsp;' );
-    };
+    }
 
-    ViewBase.prototype.on_event = function( e ) {};
+    on_event( e )
+    {}
+}
 
-HtmlView = function( html )
-
-    // Constructor
+class HtmlView extends ViewBase
+{
+    constructor( html )
     {
-        ViewBase.call( this );
-
+        super();
         this.html = html;
-    };
+    }
 
-    // extends ViewBase
-    HtmlView.prototype = new ViewBase();
-    HtmlView.prototype.constructor = HtmlView;
-
-    HtmlView.prototype.display_view = function( disp, div )
+    display_view( disp, div )
     {
         div.html( this.html );
-    };
+    }
+}
 
 /**
  * class ImageView
  */
-ImageView = function()
-
-    // Constructor
+class ImageView extends ViewBase
+{
+    constructor()
     {
-        ViewBase.call( this );
-
+        super();
         this.viewer = null;
     }
 
-    // extends ViewBase
-    ImageView.prototype = new ViewBase();
-    ImageView.prototype.constructor = ImageView;
-
-    ImageView.prototype.display_view = function( disp, div )
+    display_view( disp, div )
     {
         div.html( '' );
 
@@ -977,7 +988,7 @@ ImageView = function()
 //            return;
 //        }
 
-        image_info = {
+        var image_info = {
             obj_id: disp.obj_id,
             repr: disp.info.repr,
             type: disp.info.type,
@@ -993,9 +1004,9 @@ ImageView = function()
         this.viewer = attach_image( div, image_info );
 
         div.append( '<br/>' );
-    };
+    }
 
-    ImageView.prototype.on_event = function( e )
+    on_event( e )
     {
         if( !this.viewer ) {
             return;
@@ -1026,29 +1037,27 @@ ImageView = function()
         } else if( e.type == 'zoom' ) {
             this.viewer.set_zoom( e.zoom );
         }
-    };
+    }
+}
 
-ThumbView = function()
-
-    // Constructor
+class ThumbView extends ViewBase
+{
+    constructor()
     {
-        ViewBase.call( this );
+        super();
 
         this.selection = [];
         this.type = 'thumb';
         this.pane = null;
-    };
+    }
 
-    // extends ViewBase
-    ThumbView.prototype = new ViewBase();
-    ThumbView.prototype.constructor = ThumbView;
-
-    ThumbView.prototype.on_event = function( e )
+    on_event( e )
     {
         if( this.pane ) {
             this.pane.onEvent( e );
         }
-    };
+    }
+}
 
 var make_file_display = function( obj_id, info, fields )
 {
@@ -1149,4 +1158,5 @@ return {
 
 })(); // module displib
 
-
+window.util = util;
+window.displib = displib;
