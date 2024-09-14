@@ -174,7 +174,11 @@ class Object( Base ):
 
     def __repr__( self ):
 
-        return 'Object( %r, %r, %r )' % ( self.id, self.type, time.gmtime( self.create_ts ), self.name )
+        return 'Object( {id}, {type}, {create_ts}, {name} )'.format(
+                    id = self.object_id,
+                    type = self.object_type,
+                    create_ts = time.gmtime( self.create_ts ),
+                    name = self.name )
 
 class Stream( Base ):
     __tablename__ = 'streams'
