@@ -321,7 +321,9 @@ class Query:
 
     def __create_constraint( self, s ):
 
-        if( s.startswith( '@' ) ):
+        if( s.isdigit() ):
+            return ObjIdConstraint( '=', s )
+        elif( s.startswith( '@' ) ):
             return NameConstraint( '=', '*' + s[1:] + '*' )
         elif( s.startswith( '#' ) ):
             return TagConstraint( s[1:], fuzzy = True )
