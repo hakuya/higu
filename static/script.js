@@ -42,43 +42,14 @@ function load_async( request, callback, data )
                 return null;
             }
 
-            callback( data, response );
+            if( callback != null ) {
+                callback( data, response );
+            }
         },
         error:          function( xhr ) {
             dialogs.show_error_dialog( xhr.responseText );
         }
     } );
-}
-
-function load_sync( request )
-{
-    var result = null;
-
-    $.ajax( {
-        url:            '/callback_new',
-        type:           'POST',
-        contentType:    'application/json',
-        data:           JSON.stringify( request ),
-        processData:    false,
-        async:          false,
-        dataType:       'json',
-        success:        function( response ) {
-            result = response;
-        },
-        error:          function( xhr ) {
-            dialogs.show_error_dialog( xhr.responseText );
-        }
-    } );
-
-    if( result != null && result.result == 'err' && result.except == 'nosession' ) {
-        alert( 'Your session has expired' );
-        localStorage.removeItem( 'username' );
-        localStorage.removeItem( 'session_id' );
-        document.location.href = '/';
-        return null;
-    }
-
-    return result;
 }
 
 function load_html( elem, content )

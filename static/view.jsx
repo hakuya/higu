@@ -225,7 +225,7 @@ var public_remove = function( tab )
  */
 class public_Provider
 {
-    init()
+    init( callback )
     {}
 
     close()
@@ -235,16 +235,19 @@ class public_Provider
     { return null; }
 
     fetch( idx )
-    { return null; }
+    {}
 
     offset( off )
-    { return null; }
+    {}
 
     next()
-    { return null; }
+    {}
 
     prev()
-    { return null; }
+    {}
+
+    reload()
+    {}
 }
 
 /**
@@ -263,9 +266,17 @@ class public_SelectionProvider extends public_Provider
 
         this.index = null;
         this.count = 1;
+
+        this.callback = null;
     }
 
     init( callback )
+    {
+        this.callback = callback;
+        this.load();
+    }
+
+    load()
     {
         if( this.init_query != null ) {
             var request = {
@@ -277,25 +288,23 @@ class public_SelectionProvider extends public_Provider
                 oneshot: true,
             };
 
-            load_async( request, this.on_init_load.bind( this ), {
-                callback: callback,
-            });
+            load_async( request, this._load_cb.bind( this ), {} );
         } else {
             if( this.init_objs != null ) {
                 this.selection.disp.objs = this.init_objs;
             }
-            callback( this.selection );
+            this.callback( this.selection );
         }
     }
 
-    on_init_load( data, response )
+    _load_cb( data, response )
     {
         if( response.result == 'ok' && response.results > 0 ) {
             this.selection.disp.objs = response.items.map( ( it ) => {
                                             return [ it.object_id, it.repr, it.type ];
                                         } );
         }
-        data.callback( this.selection );
+        this.callback( this.selection );
     }
 
     close()
@@ -311,15 +320,18 @@ class public_SelectionProvider extends public_Provider
     fetch( idx )
     {
         if( idx == 0 ) {
-            return this.selection;
-        } else {
-            return null;
+            this.callback( this.selection );
         }
     }
 
     offset( off )
     {
-        return this.fetch( off );
+        this.fetch( off );
+    }
+
+    reload()
+    {
+        this.load();
     }
 }
 
@@ -336,9 +348,17 @@ class public_SingleProvider extends public_Provider
         this.info = null;
         this.index = null;
         this.count = 1;
+
+        this.callback = null;
     }
 
     init( callback )
+    {
+        this.callback = callback;
+        this.load();
+    }
+
+    load()
     {
         var request = {
             action:     'info',
@@ -347,18 +367,16 @@ class public_SingleProvider extends public_Provider
             fields:     field_set,
         };
 
-        load_async( request, this.on_init_load.bind( this ), {
-            callback: callback,
-        });
+        load_async( request, this._load_cb.bind( this ), {} );
     }
 
-    on_init_load( data, response )
+    _load_cb( data, response )
     {
         this.info = response.info;
         this.fields = response.fields;
 
         var display = window.displib.make_object_display( this.info, this.fields );
-        data.callback( display );
+        this.callback( display );
     }
 
     repr()
@@ -369,15 +387,18 @@ class public_SingleProvider extends public_Provider
     fetch( idx )
     {
         if( idx == 0 ) {
-            return window.displib.make_object_display( this.info, this.fields );
-        } else {
-            return null;
+            this.callback( window.displib.make_object_display( this.info, this.fields ) );
         }
     }
 
     offset( off )
     {
-        return this.fetch( off );
+        this.fetch( off );
+    }
+
+    reload()
+    {
+        this.load();
     }
 }
 
@@ -395,10 +416,15 @@ class public_SearchProvider extends public_Provider
 
         this.index = null;
         this.count = null;
+
+        this.loading = false;
+        this.callback = null;
     }
 
     init( callback )
     {
+        this.callback = callback;
+
         if( this.sid ) {
             return this.fetch( this.index );
         }
@@ -423,13 +449,14 @@ class public_SearchProvider extends public_Provider
             request.index = this.query.index;
         }
 
-        load_async( request, this.on_init_load.bind( this ), {
-            callback: callback,
-        });
+        this.loading = true;
+        load_async( request, this.on_init_load.bind( this ), {} );
     }
 
     on_init_load( data, response )
     {
+        this.loading = false;
+
         var display = null;
 
         if( response.result != 'ok' ) {
@@ -458,7 +485,7 @@ class public_SearchProvider extends public_Provider
             display = window.displib.make_dummy_display( 'The search had no results' );
         }
 
-        data.callback( display );
+        this.callback( display );
     }
 
     close()
@@ -469,7 +496,7 @@ class public_SearchProvider extends public_Provider
             'action' : 'selection_close',
             'selection' : this.sid,
         }
-        load_sync( request );
+        load_async( request, null, null );
     }
 
     repr()
@@ -479,7 +506,8 @@ class public_SearchProvider extends public_Provider
 
     fetch( idx )
     {
-        if( !this.sid ) return null;
+        if( this.loading ) return;
+        if( !this.sid ) return;
 
         var request = {
             action:     'selection_fetch',
@@ -488,29 +516,38 @@ class public_SearchProvider extends public_Provider
             info:       info_set,
             fields:     field_set,
         };
-        var response = load_sync( request );
 
-        if( response == null || response.result != 'ok' ) {
-            return null;
-        }
+        this.loading = true;
+        load_async( request, this._fetch_cb.bind( this ), { idx: idx } );
+    }
 
-        this.index = idx;
-        return window.displib.make_object_display( response.info, response.fields );
+    _fetch_cb( data, response )
+    {
+        this.loading = false;
+        if( response == null || response.result != 'ok' ) return;
+
+        this.index = data.idx;
+        this.callback( window.displib.make_object_display( response.info, response.fields ) );
     }
 
     offset( off )
     {
-        return this.fetch( this.index + off );
+        this.fetch( this.index + off );
     }
 
     next()
     {
-        return this.offset( 1 );
+        this.offset( 1 );
     }
 
     prev()
     {
-        return this.offset( -1 );
+        this.offset( -1 );
+    }
+
+    reload()
+    {
+        this.fetch( this.index );
     }
 }
 
@@ -528,10 +565,15 @@ class public_ListProvider extends public_Provider
 
         this.index = null;
         this.count = list.length;
+
+        this.callback = null;
+        this.loading = false;
     }
 
     init( callback )
     {
+        this.callback = callback;
+
         if( this.obj_id ) {
             this.index = this.list.findIndex( ( it ) =>
                                 { return it[0] == this.obj_id; } );
@@ -550,15 +592,16 @@ class public_ListProvider extends public_Provider
             fields:     field_set,
         };
 
-        load_async( request, this.on_init_load.bind( this ), {
-            callback: callback,
-        });
+        this.loading = true;
+        load_async( request, this.on_init_load.bind( this ), {} );
     }
 
     on_init_load( data, response )
     {
+        this.loading = false;
+
         var display = window.displib.make_object_display( response.info, response.fields );
-        data.callback( display );
+        this.callback( display );
     }
 
     repr()
@@ -568,8 +611,10 @@ class public_ListProvider extends public_Provider
 
     fetch( idx )
     {
+        if( this.loading ) return;
+
         if( idx < 0 || idx >= this.list.length ) {
-            return null;
+            return;
         }
 
         this.index = idx;
@@ -582,24 +627,35 @@ class public_ListProvider extends public_Provider
             items:      info_set,
             fields:     field_set,
         };
-        var response = load_sync( request );
 
-        return window.displib.make_object_display( response.info, response.fields );
+        this.loading = true;
+        load_async( request, this._fetch_cb.bind( this ), {} );
+    }
+
+    _fetch_cb( data, response )
+    {
+        this.loading = false;
+        this.callback( window.displib.make_object_display( response.info, response.fields ) );
     }
 
     offset( off )
     {
-        return this.fetch( this.index + off );
+        this.fetch( this.index + off );
     }
 
     next()
     {
-        return this.offset( 1 );
+        this.offset( 1 );
     }
 
     prev()
     {
-        return this.offset( -1 );
+        this.offset( -1 );
+    }
+
+    reload()
+    {
+        this.fetch( this.index );
     }
 }
 

@@ -267,7 +267,12 @@ class TagDialog extends React.Component
         evt.preventDefault();
 
         var tags = $( '#tags' ).val();
-        var r = this.obj.tag( tags );
+        this.obj.tag( tags, this.onApplyCallback.bind( this ) );
+
+    }
+    onApplyCallback( r )
+    {
+        var tags = $( '#tags' ).val();
 
         if( r.result == 'ok' ) {
             $( document ).focus();

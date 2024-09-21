@@ -280,24 +280,37 @@ class DisplayableObject extends DisplayableBase
         if( saveold ) {
             request.saveold = true;
         }
-        load_sync( request );
+
+        load_async( request, this._rename_cb.bind( this ), {} );
+    }
+
+    _rename_cb( data, response )
+    {
         tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
     }
 
-    tag( tags )
+    tag( tags, callback )
     {
         var request = {
             'action' : 'tag',
             'targets' : [ this.obj_id ],
             'query' : tags,
         };
-        var response = load_sync( request );
 
+        load_async(
+                request,
+                this._tag_cb.bind( this ),
+                { callback: callback }
+             );
+    }
+
+    _tag_cb( data, response )
+    {
         if( response.result == 'ok' ) {
             tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
-            return { result: 'ok' };
+            data.callback( { result: 'ok' } );
         } else {
-            return response;
+            data.callback( response );
         }
     }
 
@@ -308,7 +321,11 @@ class DisplayableObject extends DisplayableBase
             group:      this.obj_id,
         };
 
-        load_sync( request );
+        load_async( request, this._rm_group_cb.bind( this ), {} );
+    }
+
+    _rm_group_cb( data, response )
+    {
         tabs.on_event( { type: 'info_changed', affected:
                 this.obj_id_list() } );
         tabs.on_event( { type: 'removed', affected:
@@ -322,8 +339,11 @@ class DisplayableObject extends DisplayableBase
             target:     this.obj_id,
         };
 
-        load_sync( request );
+        load_async( request, this._gather_tags_cb.bind( this ), {} );
+    }
 
+    _gather_tags_cb( data, response )
+    {
         var affected = null;
         if( this.info.type == 'file') {
             affected = [ this.obj_id ];
@@ -385,7 +405,11 @@ class DisplayableObject extends DisplayableBase
             group:      this.obj_id,
             items:      obj_ids,
         };
-        load_sync( request );
+        load_async( request, this._reorder_cb.bind( this ), {} );
+    }
+
+    _reorder_cb( data, response )
+    {
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
     }
@@ -399,7 +423,11 @@ class DisplayableObject extends DisplayableBase
             value:      value,
         };
 
-        load_sync( request );
+        load_async( request, this._set_field_cb.bind( this ), {} );
+    }
+
+    _set_field_cb( data, response )
+    {
         tabs.on_event( { type: 'info_changed', affected: [ this.obj_id, ] } );
     }
 
@@ -411,7 +439,18 @@ class DisplayableObject extends DisplayableBase
             variant:    variant,
         };
 
-        load_sync( request );
+        load_async(
+                request,
+                this._set_variant_cb.bind( this ),
+                {
+                    original: original,
+                    variant:  variant
+                }
+            );
+    }
+
+    _set_variant_cb( data, response )
+    {
         tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
     }
 
@@ -423,8 +462,19 @@ class DisplayableObject extends DisplayableBase
             variant:    variant,
         };
 
-        load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected: [ original, variant ] } );
+        load_async(
+                request,
+                this._clear_variant_cb.bind( this ),
+                {
+                    original: original,
+                    variant:  variant
+                }
+            );
+    }
+
+    _clear_variant_cb( data, response )
+    {
+        tabs.on_event( { type: 'info_changed', affected: [ data.original, data.variant ] } );
     }
 
     link_duplicates( original, duplicate )
@@ -436,8 +486,19 @@ class DisplayableObject extends DisplayableBase
             is_duplicate:   true,
         };
 
-        load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
+        load_async(
+                request,
+                this._link_duplicates_cb.bind( this ),
+                {
+                    original:  original,
+                    duplicate: duplicate
+                }
+            );
+    }
+
+    _link_duplicates_cb( data, response )
+    {
+        tabs.on_event( { type: 'info_changed', affected: [ data.original, data.duplicate ] } );
     }
 
     unlink_duplicate( original, duplicate )
@@ -448,8 +509,19 @@ class DisplayableObject extends DisplayableBase
             variant:        duplicate,
         };
 
-        load_sync( request );
-        tabs.on_event( { type: 'info_changed', affected: [ original, duplicate ] } );
+        load_async(
+                request,
+                this._unlink_duplicates_cb.bind( this ),
+                {
+                    original:  original,
+                    duplicate: duplicate
+                }
+            );
+    }
+
+    _unlink_duplicates_cb( data, response )
+    {
+        tabs.on_event( { type: 'info_changed', affected: [ data.original, data.duplicate ] } );
     }
 
     transform( xform )
@@ -462,7 +534,11 @@ class DisplayableObject extends DisplayableBase
             action:     xform,
             target:     this.obj_id,
         };
-        load_sync( request );
+        load_async( request, this._transform_cb.bind( this ), {} );
+    }
+
+    _transform_cb( data, response )
+    {
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
     }
@@ -481,8 +557,11 @@ class DisplayableObject extends DisplayableBase
             target: this.obj_id,
             stream: this.stream_id,
         };
-        load_sync( request );
+        load_async( request, this._set_as_main_stream_cb.bind( this ), {} );
+    }
 
+    _set_as_main_stream_cb( data, response )
+    {
         this.stream_id = null;
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
@@ -501,9 +580,6 @@ class DisplayableObject extends DisplayableBase
                     break;
                 case 110: // n
                     dialogs.show_name_dialog( this );
-                    break;
-                case 114: // r
-                    this.refresh_info( e );
                     break;
                 case 49: // 1
                 case 50: // 2
@@ -567,20 +643,16 @@ class DisplayableObject extends DisplayableBase
                     targets:    to_append,
                 };
 
-                load_sync( request );
-                tabs.on_event( { type: 'files_changed', affected:
-                        [ this.obj_id ] } );
-                tabs.on_event( { type: 'info_changed', affected:
-                        [ obj_id ] } );
-
-                if( disp ) {
-                    disp.on_event( {
-                            type: 'dropped',
-                            drop_target: this,
+                load_async(
+                        request,
+                        this._on_event_drop_album_cb.bind( this ),
+                        {
+                            disp:        disp,
+                            obj_id:      obj_id,
                             drop_method: e.drop_method,
-                            drop_data: e.drop_data,
-                        } );
-                }
+                            drop_data:   e.drop_data
+                        }
+                    );
             } else if( this.info.type == 'published' ) {
                 alert( 'Published albums may not be modified' );
             }
@@ -617,11 +689,11 @@ class DisplayableObject extends DisplayableBase
                     targets:    targets
                 };
 
-                load_sync( request );
-                tabs.on_event( { type: 'files_changed', affected:
-                        [ this.obj_id ] } );
-                tabs.on_event( { type: 'info_changed', affected:
-                        [ obj_id ].concat( targets ) } );
+                load_async(
+                        request,
+                        this._on_event_trash_cb.bind( this ),
+                        { obj_id: obj_id }
+                    );
             }
         } else if( e.type == 'replaced' ) {
             this.obj_id = e.new_id;
@@ -643,6 +715,31 @@ class DisplayableObject extends DisplayableBase
         }
     }
 
+    _on_event_drop_album_cb( data, response )
+    {
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+        tabs.on_event( { type: 'info_changed', affected:
+                [ data.obj_id ] } );
+
+        if( data.disp ) {
+            data.disp.on_event( {
+                    type: 'dropped',
+                    drop_target: this,
+                    drop_method: data.drop_method,
+                    drop_data: data.drop_data,
+                } );
+        }
+    }
+
+    _on_event_trash_cb( data, response )
+    {
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+        tabs.on_event( { type: 'info_changed', affected:
+                [ data.obj_id ].concat( targets ) } );
+    }
+
     refresh_info( e )
     {
         var request = {
@@ -652,11 +749,15 @@ class DisplayableObject extends DisplayableBase
             fields:     tabs.get_field_set(),
         };
         
-        var response = load_sync( request );
+        load_async( request, this._refresh_info_cb.bind( this ), { e: e } );
+    }
+
+    _refresh_info_cb( data, response )
+    {
         this.info = response.info;
         this.fields = response.fields;
 
-        this.notify_change( e );
+        this.notify_change( data.e );
     }
 
     find_item( obj_id )
@@ -731,7 +832,7 @@ class DisplayableSelection extends DisplayableBase
     is_sortable()
     { return true; }
 
-    tag( tags )
+    tag( tags, callback )
     {
         var targets = this.obj_id_list();
         var request = {
@@ -739,13 +840,23 @@ class DisplayableSelection extends DisplayableBase
             'targets' : targets,
             'query' : tags,
         };
-        var response = load_sync( request );
+        load_async(
+                request,
+                this._tag_cb.bind( this ),
+                {
+                    callback: callback,
+                    targets:  targets
+                }
+            );
+    }
 
+    _tag_cb( data, response )
+    {
         if( response.result == 'ok' ) {
-            tabs.on_event( { type: 'info_changed', affected: targets } );
-            return { result: 'ok' };
+            tabs.on_event( { type: 'info_changed', affected: data.targets } );
+            data.callback( { result: 'ok' } );
         } else {
-            return response;
+            data.callback( response );
         }
     }
 
@@ -762,10 +873,18 @@ class DisplayableSelection extends DisplayableBase
             targets:    targets,
         };
 
-        var response = load_sync( request );
+        load_async(
+                request,
+                this._make_group_cb.bind( this ),
+                { targets: targets }
+            );
+    }
+
+    _make_group_cb( data, response )
+    {
         var provider = new tabs.SingleProvider( response.group );
         tabs.create_display_tab( 'New Album', provider );
-        tabs.on_event( { type: 'info_changed', affected: targets } );
+        tabs.on_event( { type: 'info_changed', affected: data.targets } );
     }
 
     sort_by_id()

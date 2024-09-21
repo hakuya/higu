@@ -967,17 +967,16 @@ class DisplayTab extends React.Component
         if( e.type == 'key' && e.charCode == 106 /* j */
          || e.type == 'navigate' && e.direction == 'next' )
         {
-            var display = this.props.data.provider.next();
-            if( display ) {
-                this.setDisplay( display );
-            }
+            this.props.data.provider.next();
+            // will trigger onDisplayReady when loaded
         } else if( e.type == 'key' && e.charCode == 107 /* k */
                 || e.type == 'navigate' && e.direction == 'prev' )
         {
-            var display = this.props.data.provider.prev();
-            if( display ) {
-                this.setDisplay( display );
-            }
+            this.props.data.provider.prev();
+            // will trigger onDisplayReady when loaded
+        } else if( e.type == 'key' && e.charCode == 114 /* r */ ) {
+            this.props.data.provider.reload();
+            // will trigger onDisplayReady when loaded
         } else {
             if( this.state.display ) {
                 this.state.display.on_event( e );
@@ -1008,7 +1007,7 @@ class DisplayTab extends React.Component
         } );
     }
 
-    onInitComplete( display )
+    onDisplayReady( display )
     {
         this.setDisplay( display );
     }
@@ -1052,7 +1051,7 @@ class DisplayTab extends React.Component
             },
         });
 
-        this.props.data.provider.init( this.onInitComplete.bind( this ) );
+        this.props.data.provider.init( this.onDisplayReady.bind( this ) );
     }
 
     render() {
@@ -1149,10 +1148,15 @@ class AdminTab extends React.Component {
                 action:     'tag_delete',
                 tag:        src.val(),
             };
-            load_sync( request );
-
-            src.val( '' );
-            tgt.val( '' );
+            load_async(
+                    request,
+                    function( data, response )
+                    {
+                        src.val( '' );
+                        tgt.val( '' );
+                    },
+                    {}
+                );
         });
 
         // Copy
@@ -1166,10 +1170,15 @@ class AdminTab extends React.Component {
                 tag:        src.val(),
                 target:     tgt.val(),
             };
-            load_sync( request );
-
-            src.val( '' );
-            tgt.val( '' );
+            load_async(
+                    request,
+                    function( data, response )
+                    {
+                        src.val( '' );
+                        tgt.val( '' );
+                    },
+                    {}
+                );
         });
 
         // Move
@@ -1183,10 +1192,15 @@ class AdminTab extends React.Component {
                 tag:        src.val(),
                 target:     tgt.val(),
             };
-            load_sync( request );
-
-            src.val( '' );
-            tgt.val( '' );
+            load_async(
+                    request,
+                    function( data, response )
+                    {
+                        src.val( '' );
+                        tgt.val( '' );
+                    },
+                    {}
+                );
         });
     }
     doBulk( commit ) {
@@ -1200,7 +1214,10 @@ class AdminTab extends React.Component {
             commit:     commit
         };
 
-        var response = load_sync( request );
+        load_async( request, this.doBulkCallback.bind( this ), {} );
+    }
+    doBulkCallback( data, response )
+    {
         if( response.result == 'ok' ) {
             var lines = [ response.affected + ' rows affected' ];
             lines = lines.concat( response.changes.map( ( it ) => {
