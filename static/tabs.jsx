@@ -587,7 +587,7 @@ class AlbumTile extends React.Component
             fields:     [],
         };
 
-        load_async( request, this, 'onContentLoaded', {} );
+        load_async( request, this.onContentLoaded.bind( this ), {} );
     }
     onContentLoaded( data, response ) {
         if( response.result == 'ok' ) {
@@ -1052,7 +1052,7 @@ class DisplayTab extends React.Component
             },
         });
 
-        this.props.data.provider.init( this, 'onInitComplete' );
+        this.props.data.provider.init( this.onInitComplete.bind( this ) );
     }
 
     render() {
@@ -1260,7 +1260,7 @@ class TaglistTab extends React.Component {
     }
     loadContent()
     {
-        load_async( { action: 'taglist' }, this, 'onContentLoaded', {} );
+        load_async( { action: 'taglist' }, this.onContentLoaded.bind( this ), {} );
     }
     onContentLoaded( data, response ) {
         if( response.result == 'ok' ) {

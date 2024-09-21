@@ -24,7 +24,7 @@ function do_show_html( target, response )
     load_html( target, response.data );
 }
 
-function load_async( request, obj, callback, data )
+function load_async( request, callback, data )
 {
     $.ajax( {
         url:            '/callback_new',
@@ -42,7 +42,7 @@ function load_async( request, obj, callback, data )
                 return null;
             }
 
-            eval( 'obj.' + callback + '( data, response )' );
+            callback( data, response );
         },
         error:          function( xhr ) {
             dialogs.show_error_dialog( xhr.responseText );

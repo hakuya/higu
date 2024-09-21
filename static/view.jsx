@@ -265,7 +265,7 @@ class public_SelectionProvider extends public_Provider
         this.count = 1;
     }
 
-    init( obj, callback )
+    init( callback )
     {
         if( this.init_query != null ) {
             var request = {
@@ -277,15 +277,14 @@ class public_SelectionProvider extends public_Provider
                 oneshot: true,
             };
 
-            load_async( request, this, 'on_init_load', {
-                obj: obj,
+            load_async( request, this.on_init_load.bind( this ), {
                 callback: callback,
             });
         } else {
             if( this.init_objs != null ) {
                 this.selection.disp.objs = this.init_objs;
             }
-            eval( 'obj.' + callback + '( this.selection )' );
+            callback( this.selection );
         }
     }
 
@@ -296,7 +295,7 @@ class public_SelectionProvider extends public_Provider
                                             return [ it.object_id, it.repr, it.type ];
                                         } );
         }
-        eval( 'data.obj.' + data.callback + '( this.selection )' );
+        data.callback( this.selection );
     }
 
     close()
@@ -339,7 +338,7 @@ class public_SingleProvider extends public_Provider
         this.count = 1;
     }
 
-    init( obj, callback )
+    init( callback )
     {
         var request = {
             action:     'info',
@@ -348,8 +347,7 @@ class public_SingleProvider extends public_Provider
             fields:     field_set,
         };
 
-        load_async( request, this, 'on_init_load', {
-            obj: obj,
+        load_async( request, this.on_init_load.bind( this ), {
             callback: callback,
         });
     }
@@ -360,7 +358,7 @@ class public_SingleProvider extends public_Provider
         this.fields = response.fields;
 
         var display = window.displib.make_object_display( this.info, this.fields );
-        eval( 'data.obj.' + data.callback + '( display )' );
+        data.callback( display );
     }
 
     repr()
@@ -399,7 +397,7 @@ class public_SearchProvider extends public_Provider
         this.count = null;
     }
 
-    init( obj, callback )
+    init( callback )
     {
         if( this.sid ) {
             return this.fetch( this.index );
@@ -425,8 +423,7 @@ class public_SearchProvider extends public_Provider
             request.index = this.query.index;
         }
 
-        load_async( request, this, 'on_init_load', {
-            obj: obj,
+        load_async( request, this.on_init_load.bind( this ), {
             callback: callback,
         });
     }
@@ -461,7 +458,7 @@ class public_SearchProvider extends public_Provider
             display = window.displib.make_dummy_display( 'The search had no results' );
         }
 
-        eval( 'data.obj.' + data.callback + '( display )' );
+        data.callback( display );
     }
 
     close()
@@ -533,7 +530,7 @@ class public_ListProvider extends public_Provider
         this.count = list.length;
     }
 
-    init( obj, callback )
+    init( callback )
     {
         if( this.obj_id ) {
             this.index = this.list.findIndex( ( it ) =>
@@ -553,8 +550,7 @@ class public_ListProvider extends public_Provider
             fields:     field_set,
         };
 
-        load_async( request, this, 'on_init_load', {
-            obj: obj,
+        load_async( request, this.on_init_load.bind( this ), {
             callback: callback,
         });
     }
@@ -562,7 +558,7 @@ class public_ListProvider extends public_Provider
     on_init_load( data, response )
     {
         var display = window.displib.make_object_display( response.info, response.fields );
-        eval( 'data.obj.' + data.callback + '( display )' );
+        data.callback( display );
     }
 
     repr()
