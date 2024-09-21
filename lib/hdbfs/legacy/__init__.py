@@ -58,6 +58,8 @@ class HDBFSMigrator:
             return ver8rules.upgrade_from_11_to_12( log, session )
         elif( ver == 12 ):
             return ver8rules.upgrade_from_12_to_13( log, session )
+        elif( ver == 13 and rev == 0 ):
+            return ver8rules.upgrade_from_13_to_13_1( log, session )
         else:
             raise RuntimeError( 'Incompatible database version for upgrade' )
 

@@ -647,6 +647,41 @@ class HiguLibCases( testutil.TestCase ):
             self.assertTrue( go in files, 'Green not in album' )
             self.assertTrue( bo in files, 'Blue not in album' )
 
+    def test_add_album_to_album( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            parent = h.create_album()
+            child = h.create_album()
+
+            ro = h.register_file( red, False )
+            go = h.register_file( green, False )
+            bo = h.register_file( blue, False )
+
+            ro.assign( child )
+            go.assign( child )
+            bo.assign( parent )
+            child.assign( parent )
+
+            child_files = child.get_files()
+
+            self.assertTrue( ro in child_files, 'Red not in album' )
+            self.assertTrue( go in child_files, 'Green not in album' )
+
+            par_files = parent.get_files()
+            par_albums = parent.get_albums()
+            par_items = parent.get_items()
+
+            self.assertTrue( bo in par_files, 'Blue not in album' )
+            self.assertTrue( bo in par_items, 'Blue not in album' )
+            self.assertTrue( child in par_albums, 'Blue not in album' )
+            self.assertTrue( child in par_items, 'Blue not in album' )
+
     def test_order_then_reorder( self ):
 
         red = self._load_data( self.red )

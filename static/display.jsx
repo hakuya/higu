@@ -633,22 +633,13 @@ class DisplayableObject extends DisplayableBase
             var selection = displib.get_selection( e.selection );
             if( selection == null ) return;
 
-            if( this.info.type == 'file') {
-                selection.on_event( {
-                    type: 'drop',
-                    drop_data: util.make_basic_drop_data( this,
-                                    this.obj_id,
-                                    this.info.repr,
-                                    this.info.type )
-                } );
-            } else {
-                selection.on_event( {
-                    type: 'drop',
-                    drop_data: util.make_group_drop_data( this,
-                                    this.obj_id, this.info.files,
-                                    this.info.repr, this.info.type )
-                } );
-            }
+            selection.on_event( {
+                type: 'drop',
+                drop_data: util.make_basic_drop_data( this,
+                                this.obj_id,
+                                this.info.repr,
+                                this.info.type )
+            } );
         }
     }
 

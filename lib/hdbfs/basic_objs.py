@@ -298,10 +298,26 @@ class Obj:
     def __assign( self, parent, order, name, is_duplicate, force ):
 
         # Sanity checks
-        if( self.obj.object_type == model.TYPE_ALBUM
-         or self.obj.object_type == model.TYPE_PUBLISHED ):
+        if( self.obj.object_type == model.TYPE_ALBUM ):
 
-            assert parent.obj.object_type == model.TYPE_CLASSIFIER
+            assert parent.obj.object_type in [
+                        model.TYPE_CLASSIFIER,
+                        model.TYPE_ALBUM,
+                    ]
+
+        elif( self.obj.object_type == model.TYPE_PUBLISHED ):
+
+            if( force ):
+                assert parent.obj.object_type in [
+                            model.TYPE_CLASSIFIER,
+                            model.TYPE_ALBUM,
+                            model.TYPE_PUBLISHED,
+                        ]
+            else:
+                assert parent.obj.object_type in [
+                            model.TYPE_CLASSIFIER,
+                            model.TYPE_ALBUM,
+                        ]
 
         elif( self.obj.object_type == model.TYPE_FILE ):
 
@@ -508,6 +524,22 @@ class Group( Obj ):
     def is_ordered( self ):
 
         return False
+
+    def get_items( self, limit = None ):
+
+        return self.get_children( [
+                    model.TYPE_ALBUM,
+                    model.TYPE_PUBLISHED,
+                    model.TYPE_FILE,
+                    model.TYPE_DUPLICATE
+                ], limit )
+
+    def get_albums( self, limit = None ):
+
+        return self.get_children( [
+                    model.TYPE_ALBUM,
+                    model.TYPE_PUBLISHED
+                ], limit )
 
     def get_files( self, limit = None ):
 

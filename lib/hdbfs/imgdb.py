@@ -594,6 +594,10 @@ class Album( OrderedGroup ):
 
         with self.db._access( write = True ):
             if( self.obj.object_type == model.TYPE_ALBUM ):
+                # Ensure all children are published
+                for alb in self.get_albums():
+                    assert alb.obj.object_type == model.TYPE_PUBLISHED
+
                 self.obj.object_type = model.TYPE_PUBLISHED
             elif( self.obj.object_type == model.TYPE_PUBLISHED ):
                 pass

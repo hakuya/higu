@@ -645,3 +645,7 @@ def upgrade_from_12_to_13( log, session ):
 
     return 13, 0
 
+def upgrade_from_13_to_13_1( log, session ):
+
+    # No major changes, albums now allowed to be children of each other
+    return 13, 1

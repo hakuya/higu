@@ -132,10 +132,10 @@ class JsonInterface:
             albums = target.get_albums()
             info['albums'] = list( map( make_obj_tuple, albums ) )
         if( isinstance( target, hdbfs.Album ) and 'short_files' in items ):
-            files = target.get_files( limit = 10 )
+            files = target.get_items( limit = 10 )
             info['files'] = list( map( make_obj_tuple, files ) )
         if( isinstance( target, hdbfs.Album ) and 'files' in items ):
-            files = target.get_files()
+            files = target.get_items()
             info['files'] = list( map( make_obj_tuple, files ) )
         if( isinstance( target, hdbfs.ImageFile ) and 'thumb_gen' in items ):
             try:
@@ -410,7 +410,7 @@ class JsonInterface:
                 return hdbfs.query.Query().set_untagged().execute( db ), {}
             elif( data['mode'] == 'album' ):
                 album = db.get_object_by_id( data['album'] )
-                return list( map( lambda x: x.get_id(), album.get_files() ) ), \
+                return list( map( lambda x: x.get_id(), album.get_items() ) ), \
                                     { 'album' : data['album'] }
 
         else:
@@ -639,8 +639,6 @@ class JsonInterface:
         db = self.__db
 
         targets = list( map( db.get_object_by_id, targets ) )
-        for target in targets:
-            assert( isinstance( target, hdbfs.File ) )
 
         group = db.create_album()
         assert( isinstance( group, hdbfs.Album ) )
@@ -694,7 +692,7 @@ class JsonInterface:
         obj = db.get_object_by_id( target )
 
         if( isinstance( obj, hdbfs.Album ) ):
-            files = obj.get_files()
+            files = obj.get_items()
 
         else:
             assert False
@@ -720,7 +718,7 @@ class JsonInterface:
         obj = db.get_object_by_id( target )
 
         if( isinstance( obj, hdbfs.Album ) ):
-            files = obj.get_files()
+            files = obj.get_items()
 
         else:
             assert False

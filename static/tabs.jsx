@@ -85,13 +85,8 @@ class ObjectLabel extends React.Component
 {
     componentDidMount() {
         var d = this.props.display;
-        if( d.info.type == 'file') {
-            window.util.make_draggable( $( this.el ), window.util.make_basic_drop_data(
-                d, d.obj_id, d.info.repr, d.info.type ) );
-        } else {
-            window.util.make_draggable( $( this.el ), window.util.make_group_drop_data(
-                d, d.obj_id, d.info.files, d.info.repr, d.info.type ) );
-        }
+        window.util.make_draggable( $( this.el ), window.util.make_basic_drop_data(
+            d, d.obj_id, d.info.repr, d.info.type ) );
     }
     componentDidUpdate() {
         $( this.el ).draggable( 'destroy' );
