@@ -725,6 +725,14 @@ class TileViewPane extends React.Component
             } );
         }
     }
+    toggleSelectAll() {
+        if( this.state.selection.length == 0 ) {
+            var new_selection = [].concat( this.props.display.get_files() );
+            this.setState( { selection: new_selection } );
+        } else {
+            this.setState( { selection: [] } );
+        }
+    }
     selectUntil( drop_data ) {
         // don't do anything if already selected
         if( this.selectionIndexOf( drop_data.get_object() ) >= 0 ) return;
@@ -784,6 +792,9 @@ class TileViewPane extends React.Component
     onEvent( e ) {
         if( e.type == 'key' ) {
             switch( e.charCode ) {
+                case 96: // `
+                    this.toggleSelectAll();
+                    break;
                 case 46: // .
                 case 62: // >
                     var provider = new tabs.SelectionProvider();
