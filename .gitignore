@@ -1,4 +1,5 @@
 *.pyc
 .*.sw*
 test/data/hfdb_*.dat
+test/data/*.db
 test.db/*
