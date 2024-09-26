@@ -116,6 +116,14 @@ class ImageFile( File ):
         else:
             return self.get_root_stream()
 
+    def get_thumb_sizes( self ):
+
+        if( self.obj.object_type == model.TYPE_FILE ):
+            return self.db.tbcache.get_thumb_sizes( self )
+        else:
+            w, h = self.get_dimensions()
+            return [ ( None, w, h, True ), ]
+
     def check_metadata( self ):
 
         try:

@@ -166,26 +166,8 @@ class JsonInterface:
             info['width'] = w
             info['height'] = h
 
-            if( 'sizes' in items and w is not None ):
-                maxdim = w if( w > h ) else h
-                sizes = [ 1 << hdbfs.imgdb.cache.MIN_THUMB_EXP ]
-                exps = [ hdbfs.imgdb.cache.MIN_THUMB_EXP ]
-
-                while( sizes[-1] < maxdim ):
-                    sizes.append( sizes[-1] * 2 )
-                    exps.append( exps[-1] + 1 )
-
-                sizes[-1] = maxdim
-
-                if( w > h ):
-                    sizes = list( map( lambda x, e: ( e, x, x * h / w ), sizes, exps ) )
-                else:
-                    sizes = list( map( lambda y, e: ( e, y * w / h, y ), sizes, exps ) )
-
-                info['sizes'] = sizes
-
-            elif( 'sizes' in items ):
-                info['sizes'] = []
+            if( 'sizes' in items ):
+                info['sizes'] = target.get_thumb_sizes()
 
         if( 'origin_time' in items ):
             if( stream is not None ):

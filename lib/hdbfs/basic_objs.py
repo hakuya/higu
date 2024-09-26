@@ -665,6 +665,18 @@ class File( Obj ):
 
         with self.db._access():
             return self._get_stream( name )
+
+    def _list_streams( self ):
+
+        return [ rs[0] for rs in
+            self.db.session.query( model.Stream.name )
+                .filter( model.Stream.object_id == self.obj.object_id )
+                .order_by( model.Stream.stream_id ) ]
+
+    def list_streams( self ):
+
+        with self.db._access():
+            return self._list_streams()
     
     def _get_streams( self ):
 

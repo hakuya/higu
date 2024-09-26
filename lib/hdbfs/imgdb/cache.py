@@ -204,3 +204,28 @@ class ThumbCache:
         with ImageInfo( self.imgdb, obj ) as imginfo:
             imginfo.regen()
 
+    def get_thumb_sizes( self, obj ):
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+
+            w, h = imginfo.get_obj_dims()
+
+            maxdim = w if( w > h ) else h
+            sizes = [ 1 << MIN_THUMB_EXP ]
+            exps = [ MIN_THUMB_EXP ]
+
+            while( sizes[-1] < maxdim ):
+                sizes.append( sizes[-1] * 2 )
+                exps.append( exps[-1] + 1 )
+
+            sizes[-1] = maxdim
+
+            tb_names = list( map( lambda e: f'tb:{e}', exps ) )
+            tb_names[-1] = '.'
+
+            ls = obj.list_streams()
+
+            if( w > h ):
+                return list( map( lambda x, e, n: ( e, x, x * h // w, n in ls ), sizes, exps, tb_names ) )
+            else:
+                return list( map( lambda y, e, n: ( e, y * w // h, y, n in ls ), sizes, exps, tb_names ) )
