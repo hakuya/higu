@@ -5,26 +5,28 @@ import hdbfs
 
 class HiguQueryCases( testutil.TestCase ):
 
-    def setUp( self ):
+    @classmethod
+    def setUpClass( cls ):
 
-        import time
+        cls.init_cache( cls.cache_init_fn )
 
-        self.init_env()
+    @classmethod
+    def cache_init_fn( cls ):
 
         h = hdbfs.Database()
         h.enable_write_access()
 
         with h.transaction():
 
-            red_obj = h.register_file( self._load_data( self.red ) )
-            yellow_obj = h.register_file( self._load_data( self.yellow ) )
-            green_obj = h.register_file( self._load_data( self.green ) )
-            cyan_obj = h.register_file( self._load_data( self.cyan ) )
-            blue_obj = h.register_file( self._load_data( self.blue ) )
-            magenta_obj = h.register_file( self._load_data( self.magenta ) )
-            white_obj = h.register_file( self._load_data( self.white ) )
-            grey_obj = h.register_file( self._load_data( self.grey ) )
-            black_obj = h.register_file( self._load_data( self.black ) )
+            red_obj = h.register_file( cls._load_cache( cls.red ) )
+            yellow_obj = h.register_file( cls._load_cache( cls.yellow ) )
+            green_obj = h.register_file( cls._load_cache( cls.green ) )
+            cyan_obj = h.register_file( cls._load_cache( cls.cyan ) )
+            blue_obj = h.register_file( cls._load_cache( cls.blue ) )
+            magenta_obj = h.register_file( cls._load_cache( cls.magenta ) )
+            white_obj = h.register_file( cls._load_cache( cls.white ) )
+            grey_obj = h.register_file( cls._load_cache( cls.grey ) )
+            black_obj = h.register_file( cls._load_cache( cls.black ) )
 
             red_obj['test'] = 1
             yellow_obj['test'] = 2
@@ -74,27 +76,58 @@ class HiguQueryCases( testutil.TestCase ):
             yellow_obj.assign( paint_tag )
             blue_obj.assign( paint_tag )
 
-            self.h = hdbfs.Database()
+            cls.red_obj_id = red_obj.get_id()
+            cls.yellow_obj_id = yellow_obj.get_id()
+            cls.green_obj_id = green_obj.get_id()
+            cls.cyan_obj_id = cyan_obj.get_id()
+            cls.blue_obj_id = blue_obj.get_id()
+            cls.magenta_obj_id = magenta_obj.get_id()
+            cls.white_obj_id = white_obj.get_id()
+            cls.grey_obj_id = grey_obj.get_id()
+            cls.black_obj_id = black_obj.get_id()
 
-            self.red_obj = self.h.get_object_by_id( red_obj.get_id() )
-            self.yellow_obj = self.h.get_object_by_id( yellow_obj.get_id() )
-            self.green_obj = self.h.get_object_by_id( green_obj.get_id() )
-            self.cyan_obj = self.h.get_object_by_id( cyan_obj.get_id() )
-            self.blue_obj = self.h.get_object_by_id( blue_obj.get_id() )
-            self.magenta_obj = self.h.get_object_by_id( magenta_obj.get_id() )
-            self.white_obj = self.h.get_object_by_id( white_obj.get_id() )
-            self.grey_obj = self.h.get_object_by_id( grey_obj.get_id() )
-            self.black_obj = self.h.get_object_by_id( black_obj.get_id() )
+            cls.rwb_alb_id = rwb_alb.get_id()
+            cls.bgy_alb_id = bgy_alb.get_id()
 
-            self.rwb_alb = self.h.get_object_by_id( rwb_alb.get_id() )
-            self.bgy_alb = self.h.get_object_by_id( bgy_alb.get_id() )
+            cls.warm_tag_id = warm_tag.get_id()
+            cls.cool_tag_id = cool_tag.get_id()
+            cls.rgb_tag_id = rgb_tag.get_id()
+            cls.cmyk_tag_id = cmyk_tag.get_id()
+            cls.paint_tag_id = paint_tag.get_id()
+            cls.themes_tag_id = themes_tag.get_id()
 
-            self.warm_tag = self.h.get_object_by_id( warm_tag.get_id() )
-            self.cool_tag = self.h.get_object_by_id( cool_tag.get_id() )
-            self.rgb_tag = self.h.get_object_by_id( rgb_tag.get_id() )
-            self.cmyk_tag = self.h.get_object_by_id( cmyk_tag.get_id() )
-            self.paint_tag = self.h.get_object_by_id( paint_tag.get_id() )
-            self.themes_tag = self.h.get_object_by_id( themes_tag.get_id() )
+    @classmethod
+    def tearDownClass( cls ):
+
+        cls.uninit_cache()
+
+    def setUp( self ):
+
+        import time
+
+        self.init_env()
+
+        self.h = hdbfs.Database()
+
+        self.red_obj = self.h.get_object_by_id( self.red_obj_id )
+        self.yellow_obj = self.h.get_object_by_id( self.yellow_obj_id )
+        self.green_obj = self.h.get_object_by_id( self.green_obj_id )
+        self.cyan_obj = self.h.get_object_by_id( self.cyan_obj_id )
+        self.blue_obj = self.h.get_object_by_id( self.blue_obj_id )
+        self.magenta_obj = self.h.get_object_by_id( self.magenta_obj_id )
+        self.white_obj = self.h.get_object_by_id( self.white_obj_id )
+        self.grey_obj = self.h.get_object_by_id( self.grey_obj_id )
+        self.black_obj = self.h.get_object_by_id( self.black_obj_id )
+
+        self.rwb_alb = self.h.get_object_by_id( self.rwb_alb_id )
+        self.bgy_alb = self.h.get_object_by_id( self.bgy_alb_id )
+
+        self.warm_tag = self.h.get_object_by_id( self.warm_tag_id )
+        self.cool_tag = self.h.get_object_by_id( self.cool_tag_id )
+        self.rgb_tag = self.h.get_object_by_id( self.rgb_tag_id )
+        self.cmyk_tag = self.h.get_object_by_id( self.cmyk_tag_id )
+        self.paint_tag = self.h.get_object_by_id( self.paint_tag_id )
+        self.themes_tag = self.h.get_object_by_id( self.themes_tag_id )
 
     def tearDown( self ):
 

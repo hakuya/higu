@@ -12,6 +12,16 @@ hdbfs.imgdb.MIN_THUMB_EXP = 4
 
 class HiguLibCases( testutil.TestCase ):
 
+    @classmethod
+    def setUpClass( cls ):
+
+        cls.init_cache()
+
+    @classmethod
+    def tearDownClass( cls ):
+
+        cls.uninit_cache()
+
     def setUp( self ):
 
         self.init_env()

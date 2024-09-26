@@ -8,35 +8,58 @@ import higu
 
 class TestCase( unittest.TestCase ):
 
+    data_dir = 'test/data'
+    cache_dir = None
+    db_cache = None
+
+    red = 'red_sq.png'
+    yellow = 'yellow_sq.png'
+    green = 'green_sq.png'
+    cyan = 'cyan_sq.png'
+    blue = 'blue_sq.png'
+    magenta = 'magenta_sq.png'
+    white = 'white_sq.png'
+    grey = 'grey_sq.png'
+    black = 'black_sq.png'
+    cl_desc = 'cl_sq_desc.txt'
+    bw_desc = 'bw_sq_desc.txt'
+
+    red_hash = '92a5cf2c69d16d57c5dde8e0c0d4bdb9d76bc316'
+    yellow_hash = 'ca90c86d1621d000f1de2071f766615417298537'
+    green_hash = '2cc964f5c885bde996b38a6f0fd8a3b907d038c9'
+    cyan_hash = 'ef0495c17ef137143fb3ca403bef657e77d411ae'
+    blue_hash = '0ca527049c4e8f2b145e15afbf3d6393473e0178'
+    magenta_hash = 'ab8d44c936e2ccfe1c73cde3d7ace31750530442'
+    white_hash = 'f5a7cebc04fdd67e746b14b9492eb0cf56d815cf'
+    grey_hash = '5c75230de43a5617f7e85f32602ce3866a430e19'
+    black_hash = 'c2d1060c9ea2949e327d412778ccda8d31cdb538'
+
+    @classmethod
+    def init_cache( cls, cache_init_fn = None ):
+
+        cls.cache_dir = tempfile.mkdtemp()
+        cls.db_cache = os.path.join( cls.cache_dir, 'test.db' )
+
+        hdbfs.init( cls.db_cache )
+
+        if( cache_init_fn is not None ):
+            cache_init_fn()
+
+        hdbfs.dispose()
+
+    @classmethod
+    def uninit_cache( cls ):
+
+        if( cls.db_cache is not None ):
+            shutil.rmtree( cls.cache_dir )
+            cls.cache_dir = None
+
     def init_env( self, do_init = True, web_init = False ):
 
-        self.data_dir = 'test/data'
         self.work_dir = tempfile.mkdtemp()
         self.cfg_file_path = os.path.join( self.work_dir, 'test.cfg' )
         self.db_path = os.path.join( self.work_dir, 'test.db' )
         self.web_db = os.path.join( self.work_dir, 'web.db' )
-
-        self.red = 'red_sq.png'
-        self.yellow = 'yellow_sq.png'
-        self.green = 'green_sq.png'
-        self.cyan = 'cyan_sq.png'
-        self.blue = 'blue_sq.png'
-        self.magenta = 'magenta_sq.png'
-        self.white = 'white_sq.png'
-        self.grey = 'grey_sq.png'
-        self.black = 'black_sq.png'
-        self.cl_desc = 'cl_sq_desc.txt'
-        self.bw_desc = 'bw_sq_desc.txt'
-
-        self.red_hash = '92a5cf2c69d16d57c5dde8e0c0d4bdb9d76bc316'
-        self.yellow_hash = 'ca90c86d1621d000f1de2071f766615417298537'
-        self.green_hash = '2cc964f5c885bde996b38a6f0fd8a3b907d038c9'
-        self.cyan_hash = 'ef0495c17ef137143fb3ca403bef657e77d411ae'
-        self.blue_hash = '0ca527049c4e8f2b145e15afbf3d6393473e0178'
-        self.magenta_hash = 'ab8d44c936e2ccfe1c73cde3d7ace31750530442'
-        self.white_hash = 'f5a7cebc04fdd67e746b14b9492eb0cf56d815cf'
-        self.grey_hash = '5c75230de43a5617f7e85f32602ce3866a430e19'
-        self.black_hash = 'c2d1060c9ea2949e327d412778ccda8d31cdb538'
 
         cfg_file = open( self.cfg_file_path, 'w' )
         cfg_file.write( '[main]\n' )
@@ -46,7 +69,6 @@ class TestCase( unittest.TestCase ):
         cfg_file.write( 'host = localhost\n' )
         cfg_file.write( 'port = 60080\n' )
         cfg_file.close()
-
 
         if( do_init ):
             self._init_hdbfs()
@@ -62,19 +84,30 @@ class TestCase( unittest.TestCase ):
 
     def _init_hdbfs( self ):
 
+        if( self.db_cache is not None ):
+            shutil.copytree( self.db_cache, self.db_path )
+
         hdbfs.init( self.db_path )
 
-    def _data_path( self, fname ):
+    @classmethod
+    def _data_path( cls, fname ):
 
-        return os.path.join( self.data_dir, fname )
+        return os.path.join( cls.data_dir, fname )
+
+    @classmethod
+    def _load_cache( cls, fname, tname = None ):
+
+        src = cls._data_path( fname )
+        tgt = os.path.join( cls.cache_dir, tname if tname is not None else fname )
+
+        shutil.copy( src, tgt )
+
+        return tgt
 
     def _load_data( self, fname, tname = None ):
 
         src = self._data_path( fname )
-        if( tname is None ):
-            tgt = os.path.join( self.work_dir, fname )
-        else:
-            tgt = os.path.join( self.work_dir, tname )
+        tgt = os.path.join( self.work_dir, tname if tname is not None else fname )
 
         shutil.copy( src, tgt )
 
