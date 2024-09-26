@@ -1,0 +1,4 @@
+IMGDB_DATA_PATH = 'imgdat'
+IMGDB_THUMB_PATH = 'tbdat'
+
+METADATA_VERSION = 3

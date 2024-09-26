@@ -1,8 +1,6 @@
 import calendar
 import time
 
-import hdbfs.db
-
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
 TYPE_FILE_DUP   = 1001

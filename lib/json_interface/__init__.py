@@ -168,8 +168,8 @@ class JsonInterface:
 
             if( 'sizes' in items and w is not None ):
                 maxdim = w if( w > h ) else h
-                sizes = [ 1 << hdbfs.imgdb.MIN_THUMB_EXP ]
-                exps = [ hdbfs.imgdb.MIN_THUMB_EXP ]
+                sizes = [ 1 << hdbfs.imgdb.cache.MIN_THUMB_EXP ]
+                exps = [ hdbfs.imgdb.cache.MIN_THUMB_EXP ]
 
                 while( sizes[-1] < maxdim ):
                     sizes.append( sizes[-1] * 2 )

@@ -7,7 +7,7 @@ import hdbfs.legacy.pre8 as pre8
 import hdbfs.legacy.ver8rules as ver8rules
 import hdbfs.legacy.imgdb_rules as imgdb_rules
 
-from hdbfs.db import SqlLiteDatabase
+from dblib import SqlLiteDatabase
 from hdbfs.hash import calculate_details
 
 class HDBFSMigrator:

@@ -8,8 +8,6 @@ import datetime
 import hdbfs
 import hdbfs.ark
 
-hdbfs.imgdb.MIN_THUMB_EXP = 4
-
 class HiguLibCases( testutil.TestCase ):
 
     @classmethod
@@ -24,6 +22,7 @@ class HiguLibCases( testutil.TestCase ):
 
     def setUp( self ):
 
+        hdbfs.imgdb.cache.MIN_THUMB_EXP = 4
         self.init_env()
 
     def tearDown( self ):

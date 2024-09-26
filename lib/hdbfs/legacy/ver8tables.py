@@ -1,6 +1,6 @@
 import uuid
 
-import hdbfs.db
+import dblib
 
 VERSION = 8
 REVISION = 1
@@ -44,7 +44,7 @@ class DatabaseInfo:
                                 ( 'imgdb_ver',  'INTEGER', ) ] )
 
             self.dbi.insert( [ ( 'uuid', str( uuid.uuid1() ), ), ( 'ver', VERSION ), ( 'rev', REVISION, ) ] )
-        except hdbfs.db.QueryError:
+        except dblib.QueryError:
             pass
 
     def get_uuid( self ):
@@ -74,7 +74,7 @@ class MasterObjectList:
                                     ( 'type',   'INTEGER NOT NULL', ),
                                     ( 'name',   'TEXT', ),
                                     ( 'dup',    'INTEGER', ), ] )
-        except hdbfs.db.QueryError:
+        except dblib.QueryError:
             pass
 
     def lookup( self, type = None, name = None, sortby = None ):
@@ -115,15 +115,15 @@ class MasterObjectList:
     
     def restrict_by_type( self, tbl, type ):
 
-        invalidate = hdbfs.db.InOperator( 'id', hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ],
+        invalidate = dblib.InOperator( 'id', dblib.Query( dblib.Selection( [ 'id' ],
             [ ( 'type', type, ) ] ), self.objl ) )
 
-        return hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ], [ invalidate ] ), tbl )
+        return dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ] ), tbl )
 
     def lookup_names_by_query( self, query ):
 
-        q = hdbfs.db.Query( hdbfs.db.Selection( [ 'a.id', 'b.name' ], group = 'a.id' ),
-                hdbfs.db.LeftOuterJoinOperator( query, self.objl, 'a', 'b', 'id' ) )
+        q = dblib.Query( dblib.Selection( [ 'a.id', 'b.name' ], group = 'a.id' ),
+                dblib.LeftOuterJoinOperator( query, self.objl, 'a', 'b', 'id' ) )
 
         return q
 
@@ -139,7 +139,7 @@ class FileChecksumList:
                                 ( 'crc32',  'TEXT', ),
                                 ( 'md5',    'TEXT', ),
                                 ( 'sha1',   'TEXT', ), ] )
-        except hdbfs.db.QueryError:
+        except dblib.QueryError:
             pass
 
     def details( self, id ):
@@ -189,7 +189,7 @@ class RelationList:
              self.rell.create( [    ( 'id',     'INTEGER NOT NULL', ),
                                     ( 'parent', 'INTEGER NOT NULL', ),
                                     ( 'sort',   'INTEGER', ), ] )
-        except hdbfs.db.QueryError:
+        except dblib.QueryError:
             pass
 
     def get_parents( self, id ):
@@ -238,13 +238,13 @@ class RelationList:
 
     def select_no_album( self, tbl ):
 
-        invalidate = hdbfs.db.InOperator( 'id', hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ] ), self.rell ), True )
-        return hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
+        invalidate = dblib.InOperator( 'id', dblib.Query( dblib.Selection( [ 'id' ] ), self.rell ), True )
+        return dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
 
     def select_no_parent( self, tbl ):
 
-        invalidate = hdbfs.db.InOperator( 'id', hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ] ), self.rell ), True )
-        return hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
+        invalidate = dblib.InOperator( 'id', dblib.Query( dblib.Selection( [ 'id' ] ), self.rell ), True )
+        return dblib.Query( dblib.Selection( [ 'id' ], [ invalidate ], distinct = True ), tbl )
 
     def unregister( self, id ):
 
@@ -255,7 +255,7 @@ class RelationList:
 
         def require_parent( parent, neg = False ):
 
-            return hdbfs.db.InOperator( 'id', hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ],
+            return dblib.InOperator( 'id', dblib.Query( dblib.Selection( [ 'id' ],
                     [ ( 'parent', parent, ) ] ), self.rell ), neg )
 
         req_c = [require_parent( p, False ) for p in require]
@@ -263,11 +263,11 @@ class RelationList:
         sub_c = [require_parent( p, True ) for p in sub]
 
         if( len( add_c ) > 0 ):
-            add_op = hdbfs.db.OrOperator( add_c )
+            add_op = dblib.OrOperator( add_c )
             req_c.append( add_op )
 
         if( len( sub_c ) > 0 ):
-            sub_op = hdbfs.db.AndOperator( sub_c )
+            sub_op = dblib.AndOperator( sub_c )
             req_c.append( sub_op )
 
         if( random ):
@@ -275,7 +275,7 @@ class RelationList:
         else:
             order = None
 
-        return hdbfs.db.Query( hdbfs.db.Selection( [ 'id' ], req_c, order = order, distinct = True ), tbl )
+        return dblib.Query( dblib.Selection( [ 'id' ], req_c, order = order, distinct = True ), tbl )
 
 class MetaList:
 
@@ -287,7 +287,7 @@ class MetaList:
             self.meta.create( [ ( 'id',     'INTEGER NOT NULL', ),
                                 ( 'key',    'TEXT NOT NULL', ),
                                 ( 'value',  'TEXT', ), ] )
-        except hdbfs.db.QueryError:
+        except dblib.QueryError:
             pass
 
     def all_keys( self ):

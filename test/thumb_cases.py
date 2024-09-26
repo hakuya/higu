@@ -9,8 +9,6 @@ import hdbfs
 import hdbfs.ark
 import hdbfs.model
 
-hdbfs.imgdb.MIN_THUMB_EXP = 4
-
 class ThumbCases( testutil.TestCase ):
 
     @classmethod
@@ -25,6 +23,7 @@ class ThumbCases( testutil.TestCase ):
 
     def setUp( self ):
 
+        hdbfs.imgdb.cache.MIN_THUMB_EXP = 4
         self.init_env()
 
     def tearDown( self ):
