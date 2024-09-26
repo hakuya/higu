@@ -1152,6 +1152,7 @@ class AdminTab extends React.Component {
                     request,
                     function( data, response )
                     {
+                        tabs.on_event( { type: 'info_changed' } );
                         src.val( '' );
                         tgt.val( '' );
                     },
@@ -1174,6 +1175,7 @@ class AdminTab extends React.Component {
                     request,
                     function( data, response )
                     {
+                        tabs.on_event( { type: 'info_changed' } );
                         src.val( '' );
                         tgt.val( '' );
                     },
@@ -1196,6 +1198,7 @@ class AdminTab extends React.Component {
                     request,
                     function( data, response )
                     {
+                        tabs.on_event( { type: 'info_changed' } );
                         src.val( '' );
                         tgt.val( '' );
                     },
