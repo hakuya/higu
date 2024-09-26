@@ -495,7 +495,9 @@ class JsonInterface:
     def cmd_bulk( self, data ):
 
         rs, ctx = self.__exec_search( data )
+
         count = 0
+        items = []
 
         if( 'exec' not in data ):
             return json_err( 'argument', 'Expected an execution' )
@@ -505,13 +507,12 @@ class JsonInterface:
         except:
             return json_err( 'argument', 'Bad execution format' )
 
+
         if( action == 'name' ):
             import re
 
             parts = list( map( lambda x: x.replace( '\0', '/' ),
                                 operand.replace( '\\/', '\0' ).split( '/' ) ) )
-
-            items = []
 
             if( parts[0] == 's' and len( parts ) >= 3 ):
                 op, pattern, repl = parts
@@ -576,6 +577,24 @@ class JsonInterface:
                 return json_err( 'argument', 'Invalid string operation' )
 
             return json_ok( affected = count, changes = items )
+        elif( action == 'rate' ):
+            try:
+                rating = int( operand )
+            except:
+                return json_err( 'argument', 'Bad rating' )
+
+            if( rating not in [ 2, 4, 6, 8, 10 ] ):
+                return json_err( 'argument', 'Bad rating' )
+
+            for r in rs:
+                if( 'commit' in data and data['commit'] ):
+                    r['rating'] = rating
+
+                count += 1
+                items.append( ( r.get_id(), '-> rating ' + str( rating ) ) )
+
+            return json_ok( affected = count, changes = items )
+
         else:
             return json_err( 'argument', 'Unsupported execution action' )
 
