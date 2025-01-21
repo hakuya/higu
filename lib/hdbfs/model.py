@@ -200,7 +200,8 @@ class Stream( Base ):
     hash_md5 = Column( Text )
     hash_sha1 = Column( Text )
 
-    obj = relation( 'Object', foreign_keys = [ object_id ],
+    # TODO: why is lazy = 'select' leading to a unit test failure here?
+    obj = relation( 'Object', foreign_keys = [ object_id ], lazy = 'joined',
                     backref = backref( 'streams', lazy = 'dynamic' ) )
     origin_stream = relation( 'Stream',
                         backref = 'derived_streams',

@@ -440,7 +440,7 @@ class Obj:
             if( rel is None ):
                 raise ValueError( f'{self!s} is not in {group!s}' )
             return rel.sort
-        
+
     def get_name( self, group = None ):
 
         with self.db._access():
@@ -571,11 +571,11 @@ class OrderedGroup( Group ):
         with self.db._access( write = True ):
 
             all_objs = self.get_files()
-            
+
             for child in enumerate( children ):
                 assert( child[1] in all_objs )
                 all_objs.remove( child[1] )
-                
+
                 child[1].reorder( self, child[0] )
 
             offset = len( children )
@@ -677,7 +677,7 @@ class File( Obj ):
 
         with self.db._access():
             return self._list_streams()
-    
+
     def _get_streams( self ):
 
         return [ model_stream_to_higu_stream( self.db, s ) for s in
