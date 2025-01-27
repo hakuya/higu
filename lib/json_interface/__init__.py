@@ -503,100 +503,17 @@ class JsonInterface:
             return json_err( 'argument', 'Expected an execution' )
 
         try:
-            action, operand = tuple( map( lambda x: x.strip(), data['exec'].split( ':', 1 ) ) )
-        except:
+            bulk_op = hdbfs.bulk.op_from_string( self.__db, data['exec'] )
+        except hdbfs.bulk.ParseError:
             return json_err( 'argument', 'Bad execution format' )
+        except hdbfs.bulk.BadArgument:
+            return json_err( 'argument', 'Bad operation argument' )
 
+        bulk_op.set_commit( 'commit' in data and data['commit'] )
 
-        if( action == 'name' ):
-            import re
+        items = [( it.get_id(), msg ) for it, msg in bulk_op.execute( self.__db, list( rs ) )]
 
-            parts = list( map( lambda x: x.replace( '\0', '/' ),
-                                operand.replace( '\\/', '\0' ).split( '/' ) ) )
-
-            if( parts[0] == 's' and len( parts ) >= 3 ):
-                op, pattern, repl = parts
-
-                for r in rs:
-                    name = r.get_name()
-                    if( name is None ):
-                        continue
-
-                    subd = re.sub( pattern, repl, name )
-
-                    if( subd != name ):
-                        count += 1
-                        if( 'commit' in data and data['commit'] ):
-                            r.set_name( subd )
-
-                        items.append( ( r.get_id(), name + ' -> ' + subd ) )
-
-            elif( parts[0] == 'del' ):
-                for r in rs:
-                    name = r.get_name()
-                    if( name is None ):
-                        continue
-
-                    if( name is not None ):
-                        process = (len( parts ) == 1 or re.match( parts[1], name ))
-                    else:
-                        process = False
-
-                    if( process ):
-                        count += 1
-                        if( 'commit' in data and data['commit'] ):
-                            r.set_name( None )
-
-                        items.append( ( r.get_id(), name + ' -> [none]' ) )
-
-            elif( parts[0] == 'select' or parts[0] == 'select!' ):
-                for r in rs:
-                    if( r.get_type() != hdbfs.TYPE_FILE ):
-                        continue
-
-                    name = r.get_name()
-                    if( name is not None and parts[0] != 'select!' ):
-                        continue
-
-                    new_name = None
-                    for n in r.get_origin_names():
-                        if( len( parts ) == 1 or re.match( parts[1], n ) ):
-                            new_name = n
-                            break
-
-                    if( new_name is not None and new_name != name ):
-                        count += 1
-                        if( 'commit' in data and data['commit'] ):
-                            r.set_name( new_name )
-
-                        if( name is not None ):
-                            items.append( ( r.get_id(), name + ' -> ' + new_name ) )
-                        else:
-                            items.append( ( r.get_id(), '[none] -> ' + new_name ) )
-            else:
-                return json_err( 'argument', 'Invalid string operation' )
-
-            return json_ok( affected = count, changes = items )
-        elif( action == 'rate' ):
-            try:
-                rating = int( operand )
-            except:
-                return json_err( 'argument', 'Bad rating' )
-
-            if( rating not in [ 2, 4, 6, 8, 10 ] ):
-                return json_err( 'argument', 'Bad rating' )
-
-            for r in rs:
-                if( 'commit' in data and data['commit'] ):
-                    r['rating'] = rating
-
-                count += 1
-                items.append( ( r.get_id(), '-> rating ' + str( rating ) ) )
-
-            return json_ok( affected = count, changes = items )
-
-        else:
-            return json_err( 'argument', 'Unsupported execution action' )
+        return json_ok( affected = len( items ), changes = items )
 
     def cmd_selection_fetch( self, selection, index, info = None, fields = None ):
 

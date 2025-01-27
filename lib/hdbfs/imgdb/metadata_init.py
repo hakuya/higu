@@ -1,5 +1,6 @@
 import sys
 
+from hdbfs.defs import *
 from hdbfs.hooks import *
 
 _METADATA_INIT_REQUIRED = []

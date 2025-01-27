@@ -7,6 +7,8 @@ import hdbfs.ark
 import hdbfs.model as model
 import hdbfs.imgdb.exif as exif
 
+from hdbfs.defs import *
+
 class StreamInfo:
 
     def __init__( self, imgdb, stream ):

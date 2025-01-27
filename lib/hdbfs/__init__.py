@@ -10,6 +10,7 @@ import hdbfs.ark as ark
 import hdbfs.imgdb as imgdb
 import hdbfs.model as model
 import hdbfs.query as query
+import hdbfs.bulk as bulk
 
 from hdbfs.basic_objs import *
 from hdbfs.defs import *
