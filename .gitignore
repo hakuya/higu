@@ -3,3 +3,5 @@
 test/data/hfdb_*.dat
 test/data/*.db
 test.db/*
+node_modules/*
+static/libs/*
