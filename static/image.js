@@ -113,7 +113,9 @@ ImageViewer = function( pane, image_info )
                     break;
                 }
             }
-            s += '&exp=' + size[0];
+            if( size[0] != null ) {
+                s += '&exp=' + size[0];
+            }
         }
 
         if( this.image_info.stream_id ) {
