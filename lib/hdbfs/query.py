@@ -127,6 +127,8 @@ class UnboundConstraint:
 
     def to_db_constraint( self, db ):
 
+        from sqlalchemy import or_
+
         try:
             c = TagConstraint( self.__s )
             db_c = c.to_db_constraint( db )
@@ -135,8 +137,23 @@ class UnboundConstraint:
         except:
             pass
 
-        c = NameConstraint( '=', '*' + self.__s + '*' )
-        return c.to_db_constraint( db )
+        sql_s = self.__s.replace( '%', '[%]' ) \
+                    .replace( '*', '%' )
+
+        tag_q = db.session.query( model.Object.object_id ) \
+                .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
+                .filter( model.Object.name.like( '%' + sql_s + '%' ) )
+
+        child_q = db.session.query( model.Relation.child_id ) \
+                    .filter( model.Relation.parent_id.in_( tag_q ) )
+
+        return db.session.query( model.Object.object_id ) \
+                    .filter(
+                        or_(
+                            model.Object.name.like( '%' + sql_s + '%' ),
+                            model.Object.object_id.in_( child_q )
+                        )
+                    )
 
 def QueryInt( v, ceil = False ):
 
@@ -225,7 +242,7 @@ class ObjIdConstraint:
             else:
                 lower = int( value )
                 upper = lower
-        
+
             if( lower != upper ):
                 self.__constraint = and_( model.Object.object_id >= lower,
                                           model.Object.object_id <= upper )
@@ -285,7 +302,7 @@ class ParameterConstraint:
             else:
                 lower = QueryInt( value, False )
                 upper = QueryInt( value, True )
-        
+
             if( lower != upper ):
                 self.__constraint = and_( model.ObjectMetadata.numeric >= lower,
                                           model.ObjectMetadata.numeric <= upper )
@@ -600,5 +617,5 @@ class Query:
         if( self.__limit is not None ):
             query = query.limit( self.__limit )
 
-        return hdbfs.ModelObjToHiguObjIterator( db, query ) 
+        return hdbfs.ModelObjToHiguObjIterator( db, query )
 
