@@ -283,13 +283,34 @@ class Database:
 
         return result
 
-    def get_tag( self, name ):
+    def get_tag( self, name: str, fuzzy: bool = False ) -> Tag:
+        '''Gets the tag with the given name. If fuzzy is true, then a substring
+        match will be performed, as long as only one tag matches.'''
 
         obj = self.session.query( model.Object ) \
                 .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
                 .filter( model.Object.name == name ).first()
+
         if( obj is None ):
-            raise KeyError( f'No such tag "{name}"' )
+            if( not fuzzy ):
+                raise KeyError( f'No such tag "{name}"' )
+
+            name_s = '%' \
+                + name.replace( '%', '[%]' ) \
+                        .replace( '*', '%' ) \
+                + '%'
+
+            q = self.session.query( model.Object ) \
+                    .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
+                    .filter( model.Object.name.like( name_s ) )
+
+            r = [r for r in q]
+            if( len( r ) == 0 ):
+                raise KeyError( f'No tags match "{name}"' )
+            elif( len( r ) > 1 ):
+                raise KeyError( f'Tag name "{name}" is ambiguous' )
+
+            obj = r[0]
 
         return model_obj_to_higu_obj( self, obj )
 

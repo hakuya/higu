@@ -6,6 +6,8 @@ import hdbfs
 
 import json_interface.cache as cache
 
+from typing import List, Optional
+
 VERSION = 0
 REVISION = 0
 
@@ -29,12 +31,12 @@ def make_obj_tuple( obj ):
 
     return [ obj.get_id(), obj.get_repr(), get_type_str( obj ) ]
 
-def json_ok( **args ):
+def json_ok( **args ) -> dict:
 
     args['result'] = 'ok'
     return args
 
-def json_err( err, emsg = None ):
+def json_err( err: any, emsg: Optional[str] = None ) -> dict:
 
     if( isinstance( err, KeyError ) ):
         etype = 'key'
@@ -64,7 +66,7 @@ def json_err( err, emsg = None ):
 
 class JsonInterface:
 
-    def __init__( self, db, session_id ):
+    def __init__( self, db: hdbfs.Database, session_id: str ):
 
         self.__cache = cache.get_default_cache()
         self.__db = db
@@ -162,7 +164,7 @@ class JsonInterface:
                     w, h = target.get_dimensions()
                 except:
                     pass
-            
+
             info['width'] = w
             info['height'] = h
 
@@ -219,11 +221,11 @@ class JsonInterface:
         try:
             with self.__db.transaction():
                 fn = getattr( self, 'cmd_' + data['action'] )
-                argspec = inspect.getargspec( fn )
+                argspec = inspect.getfullargspec( fn )
                 if( 'data' in argspec.args ):
                     # Old style
                     return fn( data )
-                elif( argspec.keywords is None ):
+                elif( argspec.varkw is None ):
                     # Grab the required and optional
                     if( argspec.defaults is None ):
                         req_args = argspec.args[1:]
@@ -308,7 +310,7 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_tag( self, targets, **args ):
+    def cmd_tag( self, targets: List[int], **args ) -> dict:
 
         db = self.__db
 
@@ -325,8 +327,8 @@ class JsonInterface:
             new = args['new_tags'] if( 'new_tags' in args ) else []
 
         try:
-            add = list( map( db.get_tag, add ) )
-            sub = list( map( db.get_tag, sub ) )
+            add = list( map( lambda n: db.get_tag( n, True ), add ) )
+            sub = list( map( lambda n: db.get_tag( n, True ), sub ) )
             add += list( map( db.make_tag, new ) )
         except ( KeyError, ValueError, ) as e:
             return json_err( e )
@@ -549,7 +551,7 @@ class JsonInterface:
             self.__cache.close_selection( self.__session_id, selection )
         except KeyError:
             pass
-        
+
         return json_ok()
 
     def cmd_group_create( self, targets ):
