@@ -30,7 +30,7 @@ SP_NORMAL     = 2000
 SP_PRIORITY   = 3000
 
 VERSION = 14
-REVISION = 0
+REVISION = 1
 
 IMGDB_VERSION = 1
 IMGDB_REVISION = 0
@@ -90,6 +90,8 @@ class Relation( Base ):
     __tablename__ = 'relations'
     __table_args__ = (
         PrimaryKeyConstraint( 'child_id', 'parent_id' ),
+        Index( 'Relation_sort_child_id', 'sort', 'child_id' ),
+        Index( "Relation_parent_id", 'parent_id' )
     )
 
     child_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
@@ -191,8 +193,8 @@ class Stream( Base ):
     __tablename__ = 'streams'
     __table_args__ = (
         UniqueConstraint( 'object_id', 'name' ),
-        Index( 'streams_object_id_name_index',
-               'object_id', 'name', unique = True ),
+        Index( 'Stream_object_id', 'object_id' ),
+        Index( 'Stream_origin_stream_id', 'origin_stream_id' )
     )
 
     stream_id = Column( Integer, primary_key = True )
@@ -277,7 +279,8 @@ class Stream( Base ):
 class StreamLog( Base ):
     __tablename__ = 'stream_log'
     __table_args__ = (
-        Index( 'stream_log_stream_id_index', 'stream_id' ),
+        Index( 'StreamLog_stream_id', 'stream_id' ),
+        Index( 'StreamLog_origin_stream_id', 'origin_stream_id' )
     )
 
     log_id = Column( Integer, primary_key = True )
@@ -310,8 +313,8 @@ class ObjectMetadata( Base ):
     __tablename__ = 'object_metadata'
     __table_args__ = (
         PrimaryKeyConstraint( 'object_id', 'key' ),
-        Index( 'object_metadata_object_id_key_index',
-               'object_id', 'key', unique = True ),
+        Index( 'ObjectMetadata_object_id', 'object_id' ),
+        Index( 'U_ObjectMetadata_key_object_id', 'key', 'object_id', unique = True )
     )
 
     object_id = Column( Integer, ForeignKey( 'objects.object_id' ),
@@ -340,8 +343,8 @@ class StreamMetadata( Base ):
     __tablename__ = 'stream_metadata'
     __table_args__ = (
         PrimaryKeyConstraint( 'stream_id', 'key' ),
-        Index( 'stream_metadata_stream_id_key_index',
-               'stream_id', 'key', unique = True ),
+        Index( 'StreamMetadata_stream_id', 'stream_id' ),
+        Index( 'U_StreamMetadata_key_stream_id', 'key', 'stream_id', unique = True )
     )
 
     stream_id = Column( Integer, ForeignKey( 'streams.stream_id' ),

@@ -669,3 +669,68 @@ def upgrade_from_13_1_to_14( log, session ):
     """ )
 
     return 14, 0
+
+def upgrade_from_14_to_14_1( log, session ):
+
+    # Version 14.1 is index cleanup
+
+    log.info( 'Database upgrade from VER 14 -> VER 14.1' )
+
+    # Drop existing indexes
+    session.execute( """DROP INDEX IF EXISTS streams_object_id_name_index""" )
+    session.execute( """DROP INDEX IF EXISTS stream_log_stream_id_index""" )
+    session.execute( """DROP INDEX IF EXISTS object_metadata_object_id_key_index""" )
+    session.execute( """DROP INDEX IF EXISTS stream_metadata_stream_id_key_index""" )
+
+    # Create new indexes
+    session.execute ( """
+        CREATE INDEX Relation_sort_child_id
+        ON relations ( sort, child_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX Relation_parent_id
+        ON relations ( parent_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX Stream_object_id
+        ON streams ( object_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX Stream_origin_stream_id
+        ON streams ( origin_stream_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX StreamLog_stream_id
+        ON stream_log ( stream_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX StreamLog_origin_stream_id
+        ON stream_log ( origin_stream_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX ObjectMetadata_object_id
+        ON object_metadata ( object_id )
+    """ )
+
+    session.execute ( """
+        CREATE UNIQUE INDEX U_ObjectMetadata_key_object_id
+        ON object_metadata ( key, object_id )
+    """ )
+
+    session.execute ( """
+        CREATE INDEX StreamMetadata_stream_id
+        ON stream_metadata ( stream_id )
+    """ )
+
+    session.execute ( """
+        CREATE UNIQUE INDEX U_StreamMetadata_key_stream_id
+        ON stream_metadata ( key, stream_id )
+    """ )
+
+    return 14, 1
