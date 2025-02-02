@@ -237,6 +237,9 @@ class ThumbCache:
 
             w, h = imginfo.get_obj_dims()
 
+            if( w is None or h is None ):
+                return None
+
             maxdim = w if( w > h ) else h
             sizes = [ 1 << MIN_THUMB_EXP ]
             exps = [ MIN_THUMB_EXP ]

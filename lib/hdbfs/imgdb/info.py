@@ -309,7 +309,7 @@ class ImageInfo:
 
         info = self.__get_info()
         if( info is None ):
-            return None
+            return None, None
 
         if( verify ):
             w, h = self.__compute_dims()
