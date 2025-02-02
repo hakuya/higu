@@ -4,10 +4,13 @@ import sys
 
 import hdbfs.ark
 
+import hdbfs.basic_objs
 import hdbfs.model as model
 import hdbfs.imgdb.exif as exif
 
 from hdbfs.defs import *
+
+from typing import Optional
 
 class StreamInfo:
 
@@ -123,7 +126,7 @@ class StreamInfo:
 
         info = self.__get_info()
         if( info is None ):
-            return None
+            return None, None
 
         return info.width, info.height
 
@@ -184,7 +187,7 @@ class StreamInfo:
 
 class ImageInfo:
 
-    def __init__( self, imgdb, obj ):
+    def __init__( self, imgdb, obj: 'ImageFile' ):
 
         self.imgdb = imgdb
         self.obj = obj
@@ -218,12 +221,12 @@ class ImageInfo:
 
         return w, h
 
-    def __get_info( self ):
+    def __get_info( self, lazy: bool = False ) -> Optional[model.ImageInfo]:
 
         if( self.info is None ):
             self.info = self.obj.obj.info
 
-        if( self.info is None ):
+        if( self.info is None and not lazy ):
             w, h = self.__compute_dims()
             if( w is None or h is None ):
                 return None
@@ -238,6 +241,10 @@ class ImageInfo:
         if( self.root_si is not None ):
             self.root_si.close()
             self.root_si = None
+
+    def is_available( self ):
+
+        return self.__get_info( True ) is not None
 
     def get_root_stream_info( self ):
 
@@ -379,7 +386,35 @@ class ImageInfo:
         info.gen += 1
         info.avail_e = None
 
-    def mark_avail_e( self, exp ):
+        request = self.obj.obj.request
+        if( request is not None ):
+            self.obj.db.session.delete( request )
+
+        self.obj.obj.request = None
+
+    def get_avail_e( self ) -> int:
+
+        info = self.__get_info()
+        if( info is None ):
+            return 0
+
+        if( info.avail_e is None ):
+            return False
+
+        avail_e = info.avail_e
+
+        if( self.get_use_root() ):
+            avail_e = avail_e | (1 << self.get_max_e())
+
+        return avail_e
+
+    def is_avail_e( self, exp: int ) -> bool:
+        '''Returns true if the given exp is available.'''
+
+        return (self.get_avail_e() & (1 << exp))
+
+    def mark_avail_e( self, exp: int ) -> None:
+        '''Marks the thumb with the given exp as available.'''
 
         info = self.__get_info()
         if( info is None ):
@@ -388,3 +423,68 @@ class ImageInfo:
         base = info.avail_e if( info.avail_e is not None ) else 0
         info.avail_e = (base | (1 << exp))
 
+        self.clear_requested_e( exp )
+
+    def mark_requested_mask( self, mask: Optional[int], prio: model.ImageRequestPriority ) -> None:
+
+        request = self.obj.obj.request
+
+        if( request is None ):
+            request = model.ImageRequest( self.obj.obj, prio.value, mask )
+            self.obj.db.session.add( request )
+
+        elif( mask is not None ):
+            base = request.exp_mask if( request.exp_mask is not None ) else 0
+            request.exp_mask = (base | mask)
+
+            if( request.prio is None or prio.value > request.prio ):
+                request.prio = prio.value
+
+        self.obj.db.session.flush()
+
+    def mark_requeted_e( self, exp: int, prio: model.ImageRequestPriority ) -> None:
+        '''Marks the thumb with the given exp as requested.'''
+
+        self.mark_requested_mask( (1 << exp), prio )
+
+    def clear_requested_e( self, exp: int ) -> None:
+        '''Clears a request for the thumb with the given exp.'''
+
+        request = self.obj.obj.request
+
+        if( request is None ):
+            return
+
+        if( request.exp_mask is not None ):
+            exp_mask = (request.exp_mask & ~(1 << exp))
+            if( exp_mask == 0 ):
+                self.obj.db.session.delete( request )
+            else:
+                request.exp_mask = exp_mask
+
+        self.obj.db.session.flush()
+
+    def get_thumb( self, exp: int, lazy: bool = False ) -> 'ImageStream':
+
+        # We need basic info for max_e and use_root.
+        # If these aren't populated, abort if we're lazy
+        if( self.__get_info( lazy ) is None ):
+            return None
+
+        max_e = self.get_max_e()
+        use_root = self.get_use_root()
+
+        if( exp >= max_e ):
+            if( use_root == 1 ):
+                self.clear_requested_e( exp )
+                return self.get_root_stream()
+            else:
+                exp = max_e
+
+        t_stream = self.obj.get_stream( f'tb:{exp}' )
+        if( t_stream is not None ):
+            if( not self.is_avail_e( exp ) ):
+                self.mark_avail_e( exp )
+            return t_stream
+
+        return None

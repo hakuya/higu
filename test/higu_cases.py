@@ -8,6 +8,8 @@ import datetime
 import hdbfs
 import hdbfs.ark
 
+from hdbfs.imgdb.objects import ThumbRequestPrio
+
 class HiguLibCases( testutil.TestCase ):
 
     @classmethod
@@ -68,7 +70,7 @@ class HiguLibCases( testutil.TestCase ):
             # Ensure these work
             with obj.get_root_stream().open() as fd:
                 pass
-            with obj.get_thumb_stream( 4 ).open() as fd:
+            with obj.get_thumb_stream( 4, ThumbRequestPrio.IMMEDIATE ).open() as fd:
                 pass
 
             obj_id = obj.get_id()
@@ -145,9 +147,11 @@ class HiguLibCases( testutil.TestCase ):
             self.assertIsNone( yellow.get_stream( 'tb:4' ),
                     'Yellow: Thumb exists before created' )
 
-            self.assertIsNotNone( red.get_thumb_stream( 4 ),
+            self.assertIsNotNone(
+                    red.get_thumb_stream( 4, ThumbRequestPrio.IMMEDIATE ),
                     'Red: Thumb not created' )
-            self.assertIsNotNone( yellow.get_thumb_stream( 4 ),
+            self.assertIsNotNone(
+                    yellow.get_thumb_stream( 4, ThumbRequestPrio.IMMEDIATE ),
                     'Yellow: Thumb not created' )
 
             self.assertIsNotNone( red.get_stream( 'tb:4' ),
@@ -233,7 +237,7 @@ class HiguLibCases( testutil.TestCase ):
             h.enable_write_access()
 
             obj = h.register_file( cyan, False )
-            
+
             with obj.get_root_stream().open() as fd:
                 pass
 
@@ -255,7 +259,7 @@ class HiguLibCases( testutil.TestCase ):
             h.enable_write_access()
 
             obj = h.register_file( cyan, False )
-            
+
             with obj.get_root_stream().open() as fd:
                 pass
 
@@ -267,7 +271,7 @@ class HiguLibCases( testutil.TestCase ):
             h.enable_write_access()
 
             obj = h.register_file( magenta, False )
-            
+
             with obj.get_root_stream().open() as fd:
                 pass
 
@@ -288,7 +292,7 @@ class HiguLibCases( testutil.TestCase ):
             h.enable_write_access()
 
             obj = h.register_file( magenta, False )
-            
+
             with obj.get_root_stream().open() as fd:
                 self.assertTrue( self._diff_data( fd, self.magenta ),
                         'Image not recovered' )
@@ -551,19 +555,19 @@ class HiguLibCases( testutil.TestCase ):
             self.assertEqual( len( cyan ), 2,
                     'Unexpected number of files (cyan)' )
 
-            self.assertTrue( ro in magenta, 
+            self.assertTrue( ro in magenta,
                     'Red not in magenta' )
-            self.assertTrue( bo in magenta, 
+            self.assertTrue( bo in magenta,
                     'Blue not in magenta' )
 
-            self.assertTrue( ro in yellow, 
+            self.assertTrue( ro in yellow,
                     'Red not in yellow' )
-            self.assertTrue( go in yellow, 
+            self.assertTrue( go in yellow,
                     'Green not in yellow' )
 
-            self.assertTrue( go in cyan, 
+            self.assertTrue( go in cyan,
                     'Green not in cyan' )
-            self.assertTrue( bo in cyan, 
+            self.assertTrue( bo in cyan,
                     'Blue not in cyan' )
 
             red_in = ro.get_tags()
@@ -577,19 +581,19 @@ class HiguLibCases( testutil.TestCase ):
             self.assertEqual( len( blue_in ), 2,
                     'Unexpected number of tags (blue)' )
 
-            self.assertTrue( mt in red_in, 
+            self.assertTrue( mt in red_in,
                     'Red does not have magenta' )
-            self.assertTrue( yt in red_in, 
+            self.assertTrue( yt in red_in,
                     'Red does not have yellow' )
 
-            self.assertTrue( yt in green_in, 
+            self.assertTrue( yt in green_in,
                     'Green does not have yellow' )
-            self.assertTrue( ct in green_in, 
+            self.assertTrue( ct in green_in,
                     'Green does not have cyan' )
 
-            self.assertTrue( mt in blue_in, 
+            self.assertTrue( mt in blue_in,
                     'Blue does not have magenta' )
-            self.assertTrue( ct in blue_in, 
+            self.assertTrue( ct in blue_in,
                     'Blue does not have cyan' )
 
     def test_create_album( self ):
@@ -969,7 +973,7 @@ class HiguLibCases( testutil.TestCase ):
             bo = h.register_file( blue, False )
 
             ro.assign( tag1 )
-            
+
             go.assign( tag1 )
             go.assign( tag2 )
 
@@ -984,6 +988,55 @@ class HiguLibCases( testutil.TestCase ):
             self.assertTrue( tag1 in tags, 'tag1 not in dup list' )
             self.assertTrue( tag2 in tags, 'tag2 not in dup list' )
             self.assertTrue( tag3 in tags, 'tag3 not in dup list' )
+
+    def test_check_register_requests_thumbs( self ):
+
+        red = self._load_data( self.red )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            h.register_file( red, False )
+
+            r = h.get_next_thumb_request()
+            self.assertIsNotNone( r, 'No thumb request was marked' )
+            self.assertEqual( r.prio, hdbfs.ImageRequestPriority.BACKGROUND,
+                              'Thumb request priority is not background' )
+
+    def test_check_process_thumb_requests( self ):
+
+        red = self._load_data( self.red )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            ro = h.register_file( red, False )
+
+            self.assertTrue( h.process_thumb_requests(),
+                             'No thumb requests to process.' )
+
+            self.assertIsNotNone( ro.get_thumb_stream( 4 ),
+                                  'Thumb stream not generated' )
+
+            self.assertFalse( h.process_thumb_requests(),
+                              'Thumb request not cleared.' )
+
+    def test_get_thumb_requests( self ):
+
+        red = self._load_data( self.red )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            ro = h.register_file( red, False )
+            ro.get_thumb_stream( 4, ThumbRequestPrio.MARK_REQUESTED )
+
+            r = h.get_next_thumb_request()
+            self.assertIsNotNone( r, 'No thumb request was marked' )
+            self.assertEqual( r.prio, hdbfs.ImageRequestPriority.IMMEDIATE,
+                              'Thumb request priority is not immedate' )
+            self.assertIn( 4, r.exps, 'Request for exp 4 is missing' )
+
 
 if( __name__ == '__main__' ):
     unittest.main()

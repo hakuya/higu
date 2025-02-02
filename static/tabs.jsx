@@ -472,6 +472,12 @@ class NavigatePane extends React.Component
 
 class ThumbTile extends React.Component
 {
+    constructor( props ) {
+        super( props );
+        this.state = {
+            imgSrc: '/img?id=' + this.props.obj_id + '&exp=' + this.props.metrics.exp_i
+        }
+    }
     componentDidMount() {
         this.drop_data = {
             view:   this.props.view,
@@ -500,6 +506,11 @@ class ThumbTile extends React.Component
         $( this.el ).draggable( 'destroy' );
         this.componentDidMount();
     }
+    onError() {
+        this.setState( {
+            imgSrc: '/static/hourglass.png'
+        } )
+    }
     render() {
         return (
             <div ref={ ( el ) => { this.el = el; } }
@@ -508,11 +519,12 @@ class ThumbTile extends React.Component
                      height: this.props.metrics.size
                  }}
                  className={ 'thumbtile tilelink objitem sortable' + (this.props.selected ? ' selected' : '') }>
-                <img src={ '/img?id=' + this.props.obj_id + '&exp=' + this.props.metrics.exp_i }
+                <img src={ this.state.imgSrc }
                      style={{
                             maxWidth: '100%',
                             maxHeight: '100%',
                         }}
+                     onError={ () => { this.onError() } }
                      onClick={ ( e ) => {
                             e.preventDefault();
                             this.props.view.itemClicked( e, this.drop_data );
@@ -799,7 +811,7 @@ class TileViewPane extends React.Component
                         objs = this.props.display.get_files();
                     }
 
-                    provider.init_objs = [...objs]; 
+                    provider.init_objs = [...objs];
                     tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
 
                     if( objs.length > 0 ) {

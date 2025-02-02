@@ -1,5 +1,7 @@
 from hdbfs.basic_objs import *
 
+import hdbfs.model as model
+
 _STM_FACTORIES = []
 _OBJ_FACTORIES = []
 
@@ -13,7 +15,7 @@ def add_obj_factory( f ):
 
     _OBJ_FACTORIES.insert( 0, f )
 
-def model_stream_to_higu_stream( db, stream ):
+def model_stream_to_higu_stream( db, stream: model.Stream ) -> 'Stream':
     global _STM_FACTORIES
 
     result = None
@@ -24,7 +26,7 @@ def model_stream_to_higu_stream( db, stream ):
     else:
         assert False
 
-def model_obj_to_higu_obj( db, obj ):
+def model_obj_to_higu_obj( db, obj: model.Object ) -> 'Obj':
     global _OBJ_FACTORIES
 
     result = None

@@ -7,6 +7,16 @@ from hdbfs.imgdb.defs import *
 from hdbfs.imgdb.info import StreamInfo, ImageInfo
 from hdbfs.imgdb.metadata_init import require_metadata_init
 
+from hdbfs.model import ImageRequestPriority
+
+from enum import Enum
+from typing import Optional
+
+class ThumbRequestPrio( Enum ):
+    OPTIONAL = "optional"
+    MARK_REQUESTED = "mark"
+    IMMEDIATE = "immediate"
+
 class ImageStream( Stream ):
 
     def __init__( self, db, stream ):
@@ -41,12 +51,12 @@ class ImageStream( Stream ):
                 return
         except:
             pass
-        
+
         self.db.tbcache.init_stream_metadata( self )
 
 class ImageFile( File ):
 
-    def __init__( self, db, obj ):
+    def __init__( self, db: 'hdbfs.Database', obj: model.Object ):
 
         File.__init__( self, db, obj )
 
@@ -109,10 +119,13 @@ class ImageFile( File ):
 
         return self.db.tbcache.get_generation( self )
 
-    def get_thumb_stream( self, exp ):
+    def get_thumb_stream( self,
+                exp: int,
+                request: ThumbRequestPrio = ThumbRequestPrio.OPTIONAL
+            ) -> Optional[ImageStream]:
 
         if( self.obj.object_type == model.TYPE_FILE ):
-            return self.db.tbcache.make_thumb( self, exp )
+            return self.db.tbcache.get_thumb( self, exp, request )
         else:
             return self.get_root_stream()
 
@@ -124,6 +137,23 @@ class ImageFile( File ):
             w, h = self.get_dimensions()
             return [ ( None, w, h, True ), ]
 
+    def get_avail_exp_mask( self ) -> Optional[int]:
+
+        if( self.obj.object_type == model.TYPE_FILE ):
+            return self.db.tbcache.get_avail_exp_mask( self )
+        else:
+            return None
+
+    def request_thumbs( self, prio: ImageRequestPriority = ImageRequestPriority.BACKGROUND ) -> Optional[int]:
+        '''Checks if all appropriate thumbs have been created. If they haven't
+        then marks the thumbs as requested in the database.
+        '''
+
+        if( self.obj.object_type != model.TYPE_FILE ):
+            return None
+
+        return self.db.tbcache.request_thumbs( self, prio )
+
     def check_metadata( self ):
 
         try:
@@ -132,7 +162,7 @@ class ImageFile( File ):
                 return
         except:
             pass
-        
+
         self.db.tbcache.init_object_metadata( self )
 
     def assign( self, parent,
@@ -228,7 +258,7 @@ class Album( OrderedGroup ):
                 return
         except:
             pass
-        
+
         self.db.tbcache.init_album_metadata( self )
 
 def _img_stream_factory( db, stream ):

@@ -104,7 +104,12 @@ class TestCase( unittest.TestCase ):
 
         return tgt
 
-    def _load_data( self, fname, tname = None ):
+    def _load_data( self, fname: str, tname: str = None ) -> str:
+        '''Loads the file with name fname into the work directory. If tname
+        is provided, then it will be named as tname in the work directory.
+
+        The full path to the file in the work directory will be returned.
+        '''
 
         src = self._data_path( fname )
         tgt = os.path.join( self.work_dir, tname if tname is not None else fname )

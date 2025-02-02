@@ -4,7 +4,11 @@ import uuid
 import time
 import json
 
+import hdbfs.basic_objs
+import hdbfs.imgdb
 import higu.config as config
+
+from hdbfs.imgdb.objects import ThumbRequestPrio
 
 import higu.model as model
 import higu.thumb_generator as thumb_generator
@@ -14,6 +18,8 @@ from higu.html import TextFormatter, HtmlGenerator
 
 import hdbfs
 import json_interface
+
+from typing import Optional
 
 _json = json
 
@@ -109,27 +115,30 @@ class Server:
     def callback_new( self ):
         cherrypy.response.headers['Content-Type'] = 'application/json'
 
-        db, username, is_admin, session_id = self.__get_session()
+        higu_db, username, is_admin, session_id = self.__get_session()
 
         cl = cherrypy.request.headers['Content-Length']
         data = cherrypy.request.body.read( int( cl ) )
         data = json.loads( data )
 
-        jsif = json_interface.JsonInterface( db, session_id )
-        result = jsif.execute( data )
+        with higu_db as db:
+            jsif = json_interface.JsonInterface( db, session_id )
+            result = jsif.execute( data )
 
-        jsif.close()
+            jsif.close()
 
-        return json.dumps( result ).encode( 'utf8' )
+            return json.dumps( result ).encode( 'utf8' )
 
     @cherrypy.expose
-    def img( self, id = None, exp = None, gen = None, stream = None ):
+    def img( self, id = None, exp = None, gen = None, stream: Optional[int] = None ):
 
         with self.__get_session()[0] as db:
 
+            sobj = None
+
             if( stream is not None ):
-                stream = db.get_stream_by_id( stream )
-                rep = stream
+                sobj = db.get_stream_by_id( stream )
+                rep = sobj
             else:
                 # The thumb cache requires the ability to write to the database
                 db.enable_write_access()
@@ -145,20 +154,27 @@ class Server:
                     raise cherrypy.HTTPError( 400 )
 
                 f = db.get_object_by_id( id )
-                if( exp is None ):
-                    stream = f.get_root_stream()
-                else:
-                    stream = f.get_thumb_stream( exp )
-
-                if( stream is None ):
-                    raise cherrypy.HTTPError( 404 )
+                if( isinstance( f, hdbfs.imgdb.ImageFile ) ):
+                    if( exp is None ):
+                        sobj = f.get_root_stream()
+                    else:
+                        sobj = f.get_thumb_stream( exp, ThumbRequestPrio.MARK_REQUESTED )
 
                 rep = f
 
-            mime = stream.get_mime()
-            name = rep.get_repr()
+            if( sobj is not None ):
+                mime = sobj.get_mime()
+                name = rep.get_repr()
+                p = sobj.open()
+            else:
+                mime = None
+                name = None
+                p = None
 
-            p = stream.open()
+        if( p is None ):
+            # This needs to be outside of the with,
+            # so that we don't trigger a db rollback
+            raise cherrypy.HTTPError( 404 )
 
         cherrypy.response.headers["Content-Type"] = mime
         cherrypy.response.headers["Content-Disposition"] = 'filename="%s"' % name

@@ -10,6 +10,8 @@ import re
 import time
 import threading
 
+from enum import Enum
+
 TYPE_NILL       = 0
 TYPE_FILE       = 1000
 TYPE_DUPLICATE  = 1001
@@ -27,11 +29,16 @@ SP_EXPENDABLE = 1000
 SP_NORMAL     = 2000
 SP_PRIORITY   = 3000
 
-VERSION = 13
-REVISION = 1
+VERSION = 14
+REVISION = 0
 
 IMGDB_VERSION = 1
 IMGDB_REVISION = 0
+
+class ImageRequestPriority( Enum ):
+    NONE = 0
+    BACKGROUND = 1
+    IMMEDIATE = 100
 
 def check_len( length ):
 
@@ -385,8 +392,38 @@ class ImageInfo( Base ):
 
     def __repr__( self ):
 
-        return 'ImageInfo( {object_id}, {width}x{height}, g{gen}, {max_e}, {use_root}, {avail_e:x} )' \
-                    .format( self )
+        format_dict = dict( self.__dict__ )
+        format_dict['avail_e'] = hex( self.avail_e ) if( self.avail_e is not None ) else repr( None )
+
+        return 'ImageInfo( {object_id}, {width}x{height}, g{gen}, {max_e}, {use_root}, {avail_e} )' \
+                    .format( **format_dict )
+
+class ImageRequest( Base ):
+    __tablename__ = 'imagerequest'
+
+    object_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
+
+    prio = Column( Integer, nullable = False )
+    exp_mask = Column( Integer )
+
+    obj = relation( 'Object',
+                    backref = backref( 'request',
+                                       uselist = False,
+                                       cascade = 'all, delete-orphan' ) )
+
+    def __init__( self, obj, prio = 0, exp_mask = None ):
+
+        self.obj = obj
+        self.prio = prio
+        self.exp_mask = exp_mask
+
+    def __repr__( self ):
+
+        format_dict = dict( self.__dict__ )
+        format_dict['exp_mask'] = hex( self.exp_mask ) if( self.exp_mask is not None ) else repr( None )
+
+        return 'ImageInfo( {object_id}, {prio}, {exp_mask} )' \
+                    .format( **format_dict )
 
 class StreamInfo( Base ):
     __tablename__ = 'streaminfo'

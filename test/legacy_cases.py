@@ -305,15 +305,22 @@ class LegacyCases( testutil.TestCase ):
         white_s = white.get_streams()
         grey_s = grey.get_streams()
 
-        if( ver[0] < 8 ):
-            self.assertEqual( len( white_s ), 1,
+        if( ver[0] >= 14 ):
+            self.assertEqual( len( white_s ), 5,
                     'Unexpected number of streams in white obj' )
-        else:
+        elif( ver[0] >= 8 ):
             self.assertEqual( len( white_s ), 2,
                     'Unexpected number of streams in white obj' )
+        else:
+            self.assertEqual( len( white_s ), 1,
+                    'Unexpected number of streams in white obj' )
 
-        self.assertEqual( len( grey_s ), 3,
-                'Unexpected number of streams in grey obj' )
+        if( ver[0] >= 14 ):
+                self.assertEqual( len( grey_s ), 4,
+                        'Unexpected number of streams in grey obj' )
+        else:
+                self.assertEqual( len( grey_s ), 3,
+                        'Unexpected number of streams in grey obj' )
 
     def subtest_check_stream_origin( self, ver ):
 
@@ -425,7 +432,8 @@ def build_cases():
         VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
                      ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
                      ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
-                     ( 11, 0, ), ( 12, 0, ), ( 13, 0, ), ( 13, 1, ) ]
+                     ( 11, 0, ), ( 12, 0, ), ( 13, 0, ), ( 13, 1, ),
+                     ( 14, 0, ), ]
 
     for ver in VERSIONS:
 

@@ -7,9 +7,11 @@ from hdbfs.defs import *
 from hdbfs.hash import calculate_details
 from hdbfs.obj_factory import *
 
+from typing import Optional
+
 class Stream:
 
-    def __init__( self, db, stream ):
+    def __init__( self, db, stream: model.Stream ):
 
         self.db = db
         self.stream = stream
@@ -153,7 +155,7 @@ class Stream:
 
 class Obj:
 
-    def __init__( self, db, obj ):
+    def __init__( self, db, obj: model.Object ):
 
         self.db = db
         self.obj = obj
@@ -517,7 +519,7 @@ class Obj:
 
 class Group( Obj ):
 
-    def __init__( self, db, obj ):
+    def __init__( self, db, obj: model.Object ):
 
         Obj.__init__( self, db, obj )
 
@@ -550,7 +552,7 @@ class Group( Obj ):
 
 class OrderedGroup( Group ):
 
-    def __init__( self, db, obj ):
+    def __init__( self, db, obj: model.Object ):
 
         Group.__init__( self, db, obj )
 
@@ -585,13 +587,13 @@ class OrderedGroup( Group ):
 
 class Tag( Group ):
 
-    def __init__( self, db, obj ):
+    def __init__( self, db, obj: model.Object ):
 
         Group.__init__( self, db, obj )
 
 class File( Obj ):
 
-    def __init__( self, db, obj ):
+    def __init__( self, db, obj: model.Object ):
 
         Obj.__init__( self, db, obj )
 
@@ -734,7 +736,7 @@ class File( Obj ):
         with self.db._access( write = True ):
             self._drop_expendable_streams()
 
-    def get_root_stream( self ):
+    def get_root_stream( self ) -> Stream:
 
         with self.db._access():
             return model_stream_to_higu_stream( self.db, self.obj.root_stream )

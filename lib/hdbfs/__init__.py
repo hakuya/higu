@@ -12,11 +12,17 @@ import hdbfs.model as model
 import hdbfs.query as query
 import hdbfs.bulk as bulk
 
+from hdbfs.imgdb.objects import ThumbRequestPrio
+
 from hdbfs.basic_objs import *
 from hdbfs.defs import *
 from hdbfs.imgdb import ImageStream, ImageFile, Album
 from hdbfs.hooks import *
 from hdbfs.obj_factory import *
+
+from hdbfs.model import ImageRequestPriority
+
+from typing import Optional, NamedTuple, List
 
 _LIBRARY = None
 
@@ -137,6 +143,11 @@ class AccessManager:
 
         return _AccessContext( self, **kwargs )
 
+class ThumbRequest( NamedTuple ):
+    prio: ImageRequestPriority
+    exps: Optional[ List[int] ]
+    file: ImageFile
+
 class Database:
 
     def __init__( self ):
@@ -160,6 +171,18 @@ class Database:
     def __exit__( self, type, value, tb ):
 
         self.close()
+
+    def _with_access( *access_args, **access_kwargs ):
+
+        def decorator( f ):
+
+            def wrapper( self, *args, **kwargs ):
+                with self._access( *access_args, **access_kwargs ):
+                    return f( self, *args, **kwargs )
+
+            return wrapper
+
+        return decorator
 
     def _begin( self ):
 
@@ -213,7 +236,7 @@ class Database:
 
         return self._access()
 
-    def _get_object_by_id( self, object_id ):
+    def _get_object_by_id( self, object_id: int ) -> Obj:
 
         obj = self.session.query( model.Object ) \
                   .filter( model.Object.object_id == object_id ) \
@@ -223,12 +246,12 @@ class Database:
 
         return model_obj_to_higu_obj( self, obj )
 
-    def get_object_by_id( self, object_id ):
+    def get_object_by_id( self, object_id: int ) -> Obj:
 
         with self._access():
             return self._get_object_by_id( object_id )
 
-    def get_stream_by_id( self, stream_id ):
+    def get_stream_by_id( self, stream_id: int ) -> Optional[Stream]:
 
         with self._access():
             stream = self.session.query( model.Stream ) \
@@ -494,6 +517,10 @@ class Database:
                                         stream.stream.priority,
                                         stream.stream.extension )
 
+        # Request thumbnails be generated
+        if( isinstance( f, ImageFile ) ):
+            f.request_thumbs()
+
         return f, stream, new_stream
 
     def register_file( self, path, name_policy = NAME_POLICY_SET_IF_UNDEF, name = None ):
@@ -541,6 +568,85 @@ class Database:
 
         with self._access( write = True ):
             return self.__register_thumb( path, obj, origin, name )
+
+    @_with_access( write = True )
+    def __get_next_thumb_request( self,
+                min_prio: Optional[ImageRequestPriority],
+            ) -> Optional[ThumbRequest]:
+
+        q = self.session.query( model.ImageRequest )
+
+        if( min_prio is not None ):
+                q.filter( model.ImageRequest.prio >= min_prio.value )
+
+        r = q.order_by( model.ImageRequest.prio.desc() ) \
+             .limit( 1 ).first()
+
+        if( r is None ):
+            return None
+
+        if( r.exp_mask is not None ):
+            req_e = []
+            req_shift = r.exp_mask
+            exp = 0
+
+            while( req_shift != 0 ):
+                if( (req_shift & 1) != 0 ):
+                    req_e.append( exp )
+
+                exp += 1
+                req_shift >>= 1
+        else:
+            req_e = None
+
+        return ThumbRequest(
+                    ImageRequestPriority( r.prio ),
+                    req_e,
+                    model_obj_to_higu_obj( self, r.obj ) )
+
+    @_with_access( write = True )
+    def get_next_thumb_request( self,
+                min_prio: Optional[ImageRequestPriority] = None,
+            ) -> Optional[ThumbRequest]:
+        '''Gets the highest priority thumb request. The returned request will
+        be at least the provided min_prio priority.'''
+
+        return self.__get_next_thumb_request( min_prio )
+
+    @_with_access( write = True )
+    def process_next_thumb_request( self,
+                min_prio: Optional[ImageRequestPriority] = None,
+            ) -> Optional[ImageFile]:
+        '''Processes thumbs for the next request.'''
+
+        req = self.__get_next_thumb_request( min_prio )
+        if( req is None ):
+            return None
+
+        if( req.exps is None ):
+            # The image doesn't have the ImageInfo initialized.
+            # Initialize it now and change us to a normal thumb
+            # request.
+            req.file.get_thumb_sizes()
+            req.file.request_thumbs( req.prio )
+        else:
+            for exp in req.exps:
+                req.file.get_thumb_stream( exp, ThumbRequestPrio.IMMEDIATE )
+
+        return req.file
+
+    def process_thumb_requests( self,
+                min_prio: Optional[ThumbRequestPrio] = None,
+            ) -> bool:
+        '''Processes all thumb requests above the provided priority. If no
+        priority is provided, processes all.'''
+
+        processed_one = False
+
+        while( self.process_next_thumb_request( min_prio ) is not None ):
+            processed_one = True
+
+        return processed_one
 
     def batch_add_files( self, files, tags = [], tags_new = [],
                          name_policy = NAME_POLICY_SET_IF_UNDEF,

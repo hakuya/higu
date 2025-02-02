@@ -188,7 +188,7 @@ def upgrade_from_9_to_10( log, session ):
                                            'create_ts, '
                                            'name ) '
                      'SELECT id, type, create_ts, name '
-                     'FROM objl ' 
+                     'FROM objl '
                      'WHERE type != 1001' )
 
     # Bugs in earlier versions of hdbfs can lead to duplicate rows in the rel2
@@ -646,4 +646,26 @@ def upgrade_from_12_to_13( log, session ):
 def upgrade_from_13_to_13_1( log, session ):
 
     # No major changes, albums now allowed to be children of each other
+
+    log.info( 'Database upgrade from VER 13 -> VER 13.1' )
+
     return 13, 1
+
+def upgrade_from_13_1_to_14( log, session ):
+
+    # In version 14, thumbnail generation can be deferred. So a new
+    # table is added to keep track of requests for thumbnails
+
+    log.info( 'Database upgrade from VER 13.1 -> VER 14' )
+
+    # Ver 13 just has two new tables
+    session.execute( """
+        CREATE TABLE imagerequest (
+            object_id         INTEGER PRIMARY KEY,
+            prio              INTEGER NOT NULL,
+            exp_mask          INTEGER,
+            FOREIGN KEY ( object_id )
+                REFERENCES objects( object_id ) )
+    """ )
+
+    return 14, 0

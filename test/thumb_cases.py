@@ -9,6 +9,8 @@ import hdbfs
 import hdbfs.ark
 import hdbfs.model
 
+from hdbfs.imgdb.objects import ThumbRequestPrio
+
 class ThumbCases( testutil.TestCase ):
 
     @classmethod
@@ -40,7 +42,7 @@ class ThumbCases( testutil.TestCase ):
         obj = h.register_file( blue, False )
 
         root_stream = obj.get_root_stream()
-        thumb_stream = obj.get_thumb_stream( 4 )
+        thumb_stream = obj.get_thumb_stream( 4, ThumbRequestPrio.IMMEDIATE )
 
         self.assertFalse( thumb_stream.get_stream_id()
                        == root_stream.get_stream_id(),
@@ -63,7 +65,7 @@ class ThumbCases( testutil.TestCase ):
         obj = h.register_file( blue, False )
 
         root_stream = obj.get_root_stream()
-        thumb_stream = obj.get_thumb_stream( 10 )
+        thumb_stream = obj.get_thumb_stream( 10, ThumbRequestPrio.IMMEDIATE )
 
         self.assertTrue( thumb_stream.get_stream_id()
                       == root_stream.get_stream_id(),
@@ -84,7 +86,7 @@ class ThumbCases( testutil.TestCase ):
         obj.rotate_cw()
 
         root_stream = obj.get_root_stream()
-        thumb_stream = obj.get_thumb_stream( 10 )
+        thumb_stream = obj.get_thumb_stream( 10, ThumbRequestPrio.IMMEDIATE )
 
         self.assertFalse( thumb_stream.get_stream_id()
                       == root_stream.get_stream_id(),
@@ -100,7 +102,7 @@ class ThumbCases( testutil.TestCase ):
         obj = h.register_file( blue, False )
 
         root_stream = obj.get_root_stream()
-        thumb_stream = obj.get_thumb_stream( 4 )
+        thumb_stream = obj.get_thumb_stream( 4, ThumbRequestPrio.IMMEDIATE )
         origin_stream = thumb_stream.get_origin_stream()
 
         self.assertTrue( origin_stream is not None,
@@ -118,8 +120,8 @@ class ThumbCases( testutil.TestCase ):
 
         obj = h.register_file( blue, False )
 
-        thumb_stream = obj.get_thumb_stream( 4 )
-        small_stream = obj.get_thumb_stream( 3 )
+        thumb_stream = obj.get_thumb_stream( 4, ThumbRequestPrio.IMMEDIATE )
+        small_stream = obj.get_thumb_stream( 3, ThumbRequestPrio.IMMEDIATE )
 
         self.assertTrue( thumb_stream.get_stream_id()
                       == small_stream.get_stream_id(),

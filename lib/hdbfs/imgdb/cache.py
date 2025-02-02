@@ -5,7 +5,9 @@ import tempfile
 
 from hdbfs.imgdb.defs import *
 from hdbfs.imgdb.info import StreamInfo, ImageInfo
-from hdbfs.imgdb.objects import ImageFile, Album
+from hdbfs.imgdb.objects import ImageFile, Album, ThumbRequestPrio
+
+from hdbfs.model import ImageRequestPriority
 
 MIN_THUMB_EXP = 7
 
@@ -37,6 +39,7 @@ class ThumbCache:
         with ImageInfo( self.imgdb, obj ) as imginfo:
             imginfo.reorient( orientation, remap )
             self.purge_thumbs( obj )
+            self.request_thumbs( obj, ImageRequestPriority.BACKGROUND )
 
     def get_orientation( self, obj ):
 
@@ -115,28 +118,28 @@ class ThumbCache:
             elif( isinstance( obj, Album ) ):
                 self.init_album_metadata( obj )
 
-    def make_thumb( self, obj, exp ):
+    def get_thumb( self, obj, exp, request: ThumbRequestPrio ):
 
         from PIL import Image
 
+        if( exp < MIN_THUMB_EXP ):
+            exp = MIN_THUMB_EXP
+
         with ImageInfo( self.imgdb, obj ) as imginfo:
 
-            max_e = imginfo.get_max_e()
-            use_root = imginfo.get_use_root()
-
-            if( exp < MIN_THUMB_EXP ):
-                exp = MIN_THUMB_EXP
-
-            if( exp >= max_e ):
-                if( use_root == 1 ):
-                    return imginfo.get_root_stream()
-                else:
-                    exp = max_e
-
-            t_stream = obj.get_stream( f'tb:{exp}' )
+            # Check if we already have a thumb
+            t_stream = imginfo.get_thumb( exp, request != ThumbRequestPrio.IMMEDIATE )
             if( t_stream is not None ):
                 return t_stream
 
+            # Are we deferring the request?
+            if( request == ThumbRequestPrio.OPTIONAL ):
+                return None
+            elif( request == ThumbRequestPrio.MARK_REQUESTED ):
+                imginfo.mark_requeted_e( exp, ImageRequestPriority.IMMEDIATE )
+                return None
+
+            # Otherwise, we're blocking and creating it now
             s = 2**exp
 
             # If we're here, we need to produce a thumb
@@ -147,7 +150,7 @@ class ThumbCache:
             try:
                 img = imginfo.get_img()
                 if( img is None ):
-                    return None
+                    raise IOError()
 
                 w, h = imginfo.get_obj_dims( verify = True )
                 orientation = imginfo.get_orientation()
@@ -195,7 +198,31 @@ class ThumbCache:
                                               f'tb:{exp}' )
 
             except IOError:
+                imginfo.clear_requested_e( exp )
                 return None
+
+    def request_thumbs( self, obj: ImageFile, prio: ImageRequestPriority ) -> int:
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+
+            if( not imginfo.is_available() ):
+                # No information is available
+                imginfo.mark_requested_mask( None, prio )
+                return 0
+
+            max_e = imginfo.get_max_e()
+            avail_e = imginfo.get_avail_e()
+            req_e = 0
+
+            for i in range( MIN_THUMB_EXP, max_e + 1 ):
+                bit = (1 << i)
+                if( (avail_e & bit) == 0 ):
+                    req_e |= bit
+
+            if( req_e != 0 ):
+                imginfo.mark_requested_mask( req_e, prio )
+
+            return avail_e
 
     def purge_thumbs( self, obj ):
 
@@ -223,9 +250,14 @@ class ThumbCache:
             tb_names = list( map( lambda e: f'tb:{e}', exps ) )
             tb_names[-1] = '.'
 
-            ls = obj.list_streams()
+            avail_e = imginfo.get_avail_e()
 
             if( w > h ):
-                return list( map( lambda x, e, n: ( e, x, x * h // w, n in ls ), sizes, exps, tb_names ) )
+                return list( map( lambda x, e, n: ( e, x, x * h // w, (avail_e & (1 << e)) != 0 ), sizes, exps, tb_names ) )
             else:
-                return list( map( lambda y, e, n: ( e, y * w // h, y, n in ls ), sizes, exps, tb_names ) )
+                return list( map( lambda y, e, n: ( e, y * w // h, y, (avail_e & (1 << e)) != 0 ), sizes, exps, tb_names ) )
+
+    def get_avail_exp_mask( self, obj: ImageFile ) -> int:
+
+        with ImageInfo( self.imgdb, obj ) as imginfo:
+            return imginfo.get_avail_e()

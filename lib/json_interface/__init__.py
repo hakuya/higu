@@ -6,6 +6,8 @@ import hdbfs
 
 import json_interface.cache as cache
 
+from hdbfs import ImageRequestPriority
+
 from typing import List, Optional
 
 VERSION = 0
@@ -27,9 +29,13 @@ def get_type_str( obj ):
     else:
         return 'unknown'
 
-def make_obj_tuple( obj ):
+def make_obj_tuple( obj: hdbfs.Obj ):
 
-    return [ obj.get_id(), obj.get_repr(), get_type_str( obj ) ]
+    return [
+        obj.get_id(),
+        obj.get_repr(),
+        get_type_str( obj ),
+    ]
 
 def json_ok( **args ) -> dict:
 

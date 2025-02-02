@@ -30,7 +30,7 @@ class HDBFSMigrator:
 
     def upgrade_schema( self, session, ver, rev ):
 
-        if( ver == 0 ): 
+        if( ver == 0 ):
             return pre8.upgrade_from_0_to_1( log, session )
         elif( ver == 1 ):
             return pre8.upgrade_from_1_to_2( log, session )
@@ -60,6 +60,8 @@ class HDBFSMigrator:
             return ver8rules.upgrade_from_12_to_13( log, session )
         elif( ver == 13 and rev == 0 ):
             return ver8rules.upgrade_from_13_to_13_1( log, session )
+        elif( ver == 13 ):
+            return ver8rules.upgrade_from_13_1_to_14( log, session )
         else:
             raise RuntimeError( 'Incompatible database version for upgrade' )
 
@@ -92,7 +94,7 @@ class ImgDBMigrator:
 
     def upgrade_schema( self, session, ver, rev ):
 
-        if( ver == 0 ): 
+        if( ver == 0 ):
             return imgdb_rules.upgrade_from_0_to_1( log, session, self.dbpath )
 
 # vim:sts=4:et

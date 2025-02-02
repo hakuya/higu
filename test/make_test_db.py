@@ -190,6 +190,9 @@ def make_db( h ):
     else:
         ko.set_duplicate_of( lo )
 
+    if( ver[0] >= 14 ):
+        h.process_thumb_requests()
+
 if( __name__ == '__main__' ):
 
     ver = tuple( map( int, sys.argv[1].split( '.' ) ) )
