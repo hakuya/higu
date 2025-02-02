@@ -29,10 +29,10 @@ class LegacyCases( testutil.TestCase ):
 
         query = hdbfs.query.Query()
         query.set_constraints( tags )
-        
+
         if( type is not None ):
             query.set_type( type )
-        
+
         return [ obj for obj in query.execute( h ) ]
 
     def _single( self, h, tags = [], type = None ):
@@ -187,7 +187,7 @@ class LegacyCases( testutil.TestCase ):
     def subtest_check_dup_moved( self, ver ):
 
         h = hdbfs.Database()
-        
+
         grey = self._single( h, [ 'grey' ] )
         grey2 = self._single( h, [ 'black' ] )
 
@@ -301,7 +301,7 @@ class LegacyCases( testutil.TestCase ):
 
         white = self._single( h, [ 'white' ] )
         grey = self._single( h, [ 'grey' ] )
-        
+
         white_s = white.get_streams()
         grey_s = grey.get_streams()
 
@@ -425,7 +425,7 @@ def build_cases():
         VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
                      ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
                      ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
-                     ( 11, 0, ), ( 12, 0, ), ( 13, 0, ) ]
+                     ( 11, 0, ), ( 12, 0, ), ( 13, 0, ), ( 13, 1, ) ]
 
     for ver in VERSIONS:
 

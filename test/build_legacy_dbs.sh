@@ -145,9 +145,13 @@ DB_12_0_COMMIT=54bcea2a6df66be0c2d6f7c7d24587d9b66ce616
 DB_12_0_PYTHON=python3
 ALL_VERSIONS="$ALL_VERSIONS 12.0"
 
-DB_13_0_COMMIT=origin/HEAD
+DB_13_0_COMMIT=4e393906f4932ec53a344cd1d7e12121caac38b1
 DB_13_0_PYTHON=python3
 ALL_VERSIONS="$ALL_VERSIONS 13.0"
+
+DB_13_1_COMMIT=origin/HEAD
+DB_13_1_PYTHON=python3
+ALL_VERSIONS="$ALL_VERSIONS 13.1"
 
 db_var()
 {
@@ -170,7 +174,7 @@ ORIGIN=${2:-build}
 
 if [ $ORIGIN = "build" ]; then
     git clone $HIGU_DIR $WORK_DIR
-    
+
     cd $WORK_DIR
     clean
 fi

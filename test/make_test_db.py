@@ -201,7 +201,9 @@ if( __name__ == '__main__' ):
 
     hdbfs = higu
 
-    if( ver[0] >= 10 ):
+    if( ver[0] >= 14 or (ver[0] == 13 and ver[1] >= 1) ):
+        hdbfs.imgdb.cache.MIN_THUMB_EXP = 2
+    elif( ver[0] >= 10 ):
         hdbfs.imgdb.MIN_THUMB_EXP = 2
     elif( ver[0] >= 5 ):
         hdbfs.ark.MIN_THUMB_EXP = 2
