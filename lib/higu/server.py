@@ -32,11 +32,11 @@ CONFIG={
     },
     '/index' : {
         'tools.staticfile.on' : True,
-        'tools.staticfile.filename' : os.path.join( os.getcwd(), 'html/index.html' ),
+        'tools.staticfile.filename' : os.path.join( os.getcwd(), 'webapp/html/index.html' ),
     },
     '/static' : {
         'tools.staticdir.on' : True,
-        'tools.staticdir.dir' : os.path.join( os.getcwd(), 'static' ),
+        'tools.staticdir.dir' : os.path.join( os.getcwd(), 'webapp/static' ),
     },
 }
 
@@ -108,7 +108,7 @@ class Server:
 
         access.logout( session_id )
 
-        return serve_file( os.path.join( os.getcwd(), 'html/logout.html' ),
+        return serve_file( os.path.join( os.getcwd(), 'webapp/html/logout.html' ),
                            content_type = 'text/html' )
 
     @cherrypy.expose
