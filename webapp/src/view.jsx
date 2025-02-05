@@ -1,7 +1,10 @@
+import { displib } from './display';
+import { load_async } from './script';
+
 var TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
 
 // module
-var tabs = (function() {
+export var tabs = (function() {
 
 // Local module vars
 var tabs_counter = 1;
@@ -259,8 +262,8 @@ class public_SelectionProvider extends public_Provider
     {
         super();
 
-        this.selection = window.displib.make_selection_display();
-        this.selection_id = window.displib.register_selection( this.selection.disp );
+        this.selection = displib.make_selection_display();
+        this.selection_id = displib.register_selection( this.selection.disp );
         this.init_query = null;
         this.init_objs = null;
 
@@ -309,7 +312,7 @@ class public_SelectionProvider extends public_Provider
 
     close()
     {
-        window.displib.unregister_selection( this.selection.disp );
+        displib.unregister_selection( this.selection.disp );
     }
 
     repr()
@@ -375,7 +378,7 @@ class public_SingleProvider extends public_Provider
         this.info = response.info;
         this.fields = response.fields;
 
-        var display = window.displib.make_object_display( this.info, this.fields );
+        var display = displib.make_object_display( this.info, this.fields );
         this.callback( display );
     }
 
@@ -387,7 +390,7 @@ class public_SingleProvider extends public_Provider
     fetch( idx )
     {
         if( idx == 0 ) {
-            this.callback( window.displib.make_object_display( this.info, this.fields ) );
+            this.callback( displib.make_object_display( this.info, this.fields ) );
         }
     }
 
@@ -465,10 +468,10 @@ class public_SearchProvider extends public_Provider
             this.count = null;
 
             if( response.msg ) {
-                display = window.displib.make_dummy_display(
+                display = displib.make_dummy_display(
                     'The search failed: ' + response.msg );
             } else {
-                display = window.displib.make_dummy_display(
+                display = displib.make_dummy_display(
                     'The search failed: ' + response.except + ' error' );
             }
         } else if( response.results > 0 ) {
@@ -476,13 +479,13 @@ class public_SearchProvider extends public_Provider
             this.index = response.index;
             this.count = response.results;
 
-            display = window.displib.make_object_display( response.first, response.fields );
+            display = displib.make_object_display( response.first, response.fields );
         } else {
             this.sid = null;
             this.index = null;
             this.count = null;
 
-            display = window.displib.make_dummy_display( 'The search had no results' );
+            display = displib.make_dummy_display( 'The search had no results' );
         }
 
         this.callback( display );
@@ -491,7 +494,7 @@ class public_SearchProvider extends public_Provider
     close()
     {
         if( !this.sid ) return null;
-        
+
         var request = {
             'action' : 'selection_close',
             'selection' : this.sid,
@@ -527,7 +530,7 @@ class public_SearchProvider extends public_Provider
         if( response == null || response.result != 'ok' ) return;
 
         this.index = data.idx;
-        this.callback( window.displib.make_object_display( response.info, response.fields ) );
+        this.callback( displib.make_object_display( response.info, response.fields ) );
     }
 
     offset( off )
@@ -600,7 +603,7 @@ class public_ListProvider extends public_Provider
     {
         this.loading = false;
 
-        var display = window.displib.make_object_display( response.info, response.fields );
+        var display = displib.make_object_display( response.info, response.fields );
         this.callback( display );
     }
 
@@ -635,7 +638,7 @@ class public_ListProvider extends public_Provider
     _fetch_cb( data, response )
     {
         this.loading = false;
-        this.callback( window.displib.make_object_display( response.info, response.fields ) );
+        this.callback( displib.make_object_display( response.info, response.fields ) );
     }
 
     offset( off )
@@ -682,5 +685,3 @@ return {
 };
 
 })(); // module tabs
-
-window.tabs = tabs;

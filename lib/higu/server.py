@@ -38,6 +38,10 @@ CONFIG={
         'tools.staticdir.on' : True,
         'tools.staticdir.dir' : os.path.join( os.getcwd(), 'webapp/static' ),
     },
+    '/webapp.js' : {
+        'tools.staticfile.on' : True,
+        'tools.staticfile.filename' : os.path.join( os.getcwd(), 'webapp/build/_bundle.js' ),
+    }
 }
 
 class Server:

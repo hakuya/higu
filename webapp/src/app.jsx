@@ -1,3 +1,14 @@
+import * as React from 'react';
+import * as ReactBootstrap from 'react-bootstrap';
+import { createRoot } from 'react-dom/client';
+
+import $ from 'jquery';
+import 'jquery-ui/ui/widgets/droppable';
+
+import { tabs } from './view';
+import { dialogs } from './dialog';
+import { ContentTab } from './tabs';
+
 class QueryLink extends React.Component
 {
     handleClick() {
@@ -129,7 +140,7 @@ class Trash extends React.Component
 
                 var tab = tabs.active();
                 var item = $( ui.draggable );
-                
+
                 if( tab && tab.onEvent ) {
                     tab.onEvent( {
                         type: 'trash',
@@ -213,7 +224,7 @@ class TabsView extends React.Component
                                             } }>{ '(X)' }</span>
                                         }
                                     </span> }>
-                <window.Tabs.ContentTab data={ it }/>
+                <ContentTab data={ it }/>
             </ReactBootstrap.Tab>
         ) );
         return (
@@ -655,10 +666,8 @@ var window_height = 0;
 
 $( function() {
 
-ReactDOM.render(
-  <Application/>,
-  document.getElementById('app')
-);
+let root = createRoot( document.getElementById( 'app' ) );
+root.render( <Application/> );
 
 $(document).keypress( function( e ) {
     if( $( '.modal-dialog' ).is( ':visible' ) || $( '.nokb' ).is( ':focus' ) ) {

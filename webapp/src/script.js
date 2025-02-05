@@ -1,10 +1,14 @@
-function rm() {
+import $ from 'jquery';
+
+import { dialogs } from './dialog';
+
+export function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
         load( '/callback?id=' + selected + '&action=rm' );
     }
 }
 
-function do_begin_display( target, response )
+export function do_begin_display( target, response )
 {
     target.data( 'selection_id', response.selection );
     target.data( 'object_id', response.object_id );
@@ -12,19 +16,19 @@ function do_begin_display( target, response )
     load_html( target, response.data );
 }
 
-function do_step_display( target, response )
+export function do_step_display( target, response )
 {
     target.data( 'object_id', response.object_id );
     target.data( 'display_idx', response.index );
     load_html( target, response.data );
 }
 
-function do_show_html( target, response )
+export function do_show_html( target, response )
 {
     load_html( target, response.data );
 }
 
-function load_async( request, callback, data )
+export function load_async( request, callback, data )
 {
     $.ajax( {
         url:            '/callback_new',
@@ -52,13 +56,13 @@ function load_async( request, callback, data )
     } );
 }
 
-function load_html( elem, content )
+export function load_html( elem, content )
 {
     elem.html( content );
     activate_links( elem );
 }
 
-function activate_links( par )
+export function activate_links( par )
 {
     par.find( '.taglink' ).each( function( idx ) {
         $( this ).click( function() {

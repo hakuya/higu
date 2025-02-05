@@ -1,3 +1,14 @@
+import * as React from 'react';
+import * as ReactBootstrap from 'react-bootstrap';
+
+import $ from 'jquery';
+import 'jquery-ui/ui/widgets/draggable';
+
+import { load_async } from './script';
+import { dialogs } from './dialog';
+import { tabs } from './view';
+import { util } from './display';
+
 class CompositeLink extends React.Component
 {
     render() {
@@ -85,7 +96,7 @@ class ObjectLabel extends React.Component
 {
     componentDidMount() {
         var d = this.props.display;
-        window.util.make_draggable( $( this.el ), window.util.make_basic_drop_data(
+        util.make_draggable( $( this.el ), util.make_basic_drop_data(
             d, d.obj_id, d.info.repr, d.info.type ) );
     }
     componentDidUpdate() {
@@ -140,7 +151,7 @@ class SelectionLabel extends React.Component
 {
     componentDidMount() {
         var d = this.props.display;
-        window.util.make_draggable( $( this.el ), {
+        util.make_draggable( $( this.el ), {
             selection: this,
 
             get_display: function() { return d; },
@@ -500,7 +511,7 @@ class ThumbTile extends React.Component
                 }
             },
         };
-        window.util.make_draggable( $( this.el ), this.drop_data );
+        util.make_draggable( $( this.el ), this.drop_data );
     }
     componentDidUpdate() {
         $( this.el ).draggable( 'destroy' );
@@ -580,7 +591,7 @@ class AlbumTile extends React.Component
                 }
             },
         };
-        window.util.make_draggable( $( this.el ), this.drop_data );
+        util.make_draggable( $( this.el ), this.drop_data );
 
         if( !this.state.files ) {
             this.loadContent();
@@ -650,7 +661,7 @@ class TileView extends React.Component
 {
     componentDidMount() {
         if( this.props.display.is_sortable() ) {
-            window.util.make_sortable( this.props.display, $( this.el ), this.props.index );
+            util.make_sortable( this.props.display, $( this.el ), this.props.index );
         }
     }
     componentDidUpdate() {
@@ -1337,7 +1348,7 @@ class TaglistTab extends React.Component {
     }
 }
 
-class ContentTab extends React.Component {
+export class ContentTab extends React.Component {
     render() {
         if( this.props.data.type == 'display' ) {
             return ( <DisplayTab data={ this.props.data }/> );
@@ -1352,7 +1363,3 @@ class ContentTab extends React.Component {
         }
     }
 }
-
-window.Tabs = {
-    ContentTab: ContentTab
-};

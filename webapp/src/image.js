@@ -1,13 +1,17 @@
+import $ from 'jquery';
+
+import { util } from './display';
+
 /**
  * class Viewer
  */
-ImageViewer = function( pane, image_info )
+var ImageViewer = function( pane, image_info )
 {
     this.get_container_dims = function()
     {
-        tab = this.pane.closest( '.tab' );
-        container_width = tab.width() - tab.find( '.info' ).width() - 20;
-        container_height = this.pane.height();
+        var tab = this.pane.closest( '.tab' );
+        var container_width = tab.width() - tab.find( '.info' ).width() - 20;
+        var container_height = this.pane.height();
 
         return [ container_width, container_height ]
     };
@@ -16,9 +20,9 @@ ImageViewer = function( pane, image_info )
     {
         if( this.im_width == null ) return null;
 
-        cd = this.get_container_dims();
-        rd = [ cd[1] * this.im_width / this.im_height,
-               cd[0] * this.im_height / this.im_width ];
+        var cd = this.get_container_dims();
+        var rd = [ cd[1] * this.im_width / this.im_height,
+                   cd[0] * this.im_height / this.im_width ];
 
         if( this.zoom == 'fit_inside' ) {
             if( cd[1] < rd[1] ) {
@@ -47,7 +51,7 @@ ImageViewer = function( pane, image_info )
      */
     this.apply_zoom_css = function( im )
     {
-        dims = this.choose_image_dims();
+        var dims = this.choose_image_dims();
         if( !dims ) return;
 
         im.width( dims[0] );
@@ -102,7 +106,7 @@ ImageViewer = function( pane, image_info )
 
     this.choose_src = function()
     {
-        s = '/img?id=' + this.image_info.obj_id;
+        var s = '/img?id=' + this.image_info.obj_id;
 
         if( this.image_info.sizes && this.image_info.sizes.length > 0 ) {
             var dims = this.choose_image_dims();
@@ -137,7 +141,7 @@ ImageViewer = function( pane, image_info )
         }
 
         var img_tag = $( '<img class="objitem" src="' + this.choose_src() + '" '
-                       + 'onload="on_image_loaded( this )"/>' );
+                       + 'onload="window.image_module.on_image_loaded( this )"/>' );
 
         this.apply_zoom_css( img_tag );
 
@@ -163,21 +167,25 @@ ImageViewer = function( pane, image_info )
     pane.data( 'viewer', this );
 };
 
-function attach_image( pane, image_info )
+export function attach_image( pane, image_info )
 {
     return new ImageViewer( pane, image_info );
 }
 
 function on_image_loaded( im )
 {
-    pane = $( im ).closest( '.disp' );
-    viewer = pane.data( 'viewer' )
+    var pane = $( im ).closest( '.disp' );
+    var viewer = pane.data( 'viewer' )
 
     viewer.on_image_loaded( im );
 }
 
 function get_viewer( elem )
 {
-    pane = $( elem ).find( '.disp' )
+    var pane = $( elem ).find( '.disp' )
     return pane.data( 'viewer' );
 }
+
+window.image_module = {
+    on_image_loaded: on_image_loaded
+};

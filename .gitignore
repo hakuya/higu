@@ -1,7 +1,8 @@
 *.pyc
 .*.sw*
+.DS_Store
 test/data/hfdb_*.dat
 test/data/*.db
 test.db/*
-node_modules/*
-static/libs/*
+webapp/build/*
+webapp/node_modules/*

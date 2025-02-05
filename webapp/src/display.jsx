@@ -1,5 +1,13 @@
+import $ from 'jquery';
+import 'jquery-ui/ui/widgets/draggable';
+
+import { attach_image } from './image';
+import { load_async } from './script';
+import { dialogs } from './dialog';
+import { tabs } from './view';
+
 // module
-var util = (function() {
+export var util = (function() {
 
 function public_make_basic_drop_data( disp, obj_id, repr, type )
 {
@@ -45,7 +53,7 @@ function public_make_draggable( elem, drop_data )
 
             // FIXME: bugfix to prevent clone from calling onload which
             // causes whacky image resizing when the dragable is created
-            clone[0].onload = null; 
+            clone[0].onload = null;
             return clone;
         },
         appendTo:   $( '#page' ),
@@ -53,13 +61,13 @@ function public_make_draggable( elem, drop_data )
         //cursor:     'move',
         opacity:    0.3,
         distance:   30,
-        start: function( event, ui ) { 
+        start: function( event, ui ) {
             $( this ).draggable("option", "cursorAt", {
                 left:   Math.floor( ui.helper.width() / 2 ),
                 top:    Math.floor( ui.helper.height() / 2 )
             });
         },
-        /*stop: function( event, ui ) { 
+        /*stop: function( event, ui ) {
             alert( ui.helper[0].width );
         },*/
     });
@@ -170,7 +178,7 @@ return {
 })(); // module util
 
 // module
-var displib = (function() {
+export var displib = (function() {
 
 /**
  * class DisplayableBase
@@ -572,7 +580,7 @@ class DisplayableObject extends DisplayableBase
         if( e.affected && e.affected.indexOf( this.obj_id ) == -1 ) {
             return;
         }
-        
+
         if( e.type == 'key' ) {
             switch( e.charCode ) {
                 case 116: // t
@@ -748,7 +756,7 @@ class DisplayableObject extends DisplayableBase
             items:      tabs.get_info_set(),
             fields:     tabs.get_field_set(),
         };
-        
+
         load_async( request, this._refresh_info_cb.bind( this ), { e: e } );
     }
 
@@ -1055,7 +1063,7 @@ class DisplayableSelection extends DisplayableBase
  */
 class ViewBase
 {
-    display_view( disp, div ) 
+    display_view( disp, div )
     {
         div.html( '&nbsp;' );
     }
@@ -1267,6 +1275,3 @@ return {
 };
 
 })(); // module displib
-
-window.util = util;
-window.displib = displib;

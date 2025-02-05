@@ -1,6 +1,6 @@
 
 // module
-var dialogs = (function() {
+export var dialogs = (function() {
 
 var dialogs = [];
 
