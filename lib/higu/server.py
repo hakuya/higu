@@ -134,35 +134,45 @@ class Server:
             return json.dumps( result ).encode( 'utf8' )
 
     @cherrypy.expose
-    def img( self, id = None, exp = None, gen = None, stream: Optional[int] = None ):
+    def img( self,
+                id: Optional[str] = None,
+                exp: Optional[str] = None,
+                prio: Optional[str] = None,
+                gen: Optional[str] = None,
+                stream: Optional[str] = None
+            ):
+
+        try:
+            # Convert arguments to int
+            id_int = int( id ) if id is not None else None
+            exp_int = int( exp ) if exp is not None else None
+            prio_int = int( prio ) if prio is not None else None
+            stream_int = int( stream ) if stream is not None else None
+        except:
+            raise cherrypy.HTTPError( 400 )
 
         with self.__get_session()[0] as db:
 
             sobj = None
 
-            if( stream is not None ):
-                sobj = db.get_stream_by_id( stream )
+            if( stream_int is not None ):
+                sobj = db.get_stream_by_id( stream_int )
                 rep = sobj
             else:
                 # The thumb cache requires the ability to write to the database
                 db.enable_write_access()
 
-                if( id == None ):
+                if( id_int == None ):
                     raise cherrypy.HTTPError( 404 )
 
-                try:
-                    id = int( id )
-                    if( exp is not None ):
-                        exp = int( exp )
-                except:
-                    raise cherrypy.HTTPError( 400 )
-
-                f = db.get_object_by_id( id )
+                f = db.get_object_by_id( id_int )
                 if( isinstance( f, hdbfs.imgdb.ImageFile ) ):
-                    if( exp is None ):
+                    if( exp_int is None ):
                         sobj = f.get_root_stream()
+                    elif( prio_int == 1 ):
+                        sobj = f.get_thumb_stream( exp_int, ThumbRequestPrio.IMMEDIATE )
                     else:
-                        sobj = f.get_thumb_stream( exp, ThumbRequestPrio.MARK_REQUESTED )
+                        sobj = f.get_thumb_stream( exp_int, ThumbRequestPrio.MARK_REQUESTED )
 
                 rep = f
 

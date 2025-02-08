@@ -120,6 +120,9 @@ var ImageViewer = function( pane, image_info )
             if( size[0] != null ) {
                 s += '&exp=' + size[0];
             }
+
+            // Always request with priority
+            s += '&prio=1';
         }
 
         if( this.image_info.stream_id ) {
