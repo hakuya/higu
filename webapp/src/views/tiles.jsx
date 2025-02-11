@@ -60,6 +60,7 @@ class ThumbTile extends React.Component
                             maxWidth: '100%',
                             maxHeight: '100%',
                         }}
+                     loading={ 'lazy' }
                      onError={ () => { this.onError() } }
                      onClick={ ( e ) => {
                             e.preventDefault();
@@ -79,6 +80,7 @@ class AlbumThumb extends React.Component
                      height: this.props.metrics.size
                  }}>
                 <img src={ '/img?id=' + this.props.obj_id + '&exp=' + this.props.metrics.exp_i }
+                     loading={ 'lazy' }
                      style={{
                             maxWidth: '100%',
                             maxHeight: '100%',
