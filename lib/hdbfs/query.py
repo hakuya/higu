@@ -5,6 +5,8 @@ import hdbfs
 
 import hdbfs.model as model
 
+from hdbfs.session import SessionObjectFactoryIterator
+
 class TagConstraint:
 
     def __init__( self, tag, fuzzy = False ):
@@ -16,7 +18,7 @@ class TagConstraint:
 
         return None
 
-    def to_db_constraint( self, db ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy import and_
 
@@ -29,17 +31,17 @@ class TagConstraint:
             if( '*' in tag and self.__fuzzy ):
                 sql_s = tag.replace( '%', '[%]' ) \
                            .replace( '*', '%' )
-                tag = db.session.query( model.Object.object_id ) \
+                tag = db.model.query( model.Object.object_id ) \
                         .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
                         .filter( model.Object.name.like( sql_s ) )
             else:
                 tag = db.get_tag( self.__tag )
 
         if( isinstance( tag, hdbfs.Obj ) ):
-            return db.session.query( model.Relation.child_id ) \
+            return db.model.query( model.Relation.child_id ) \
                      .filter( model.Relation.parent_id == tag.obj.object_id )
         else:
-            return db.session.query( model.Relation.child_id ) \
+            return db.model.query( model.Relation.child_id ) \
                      .filter( model.Relation.parent_id.in_( tag ) )
 
 class TagCountConstraint:
@@ -53,24 +55,24 @@ class TagCountConstraint:
 
         return None
 
-    def to_db_constraint( self, db ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy import func, literal_column
 
-        tagged = db.session.query( model.Relation.child_id.label( 'id' ),
+        tagged = db.model.query( model.Relation.child_id.label( 'id' ),
                                    func.count( model.Relation.child_id ).label( 'tagc' ) ) \
                    .join( model.Object, model.Object.object_id == model.Relation.parent_id ) \
                    .filter( model.Object.object_type == model.TYPE_CLASSIFIER ) \
                    .group_by( model.Relation.child_id.label( 'id' ) )
-        notags = db.session.query( model.Object.object_id, literal_column( '0' ).label( 'tagc' ) ) \
+        notags = db.model.query( model.Object.object_id, literal_column( '0' ).label( 'tagc' ) ) \
                    .filter( ~model.Object.object_id.in_(
-                                db.session.query( model.Relation.child_id ) \
+                                db.model.query( model.Relation.child_id ) \
                                   .join( model.Object, model.Object.object_id
                                                     == model.Relation.parent_id ) \
                                   .filter( model.Object.object_type == model.TYPE_CLASSIFIER ) ) )
         tagq = tagged.union( notags ).subquery()
 
-        q = db.session.query( tagq.c.id )
+        q = db.model.query( tagq.c.id )
 
         return {
             '='  : lambda q: q.filter( tagq.c.tagc == self.__c ),
@@ -110,10 +112,10 @@ class NameConstraint:
 
         return 'name'
 
-    def to_db_constraint( self, db ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ):
 
-        return db.session.query( model.Object.object_id ) \
-                         .filter( self.__constraint )
+        return db.model.query( model.Object.object_id ) \
+                       .filter( self.__constraint )
 
 class UnboundConstraint:
 
@@ -125,7 +127,7 @@ class UnboundConstraint:
 
         return None
 
-    def to_db_constraint( self, db ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy import or_
 
@@ -140,15 +142,15 @@ class UnboundConstraint:
         sql_s = self.__s.replace( '%', '[%]' ) \
                     .replace( '*', '%' )
 
-        tag_q = db.session.query( model.Object.object_id ) \
-                .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
-                .filter( model.Object.name.like( '%' + sql_s + '%' ) )
+        tag_q = db.model.query( model.Object.object_id ) \
+                  .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
+                  .filter( model.Object.name.like( '%' + sql_s + '%' ) )
 
-        child_q = db.session.query( model.Relation.child_id ) \
+        child_q = db.model.query( model.Relation.child_id ) \
                     .filter( model.Relation.parent_id.in_( tag_q ) )
 
-        return db.session.query( model.Object.object_id ) \
-                    .filter(
+        return db.model.query( model.Object.object_id ) \
+                 .filter(
                         or_(
                             model.Object.name.like( '%' + sql_s + '%' ),
                             model.Object.object_id.in_( child_q )
@@ -255,10 +257,10 @@ class ObjIdConstraint:
 
         return ( 'add', False, )
 
-    def to_db_constraint( self, db ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ):
 
-        return db.session.query( model.Object.object_id ) \
-                         .filter( self.__constraint )
+        return db.model.query( model.Object.object_id ) \
+                       .filter( self.__constraint )
 
 class ParameterConstraint:
 
@@ -315,12 +317,12 @@ class ParameterConstraint:
 
         return None
 
-    def to_db_constraint( self, db ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy import and_
 
-        return db.session.query( model.ObjectMetadata.object_id ) \
-                         .filter( and_( model.ObjectMetadata.key == self.__key, \
+        return db.model.query( model.ObjectMetadata.object_id ) \
+                       .filter( and_( model.ObjectMetadata.key == self.__key, \
                                         self.__constraint ) )
 
 class Query:
@@ -509,7 +511,7 @@ class Query:
         self.__not_constraints = list( not_c )
         return self
 
-    def execute( self, db ):
+    def execute( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy.sql.expression import func
 
@@ -543,7 +545,7 @@ class Query:
         if( q_order is None ):
             q_order = ( 'rand', False, )
 
-        query = db.session.query( model.Object.object_id )
+        query = db.model.query( model.Object.object_id )
 
         if( req_q is not None ):
             q = req_q
@@ -570,10 +572,10 @@ class Query:
             # Extra filter applied in this case if there are otherwise no
             # other filters. We don't want to show files which will already
             # be presented in an album
-            all_r = db.session.query( model.Object.object_id ) \
+            all_r = db.model.query( model.Object.object_id ) \
                       .filter( model.Object.object_type.in_(
                                     hdbfs.FILE_TYPES + hdbfs.ALBUM_TYPES ) )
-            children = db.session.query( model.Relation.child_id ) \
+            children = db.model.query( model.Relation.child_id ) \
                     .filter( model.Relation.parent_id.in_( all_r ) )
 
             query = query.filter( ~model.Object.object_id.in_( children ) )
@@ -581,13 +583,13 @@ class Query:
         if( self.__expand ):
             from sqlalchemy import or_
 
-            query = db.session.query( model.Object ) \
+            query = db.model.query( model.Object ) \
                     .join( model.Relation, model.Relation.child_id == model.Object.object_id ) \
                     .filter( model.Object.object_type.in_( hdbfs.FILE_TYPES ) ) \
                     .filter( or_( model.Object.object_id.in_( query ),
                                   model.Relation.parent_id.in_( query ) ) )
         else:
-            query = db.session.query( model.Object ) \
+            query = db.model.query( model.Object ) \
                     .filter( model.Object.object_id.in_( query ) )
 
         if( q_order[0] == 'rand' ):
@@ -617,5 +619,4 @@ class Query:
         if( self.__limit is not None ):
             query = query.limit( self.__limit )
 
-        return hdbfs.ModelObjToHiguObjIterator( db, query )
-
+        return SessionObjectFactoryIterator( db, query )

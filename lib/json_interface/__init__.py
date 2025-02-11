@@ -4,9 +4,8 @@ import sys
 
 import hdbfs
 
+import hdbfs.objects.groups
 import json_interface.cache as cache
-
-from hdbfs import ImageRequestPriority
 
 from typing import List, Optional
 
@@ -366,7 +365,7 @@ class JsonInterface:
         db = self.__db
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, hdbfs.OrderedGroup ) )
+        assert( isinstance( group, hdbfs.objects.groups.OrderedGroup ) )
 
         group.clear_order()
 
@@ -377,7 +376,7 @@ class JsonInterface:
         db = self.__db
 
         group = db.get_object_by_id( group )
-        assert( isinstance( group, hdbfs.OrderedGroup ) )
+        assert( isinstance( group, hdbfs.objects.groups.OrderedGroup ) )
 
         items = list( map( db.get_object_by_id, items ) )
         group.set_order( items )

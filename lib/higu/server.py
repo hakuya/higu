@@ -4,7 +4,6 @@ import uuid
 import time
 import json
 
-import hdbfs.basic_objs
 import hdbfs.imgdb
 import higu.config as config
 
@@ -168,11 +167,11 @@ class Server:
                 f = db.get_object_by_id( id_int )
 
                 # Try to resolve an album to a file
-                while( isinstance( f, hdbfs.imgdb.Album ) and f is not None ):
+                while( isinstance( f, hdbfs.Album ) and f is not None ):
                     files = f.get_items()
                     f = files[0] if len( files ) > 0 else None
 
-                if( isinstance( f, hdbfs.imgdb.ImageFile ) ):
+                if( isinstance( f, hdbfs.ImageFile ) ):
                     if( exp_int is None ):
                         sobj = f.get_root_stream()
                     elif( prio_int == 1 ):

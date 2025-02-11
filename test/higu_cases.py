@@ -606,7 +606,7 @@ class HiguLibCases( testutil.TestCase ):
             album = h.get_object_by_id( obj_id )
             self.assertIsNotNone( album,
                     'Unable to get album after creation' )
-            self.assertTrue( isinstance( album, hdbfs.Group ),
+            self.assertTrue( isinstance( album, hdbfs.Album ),
                     'Created album is not a group' )
 
     def test_create_album_with_text( self ):

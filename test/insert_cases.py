@@ -333,19 +333,19 @@ class InsertCases( testutil.TestCase ):
         self.assertEqual( len( cyan ), 2,
                 'Unexpected number of files (cyan)' )
 
-        self.assertTrue( ro in magenta, 
+        self.assertTrue( ro in magenta,
                 'Red not in magenta' )
-        self.assertTrue( bo in magenta, 
+        self.assertTrue( bo in magenta,
                 'Blue not in magenta' )
 
-        self.assertTrue( ro in yellow, 
+        self.assertTrue( ro in yellow,
                 'Red not in yellow' )
-        self.assertTrue( go in yellow, 
+        self.assertTrue( go in yellow,
                 'Green not in yellow' )
 
-        self.assertTrue( go in cyan, 
+        self.assertTrue( go in cyan,
                 'Green not in cyan' )
-        self.assertTrue( bo in cyan, 
+        self.assertTrue( bo in cyan,
                 'Blue not in cyan' )
 
         red_in = ro.get_tags()
@@ -359,19 +359,19 @@ class InsertCases( testutil.TestCase ):
         self.assertEqual( len( blue_in ), 2,
                 'Unexpected number of tags (blue)' )
 
-        self.assertTrue( mt in red_in, 
+        self.assertTrue( mt in red_in,
                 'Red does not have magenta' )
-        self.assertTrue( yt in red_in, 
+        self.assertTrue( yt in red_in,
                 'Red does not have yellow' )
 
-        self.assertTrue( yt in green_in, 
+        self.assertTrue( yt in green_in,
                 'Green does not have yellow' )
-        self.assertTrue( ct in green_in, 
+        self.assertTrue( ct in green_in,
                 'Green does not have cyan' )
 
-        self.assertTrue( mt in blue_in, 
+        self.assertTrue( mt in blue_in,
                 'Blue does not have magenta' )
-        self.assertTrue( ct in blue_in, 
+        self.assertTrue( ct in blue_in,
                 'Blue does not have cyan' )
 
     def test_make_album( self ):
@@ -392,11 +392,11 @@ class InsertCases( testutil.TestCase ):
                 'Expected album' )
 
         files = al.get_files()
-        self.assertTrue( wo in files, 
+        self.assertTrue( wo in files,
                 'White not in album' )
-        self.assertTrue( lo in files, 
+        self.assertTrue( lo in files,
                 'Grey not in album' )
-        self.assertTrue( ko in files, 
+        self.assertTrue( ko in files,
                 'Black not in album' )
 
     def test_tag_album( self ):

@@ -4,7 +4,6 @@ import sys
 
 import hdbfs.ark
 
-import hdbfs.basic_objs
 import hdbfs.model as model
 import hdbfs.imgdb.exif as exif
 
@@ -14,7 +13,7 @@ from typing import Optional
 
 class StreamInfo:
 
-    def __init__( self, imgdb, stream ):
+    def __init__( self, imgdb, stream: 'hdbfs.ImageStream' ):
 
         self.imgdb = imgdb
         self.stream = stream
@@ -45,7 +44,7 @@ class StreamInfo:
 
                 self.info = model.StreamInfo( self.stream.stream,
                                 self.img.size[0], self.img.size[1] )
-                self.stream.db.session.add( self.info )
+                self.stream.session.model.add( self.info )
             except IOError:
                 return None
 
@@ -187,7 +186,7 @@ class StreamInfo:
 
 class ImageInfo:
 
-    def __init__( self, imgdb, obj: 'ImageFile' ):
+    def __init__( self, imgdb, obj: 'hdbfs.ImageFile' ):
 
         self.imgdb = imgdb
         self.obj = obj
@@ -232,7 +231,7 @@ class ImageInfo:
                 return None
 
             self.info = model.ImageInfo( self.obj.obj, w, h )
-            self.obj.db.session.add( self.info )
+            self.obj.session.model.add( self.info )
 
         return self.info
 
@@ -388,7 +387,7 @@ class ImageInfo:
 
         request = self.obj.obj.request
         if( request is not None ):
-            self.obj.db.session.delete( request )
+            self.obj.session.model.delete( request )
 
         self.obj.obj.request = None
 
@@ -431,7 +430,7 @@ class ImageInfo:
 
         if( request is None ):
             request = model.ImageRequest( self.obj.obj, prio.value, mask )
-            self.obj.db.session.add( request )
+            self.obj.session.model.add( request )
 
         elif( mask is not None ):
             base = request.exp_mask if( request.exp_mask is not None ) else 0
@@ -440,7 +439,7 @@ class ImageInfo:
             if( request.prio is None or prio.value > request.prio ):
                 request.prio = prio.value
 
-        self.obj.db.session.flush()
+        self.obj.session.model.flush()
 
     def mark_requeted_e( self, exp: int, prio: model.ImageRequestPriority ) -> None:
         '''Marks the thumb with the given exp as requested.'''
@@ -458,11 +457,11 @@ class ImageInfo:
         if( request.exp_mask is not None ):
             exp_mask = (request.exp_mask & ~(1 << exp))
             if( exp_mask == 0 ):
-                self.obj.db.session.delete( request )
+                self.obj.session.model.delete( request )
             else:
                 request.exp_mask = exp_mask
 
-        self.obj.db.session.flush()
+        self.obj.session.model.flush()
 
     def get_thumb( self, exp: int, lazy: bool = False ) -> 'ImageStream':
 

@@ -1,22 +1,48 @@
 import calendar
 import datetime
 import os
+import sys
 import tempfile
 
 from hdbfs.imgdb.defs import *
 from hdbfs.imgdb.info import StreamInfo, ImageInfo
-from hdbfs.imgdb.objects import ImageFile, Album, ThumbRequestPrio
+from hdbfs.imgdb.objects import ImageFile, ThumbRequestPrio
 
+from hdbfs.session import Session
 from hdbfs.model import ImageRequestPriority
+from hdbfs.objects.basic import Obj, Stream
+from hdbfs.objects.album import Album
+from hdbfs.objects.metadata import MetadataManager
+
+from hdbfs.defs import LOG
 
 MIN_THUMB_EXP = 7
 
-class ThumbCache:
+class ThumbCache( MetadataManager ):
 
-    def __init__( self, fsdb, imgdb ):
+    def __init__( self, session: Session ):
 
-        self.fsdb = fsdb
-        self.imgdb = imgdb
+        session.hooks.add_pre_commit_hook( self.__commit_hook )
+
+        self.session = session
+        self.imgdb = session.imgdb
+
+        self._metadata_init_required = []
+
+    def __commit_hook( self, session: Session, is_rollback: bool ):
+
+        # This hook can cause a write, which will trigger this hook again.
+        # Make sure to clear the list before triggering a commit
+        flist = self._metadata_init_required
+        self._metadata_init_required = []
+
+        if( not is_rollback ):
+            for obj, stream in flist:
+                try:
+                    self.init_metadata( obj, stream )
+                except:
+                    LOG.warning( 'Failed loading metadata for "%s": %s',
+                                obj.get_repr(), str( sys.exc_info()[1] ) )
 
     def get_dimensions( self, obj ):
 
@@ -51,9 +77,9 @@ class ThumbCache:
         with ImageInfo( self.imgdb, obj ) as imginfo:
             return imginfo.get_gen()
 
-    def init_stream_metadata( self, stream ):
+    def init_stream_metadata( self, stream: Stream ):
 
-        with stream.db._access( write = True ):
+        with stream.session._access( write = True ):
             try:
                 del stream['creation_time']
             except:
@@ -66,11 +92,11 @@ class ThumbCache:
 
             stream['.metaver'] = METADATA_VERSION
 
-    def init_object_metadata( self, obj ):
+    def init_object_metadata( self, obj: ImageFile ):
 
-        with obj.db._access( write = True ):
+        with obj.session._access( write = True ):
             try:
-                del stream['creation_time']
+                del obj['creation_time']
             except:
                 pass
 
@@ -82,9 +108,9 @@ class ThumbCache:
 
             obj['.metaver'] = METADATA_VERSION
 
-    def init_album_metadata( self, obj ):
+    def init_album_metadata( self, obj: Album ):
 
-        with obj.db._access( write = True ):
+        with obj.session._access( write = True ):
             try:
                 del obj['creation_time']
             except:
@@ -94,6 +120,9 @@ class ThumbCache:
             min_ts = None
 
             for f in files:
+                if( not isinstance( f, ImageFile ) ):
+                    continue
+
                 f.check_metadata()
                 f_ts = f.get_origin_time()
                 f_ts = calendar.timegm( f_ts.timetuple() ) if( f_ts is not None ) else None
@@ -106,9 +135,9 @@ class ThumbCache:
 
             obj['.metaver'] = METADATA_VERSION
 
-    def init_metadata( self, obj, stream ):
+    def init_metadata( self, obj: Obj, stream: Stream ):
 
-        with obj.db._access():
+        with obj.session._access():
             if( isinstance( obj, ImageFile ) ):
                 if( stream == None ):
                     stream = obj.get_root_stream()
@@ -118,7 +147,22 @@ class ThumbCache:
             elif( isinstance( obj, Album ) ):
                 self.init_album_metadata( obj )
 
-    def get_thumb( self, obj, exp, request: ThumbRequestPrio ):
+    def check_metadata( self, obj: Obj, stream: Stream ):
+
+        try:
+            ver = obj['.metaver']
+            if( ver == METADATA_VERSION ):
+                return
+        except:
+            pass
+
+        self.init_metadata( obj, stream )
+
+    def require_metadata_init( self, obj: Obj, stream: Stream ):
+
+        self._metadata_init_required.append( ( obj, stream ) )
+
+    def get_thumb( self, obj: ImageFile, exp: int, request: ThumbRequestPrio ):
 
         from PIL import Image
 
@@ -193,9 +237,10 @@ class ThumbCache:
                 imginfo.mark_avail_e( exp )
 
                 # Now load the thumb into the database
-                return obj.db.register_thumb( t[1], obj,
-                                              imginfo.get_root_stream(),
-                                              f'tb:{exp}' )
+                return obj.session.register_thumb(
+                                t[1], obj,
+                                imginfo.get_root_stream(),
+                                f'tb:{exp}' )
 
             except IOError:
                 imginfo.clear_requested_e( exp )
