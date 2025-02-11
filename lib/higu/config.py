@@ -18,7 +18,7 @@ class MainConfig:
 
     def __init__( self, config ):
 
-        self.cfg = configparser.SafeConfigParser()
+        self.cfg = configparser.ConfigParser()
         self.cfg.read( config )
         self.base = os.path.split( config )[0]
 
