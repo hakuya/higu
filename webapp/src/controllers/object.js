@@ -381,8 +381,11 @@ export class DisplayableObject extends DisplayableBase
 
                 dialogs.show_dup_dialog( this, obj_id, this.obj_id );
             } else if( this.info.type == 'album' ) {
-                if( type != 'file' && type != 'selection' ) {
-                    alert( 'Only files may be added to albums' );
+                if( type != 'file'
+                 && type != 'selection'
+                 && type != 'album')
+                {
+                    alert( 'Cannot be added to albums' );
                     return;
                 }
 

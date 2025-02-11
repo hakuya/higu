@@ -124,58 +124,65 @@ class JsonInterface:
                     info['names'] = [ target.get_name(), ]
                 else:
                     info['names'] = []
-        if( isinstance( target, hdbfs.File ) and 'variants' in items ):
-            variants = target.get_variants()
-            info['variants'] = list( map( make_obj_tuple, variants ) )
-        if( isinstance( target, hdbfs.File ) and 'variants_of' in items ):
-            variants_of = target.get_variants_of()
-            info['variants_of'] = list( map( make_obj_tuple, variants_of ) )
-        if( isinstance( target, hdbfs.File ) and 'duplicates' in items ):
-            dups = target.get_duplicates()
-            info['duplicates'] = list( map( make_obj_tuple, dups ) )
-        if( isinstance( target, hdbfs.File ) and 'original_file' in items ):
-            orig = target.get_original_file()
-            info['original_file'] = make_obj_tuple( orig ) if( orig is not None ) else None
-        if( isinstance( target, hdbfs.File ) and 'albums' in items ):
-            albums = target.get_albums()
-            info['albums'] = list( map( make_obj_tuple, albums ) )
-        if( isinstance( target, hdbfs.Album ) and 'short_files' in items ):
-            files = target.get_items( limit = 10 )
-            info['files'] = list( map( make_obj_tuple, files ) )
-        if( isinstance( target, hdbfs.Album ) and 'files' in items ):
-            files = target.get_items()
-            info['files'] = list( map( make_obj_tuple, files ) )
+
         if( isinstance( target, hdbfs.ImageFile ) and 'thumb_gen' in items ):
             try:
                 info['thumb_gen'] = target.get_generation()
             except:
                 info['thumb_gen'] = 0
 
-        if( isinstance( target, hdbfs.File )
-        and ('width' in items
-          or 'height' in items
-          or 'sizes' in items) ):
+        if( isinstance( target, hdbfs.File ) ):
+            if( 'variants' in items ):
+                variants = target.get_variants()
+                info['variants'] = list( map( make_obj_tuple, variants ) )
+            if( 'variants_of' in items ):
+                variants_of = target.get_variants_of()
+                info['variants_of'] = list( map( make_obj_tuple, variants_of ) )
+            if( 'duplicates' in items ):
+                dups = target.get_duplicates()
+                info['duplicates'] = list( map( make_obj_tuple, dups ) )
+            if( 'original_file' in items ):
+                orig = target.get_original_file()
+                info['original_file'] = make_obj_tuple( orig ) if( orig is not None ) else None
 
-            w = None
-            h = None
+            if( 'width' in items or 'height' in items or 'sizes' in items ):
 
-            if( stream is not None ):
-                if( isinstance( stream, hdbfs.ImageStream ) ):
+                w = None
+                h = None
+
+                if( stream is not None ):
+                    if( isinstance( stream, hdbfs.ImageStream ) ):
+                        try:
+                            w, h = stream.get_dimensions()
+                        except:
+                            pass
+                elif( isinstance( target, hdbfs.ImageFile ) ):
                     try:
-                        w, h = stream.get_dimensions()
+                        w, h = target.get_dimensions()
                     except:
                         pass
-            elif( isinstance( target, hdbfs.ImageFile ) ):
-                try:
-                    w, h = target.get_dimensions()
-                except:
-                    pass
 
-            info['width'] = w
-            info['height'] = h
+                info['width'] = w
+                info['height'] = h
 
-            if( 'sizes' in items ):
-                info['sizes'] = target.get_thumb_sizes()
+                if( 'sizes' in items ):
+                    info['sizes'] = target.get_thumb_sizes()
+
+            if( 'exif' in items ):
+                info['exif'] = target.get_exif()
+
+        if( isinstance( target, hdbfs.File ) or isinstance( target, hdbfs.Album ) ):
+            if( 'albums' in items ):
+                albums = target.get_member_of()
+                info['albums'] = list( map( make_obj_tuple, albums ) )
+
+        if( isinstance( target, hdbfs.Album ) ):
+            if( 'short_files' in items ):
+                files = target.get_items( limit = 10 )
+                info['files'] = list( map( make_obj_tuple, files ) )
+            if( 'files' in items ):
+                files = target.get_items()
+                info['files'] = list( map( make_obj_tuple, files ) )
 
         if( 'origin_time' in items ):
             if( stream is not None ):
@@ -186,6 +193,7 @@ class JsonInterface:
                 info['origin_time'] = origin_ts.strftime( '%Y/%m/%d %H:%M:%S' )
             else:
                 info['origin_time'] = None
+
         if( 'creation_time' in items ):
             if( stream is not None ):
                 creation_ts = stream.get_creation_time()
@@ -195,9 +203,6 @@ class JsonInterface:
                 info['creation_time'] = creation_ts.strftime( '%Y/%m/%d %H:%M:%S' )
             else:
                 info['creation_time'] = None
-        if( isinstance( target, hdbfs.File )
-        and 'exif' in items ):
-            info['exif'] = target.get_exif()
 
         return info
 
@@ -593,7 +598,8 @@ class JsonInterface:
         assert( isinstance( group, hdbfs.Album ) )
 
         for target in map( db.get_object_by_id, targets ):
-            assert( isinstance( target, hdbfs.File ) )
+            assert( isinstance( target, hdbfs.File )
+                 or isinstance( target, hdbfs.Album ) )
             target.assign( group )
 
         return json_ok()
@@ -606,7 +612,6 @@ class JsonInterface:
         assert( isinstance( group, hdbfs.Album ) )
 
         for target in map( db.get_object_by_id, targets ):
-            assert( isinstance( target, hdbfs.File ) )
             target.unassign( group )
 
         return json_ok()

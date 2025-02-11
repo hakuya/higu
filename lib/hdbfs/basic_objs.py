@@ -208,6 +208,10 @@ class Obj:
         with self.db._access():
             return datetime.datetime.utcfromtimestamp( self.obj.create_ts )
 
+    def get_member_of( self ):
+
+        return self.get_parents( [ model.TYPE_ALBUM, model.TYPE_PUBLISHED ] )
+
     def get_tags( self ):
 
         from sqlalchemy import and_
@@ -572,7 +576,7 @@ class OrderedGroup( Group ):
 
         with self.db._access( write = True ):
 
-            all_objs = self.get_files()
+            all_objs = self.get_items()
 
             for child in enumerate( children ):
                 assert( child[1] in all_objs )
@@ -596,10 +600,6 @@ class File( Obj ):
     def __init__( self, db, obj: model.Object ):
 
         Obj.__init__( self, db, obj )
-
-    def get_albums( self ):
-
-        return self.get_parents( [ model.TYPE_ALBUM, model.TYPE_PUBLISHED ] )
 
     def get_variants_of( self ):
 
