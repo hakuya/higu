@@ -89,7 +89,7 @@ export class DisplayableSelection extends DisplayableBase
     sort_by_name()
     {
         this.objs.sort( function( a, b ) {
-            return a[1].localeCompare( b[0] );
+            return a[1].localeCompare( b[1] );
         });
 
         this.notify_change( null );
