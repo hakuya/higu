@@ -1,6 +1,6 @@
 import $ from 'jquery';
 
-import { util } from './display';
+import * as util from '../util';
 
 /**
  * class Viewer

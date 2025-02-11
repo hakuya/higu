@@ -1,6 +1,7 @@
 import $ from 'jquery';
 
-import { dialogs } from './dialog';
+import * as dialogs from './controllers/dialogs';
+import { SearchProvider } from './models/providers';
 
 export function rm() {
     if( confirm( 'Are you sure you want to delete the selected files?' ) ) {
@@ -68,7 +69,7 @@ export function activate_links( par )
         $( this ).click( function() {
             tag = $( this ).attr( 'href' ).substring( 1 );
 
-            provider = new tabs.SearchProvider( { query: tag } );
+            provider = new SearchProvider( { query: tag } );
             tabs.create_display_tab( tag, provider );
         });
     });
@@ -77,7 +78,7 @@ export function activate_links( par )
         $( this ).click( function() {
             var target = $( this ).attr( 'href' ).substring( 1 ).split( '-' );
 
-            provider = new tabs.SearchProvider( {
+            provider = new SearchProvider( {
                 mode:   'album',
                 album:  parseInt( target[0] ),
                 index:  parseInt( target[1] ),
