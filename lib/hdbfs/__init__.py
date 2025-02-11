@@ -10,7 +10,6 @@ import hdbfs.ark as ark
 import hdbfs.imgdb as imgdb
 import hdbfs.model as model
 import hdbfs.query as query
-import hdbfs.bulk as bulk
 
 from hdbfs.imgdb.objects import ThumbRequestPrio
 
@@ -19,6 +18,8 @@ from hdbfs.defs import *
 from hdbfs.imgdb import ImageStream, ImageFile, Album
 from hdbfs.hooks import *
 from hdbfs.obj_factory import *
+
+import hdbfs.bulk as bulk
 
 from hdbfs.model import ImageRequestPriority
 
@@ -441,7 +442,7 @@ class Database:
                     #log.warn( '%s was not found in the db and was ignored', f )
                     pass
 
-    def create_album( self, tags = [], name = None, text = None ):
+    def create_album( self, tags = [], name = None, text = None ) -> hdbfs.Album:
 
         with self._access( write = True ):
             album = model.Object( TYPE_ALBUM )

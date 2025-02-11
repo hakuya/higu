@@ -7,7 +7,7 @@ from hdbfs.defs import *
 from hdbfs.hash import calculate_details
 from hdbfs.obj_factory import *
 
-from typing import Optional
+from typing import Optional, List
 
 class Stream:
 
@@ -447,7 +447,7 @@ class Obj:
                 raise ValueError( f'{self!s} is not in {group!s}' )
             return rel.sort
 
-    def get_name( self, group = None ):
+    def get_name( self, group = None ) -> Optional[str]:
 
         with self.db._access():
             if( group is not None ):
@@ -531,7 +531,7 @@ class Group( Obj ):
 
         return False
 
-    def get_items( self, limit = None ):
+    def get_items( self, limit = None ) -> List[Obj]:
 
         return self.get_children( [
                     model.TYPE_ALBUM,

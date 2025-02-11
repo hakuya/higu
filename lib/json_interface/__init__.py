@@ -524,7 +524,10 @@ class JsonInterface:
 
         bulk_op.set_commit( 'commit' in data and data['commit'] )
 
-        items = [( it.get_id(), msg ) for it, msg in bulk_op.execute( self.__db, list( rs ) )]
+        items = [
+            ( it.get_id() if it is not None else None, msg )
+            for it, msg in bulk_op.execute( self.__db, list( rs ) )
+        ]
 
         return json_ok( affected = len( items ), changes = items )
 
