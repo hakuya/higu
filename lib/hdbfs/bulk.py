@@ -122,7 +122,7 @@ class BulkNameSelectOp( BulkOperation ):
 
     def _process( self, it ):
 
-        if( it.get_type() != hdbfs.TYPE_FILE ):
+        if( it.get_type() != hdbfs.ObjectType.FILE ):
             return
 
         name = it.get_name()

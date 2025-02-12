@@ -22,29 +22,79 @@ class Album( OrderedGroup ):
         self.metaman.require_metadata_init( self, None )
 
     @SessionObject._with_access( write = True )
-    def publish( self ):
+    def make_formal_album( self ):
 
-        if( self.obj.object_type == model.TYPE_ALBUM ):
-            # Ensure all children are published
+        if( self.obj.get_type() == model.ObjectType.ALBUM_FREE ):
+            # Ensure all children are formal
             for alb in self.get_albums():
-                assert alb.obj.object_type == model.TYPE_PUBLISHED
+                assert alb.obj.get_type() in [
+                            model.ObjectType.ALBUM_FORMAL,
+                            model.ObjectType.ALBUM_CLOSED
+                        ]
 
-            self.obj.object_type = model.TYPE_PUBLISHED
-        elif( self.obj.object_type == model.TYPE_PUBLISHED ):
+            self.obj.set_type( model.ObjectType.ALBUM_FORMAL )
+
+        elif( self.obj.get_type() in [
+                    model.ObjectType.ALBUM_FORMAL,
+                    model.ObjectType.ALBUM_CLOSED
+                ] ):
             pass
+
         else:
             assert False
 
     @SessionObject._with_access( write = True )
-    def unpublish( self ):
+    def make_free_album( self ):
 
-        if( self.obj.object_type == model.TYPE_ALBUM ):
+        if( self.obj.get_type() == model.ObjectType.ALBUM_FREE ):
             pass
-        elif( self.obj.object_type == model.TYPE_PUBLISHED ):
+
+        if( self.obj.get_type() in [
+                    model.ObjectType.ALBUM_FORMAL,
+                    model.ObjectType.ALBUM_CLOSED
+                ] ):
+
             # There can't be any duplicates in an unpublished album
             assert len( [f for f in self.get_files()
-                    if f.obj.object_type == model.TYPE_DUPLICATE] ) == 0
-            self.obj.object_type = model.TYPE_ALBUM
+                    if f.obj.get_type() == model.ObjectType.DUPLICATE] ) == 0
+
+            self.obj.set_type( model.ObjectType.ALBUM_FREE )
+
+        else:
+            assert False
+
+    @SessionObject._with_access( write = True )
+    def close_album( self ):
+
+        if( self.obj.get_type() in [
+                    model.ObjectType.ALBUM_FREE,
+                    model.ObjectType.ALBUM_FORMAL
+                ] ):
+
+            # Ensure all children are closed
+            for alb in self.get_albums():
+                assert alb.obj.get_type() == model.ObjectType.ALBUM_CLOSED
+
+            self.obj.set_type( model.ObjectType.ALBUM_CLOSED )
+
+        elif( self.obj.get_type() == model.ObjectType.ALBUM_CLOSED ):
+            pass
+
+        else:
+            assert False
+
+    @SessionObject._with_access( write = True )
+    def open_album( self ):
+
+        if( self.obj.get_type() in [
+                    model.ObjectType.ALBUM_FREE,
+                    model.ObjectType.ALBUM_FORMAL
+                ] ):
+            pass
+
+        elif( self.obj.get_type() == model.ObjectType.ALBUM_CLOSED ):
+            self.obj.set_type( model.ObjectType.ALBUM_FORMAL )
+
         else:
             assert False
 

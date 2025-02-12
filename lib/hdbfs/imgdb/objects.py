@@ -127,14 +127,14 @@ class ImageFile( File ):
                 request: ThumbRequestPrio = ThumbRequestPrio.OPTIONAL
             ) -> Optional[ImageStream]:
 
-        if( self.obj.object_type == model.TYPE_FILE ):
+        if( self.obj.get_type() == model.ObjectType.FILE ):
             return self.tbcache.get_thumb( self, exp, request )
         else:
             return self.get_root_stream()
 
     def get_thumb_sizes( self ):
 
-        if( self.obj.object_type == model.TYPE_FILE ):
+        if( self.obj.get_type() == model.ObjectType.FILE ):
             return self.tbcache.get_thumb_sizes( self )
         else:
             w, h = self.get_dimensions()
@@ -142,7 +142,7 @@ class ImageFile( File ):
 
     def get_avail_exp_mask( self ) -> Optional[int]:
 
-        if( self.obj.object_type == model.TYPE_FILE ):
+        if( self.obj.get_type() == model.ObjectType.FILE ):
             return self.tbcache.get_avail_exp_mask( self )
         else:
             return None
@@ -152,7 +152,7 @@ class ImageFile( File ):
         then marks the thumbs as requested in the database.
         '''
 
-        if( self.obj.object_type != model.TYPE_FILE ):
+        if( self.obj.get_type() != model.ObjectType.FILE ):
             return None
 
         return self.tbcache.request_thumbs( self, prio )
@@ -171,11 +171,10 @@ class ImageFile( File ):
     def assign( self, parent,
                 order = None,
                 name = None,
-                is_duplicate = None,
-                force = None ):
+                is_duplicate = None ):
 
-        File.assign( self, parent, order, name, is_duplicate, force )
-        if( self.obj.object_type == model.TYPE_DUPLICATE ):
+        super().assign( parent, order, name, is_duplicate )
+        if( self.obj.get_type() == model.ObjectType.DUPLICATE ):
             self.tbcache.purge_thumbs( self )
 
     def __getitem__( self, key ):
@@ -209,8 +208,7 @@ class _ObjectFactory:
 
         elif( isinstance( model_obj, model.Object ) ):
 
-            if( model_obj.object_type == model.TYPE_FILE
-            or model_obj.object_type == model.TYPE_DUPLICATE ):
+            if( model_obj.get_type().get_class() == model.ObjectClass.FILE ):
                 return ImageFile( session, self.tbcache, model_obj )
 
         return None

@@ -20,25 +20,17 @@ class Group( Obj ):
     def get_items( self, limit = None ) -> List[Obj]:
 
         return self.get_children( [
-                    model.TYPE_ALBUM,
-                    model.TYPE_PUBLISHED,
-                    model.TYPE_FILE,
-                    model.TYPE_DUPLICATE
+                    model.ObjectClass.FILE,
+                    model.ObjectClass.ALBUM
                 ], limit )
 
     def get_albums( self, limit = None ) -> List['Album']:
 
-        return self.get_children( [
-                    model.TYPE_ALBUM,
-                    model.TYPE_PUBLISHED
-                ], limit )
+        return self.get_children( model.ObjectClass.ALBUM, limit )
 
     def get_files( self, limit = None ) -> List[File]:
 
-        return self.get_children( [
-                    model.TYPE_FILE,
-                    model.TYPE_DUPLICATE
-                ], limit )
+        return self.get_children( model.ObjectClass.FILE, limit )
 
 class OrderedGroup( Group ):
 

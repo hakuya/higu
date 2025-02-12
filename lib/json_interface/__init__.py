@@ -14,19 +14,15 @@ REVISION = 0
 
 def get_type_str( obj ):
 
-    type = obj.get_type()
-    if( type == hdbfs.TYPE_FILE ):
-        return 'file'
-    elif( type == hdbfs.TYPE_DUPLICATE ):
-        return 'duplicate'
-    elif( type == hdbfs.TYPE_ALBUM ):
-        return 'album'
-    elif( type == hdbfs.TYPE_PUBLISHED ):
-        return 'published'
-    elif( type == hdbfs.TYPE_CLASSIFIER ):
-        return 'tag'
-    else:
-        return 'unknown'
+    TYPE_MAP = {
+        hdbfs.ObjectType.FILE         : 'file:original',
+        hdbfs.ObjectType.DUPLICATE    : 'file:duplicate',
+        hdbfs.ObjectType.ALBUM_FREE   : 'album:free',
+        hdbfs.ObjectType.ALBUM_FORMAL : 'album:formal',
+        hdbfs.ObjectType.ALBUM_CLOSED : 'album:closed'
+    }
+
+    return TYPE_MAP.get( obj.get_type(), 'unknown' )
 
 def make_obj_tuple( obj: hdbfs.Obj ):
 

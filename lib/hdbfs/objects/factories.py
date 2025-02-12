@@ -25,13 +25,11 @@ class BasicFactory:
         elif( isinstance( model_obj, model.Object ) ):
             obj = model_obj
 
-            if( obj.object_type == model.TYPE_FILE
-            or obj.object_type == model.TYPE_DUPLICATE ):
+            if( obj.get_type().get_class() == model.ObjectClass.FILE ):
                 return File( session, obj )
-            elif( obj.object_type == model.TYPE_ALBUM
-            or obj.object_type == model.TYPE_PUBLISHED ):
+            elif( obj.get_type().get_class() == model.ObjectClass.ALBUM ):
                 return Album( session, self.metaman, obj )
-            elif( obj.object_type == model.TYPE_CLASSIFIER ):
+            elif( obj.get_type().get_class() == model.ObjectClass.CLASSIFIER ):
                 return Tag( session, obj )
             else:
                 return None

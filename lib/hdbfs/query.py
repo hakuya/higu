@@ -7,6 +7,8 @@ import hdbfs.model as model
 
 from hdbfs.session import SessionObjectFactoryIterator
 
+from typing import Union
+
 class TagConstraint:
 
     def __init__( self, tag, fuzzy = False ):
@@ -32,7 +34,7 @@ class TagConstraint:
                 sql_s = tag.replace( '%', '[%]' ) \
                            .replace( '*', '%' )
                 tag = db.model.query( model.Object.object_id ) \
-                        .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
+                        .filter( model.Object.object_type == hdbfs.ObjectType.CLASSIFIER.value ) \
                         .filter( model.Object.name.like( sql_s ) )
             else:
                 tag = db.get_tag( self.__tag )
@@ -62,14 +64,14 @@ class TagCountConstraint:
         tagged = db.model.query( model.Relation.child_id.label( 'id' ),
                                    func.count( model.Relation.child_id ).label( 'tagc' ) ) \
                    .join( model.Object, model.Object.object_id == model.Relation.parent_id ) \
-                   .filter( model.Object.object_type == model.TYPE_CLASSIFIER ) \
+                   .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
                    .group_by( model.Relation.child_id.label( 'id' ) )
         notags = db.model.query( model.Object.object_id, literal_column( '0' ).label( 'tagc' ) ) \
                    .filter( ~model.Object.object_id.in_(
                                 db.model.query( model.Relation.child_id ) \
                                   .join( model.Object, model.Object.object_id
                                                     == model.Relation.parent_id ) \
-                                  .filter( model.Object.object_type == model.TYPE_CLASSIFIER ) ) )
+                                  .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) ) )
         tagq = tagged.union( notags ).subquery()
 
         q = db.model.query( tagq.c.id )
@@ -143,7 +145,7 @@ class UnboundConstraint:
                     .replace( '*', '%' )
 
         tag_q = db.model.query( model.Object.object_id ) \
-                  .filter( model.Object.object_type == hdbfs.TYPE_CLASSIFIER ) \
+                  .filter( model.Object.object_type == hdbfs.ObjectType.CLASSIFIER.value ) \
                   .filter( model.Object.name.like( '%' + sql_s + '%' ) )
 
         child_q = db.model.query( model.Relation.child_id ) \
@@ -404,15 +406,23 @@ class Query:
             self.set_order( cmd[1], desc )
 
         elif( cmd[0] == 'type' ):
+
+            TYPE_MAP = {
+                'file'         : hdbfs.ObjectClass.FILE,
+                'file:nodup'   : hdbfs.ObjectType.FILE,
+                'file:dup'     : hdbfs.ObjectType.DUPLICATE,
+                'album'        : hdbfs.ObjectClass.ALBUM,
+                'album:free'   : hdbfs.ObjectType.ALBUM_FREE,
+                'album:formal' : hdbfs.ObjectType.ALBUM_FREE,
+                'album:closed' : hdbfs.ObjectType.ALBUM_CLOSED,
+            }
+
             if( len( cmd ) < 2 ):
                 raise ValueError( 'Type command needs an argument' )
 
-            if( cmd[1] == 'file' ):
-                self.set_type( hdbfs.TYPE_FILE );
-            elif( cmd[1] == 'album' ):
-                self.set_type( hdbfs.TYPE_ALBUM );
-            elif( cmd[1] == 'pub' ):
-                self.set_type( hdbfs.TYPE_PUBLISHED );
+            ty = TYPE_MAP.get( ':'.join( cmd[1:] ), None )
+            if( ty is not None ):
+                self.set_type( ty )
             else:
                 raise ValueError( 'Bad type' )
 
@@ -474,7 +484,7 @@ class Query:
 
         return self
 
-    def set_type( self, obj_type ):
+    def set_type( self, obj_type: Union['hdbfs.ObjectClass','hdbfs.ObjectType'] ):
 
         self.__obj_type = obj_type
         return self
@@ -514,6 +524,19 @@ class Query:
     def execute( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy.sql.expression import func
+
+        SEARCH_TYPES = [
+            hdbfs.ObjectType.FILE.value,
+            hdbfs.ObjectType.DUPLICATE.value,
+            hdbfs.ObjectType.ALBUM_FREE.value,
+            hdbfs.ObjectType.ALBUM_FORMAL.value,
+            hdbfs.ObjectType.ALBUM_CLOSED.value
+        ]
+
+        FILE_TYPES = [
+            hdbfs.ObjectType.FILE.value,
+            hdbfs.ObjectType.DUPLICATE.value,
+        ]
 
         to_db_c = lambda c: c.to_db_constraint( db )
         q_order = None
@@ -560,11 +583,12 @@ class Query:
         if( sub_q is not None ):
             query = query.filter( ~model.Object.object_id.in_( sub_q ) )
 
-        if( self.__obj_type is not None ):
-            query = query.filter( model.Object.object_type == self.__obj_type )
+        if( isinstance( self.__obj_type, hdbfs.ObjectClass ) ):
+            query = query.filter( model.Object.object_type.in_( self.__obj_type.all_type_values() ) )
+        elif( self.__obj_type is not None ):
+            query = query.filter( model.Object.object_type == self.__obj_type.value )
         else:
-            query = query.filter( model.Object.object_type.in_(
-                        hdbfs.FILE_TYPES + hdbfs.ALBUM_TYPES ) )
+            query = query.filter( model.Object.object_type.in_( SEARCH_TYPES ) )
 
         if( self.__nochild
          or (self.__obj_type is None and req_q is None and add_q is None) ):
@@ -573,8 +597,7 @@ class Query:
             # other filters. We don't want to show files which will already
             # be presented in an album
             all_r = db.model.query( model.Object.object_id ) \
-                      .filter( model.Object.object_type.in_(
-                                    hdbfs.FILE_TYPES + hdbfs.ALBUM_TYPES ) )
+                      .filter( model.Object.object_type.in_( SEARCH_TYPES ) )
             children = db.model.query( model.Relation.child_id ) \
                     .filter( model.Relation.parent_id.in_( all_r ) )
 
@@ -585,7 +608,7 @@ class Query:
 
             query = db.model.query( model.Object ) \
                     .join( model.Relation, model.Relation.child_id == model.Object.object_id ) \
-                    .filter( model.Object.object_type.in_( hdbfs.FILE_TYPES ) ) \
+                    .filter( model.Object.object_type.in_( FILE_TYPES ) ) \
                     .filter( or_( model.Object.object_id.in_( query ),
                                   model.Relation.parent_id.in_( query ) ) )
         else:

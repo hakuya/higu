@@ -104,7 +104,7 @@ class Database( Session ):
                               model.Object,
                               func.count( model.Relation.child_id ) ) \
                 .join( model.Relation, model.Object.object_id == model.Relation.parent_id ) \
-                .filter( model.Object.object_type == TYPE_CLASSIFIER )
+                .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value )
 
         if( scope is not None ):
             q = q.filter( or_( model.Object.name == scope,
@@ -126,7 +126,7 @@ class Database( Session ):
 
     def _get_tag( self, name: str, fuzzy: bool = False ) -> Tag:
         obj = self.model.query( model.Object ) \
-                .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
+                .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
                 .filter( model.Object.name == name ).first()
 
         if( obj is None ):
@@ -139,7 +139,7 @@ class Database( Session ):
                 + '%'
 
             q = self.model.query( model.Object ) \
-                    .filter( model.Object.object_type == TYPE_CLASSIFIER ) \
+                    .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
                     .filter( model.Object.name.like( name_s ) )
 
             r = [r for r in q]
@@ -165,7 +165,7 @@ class Database( Session ):
         try:
             return self._get_tag( name, False )
         except KeyError:
-            obj = model.Object( TYPE_CLASSIFIER, name )
+            obj = model.Object( model.ObjectType.CLASSIFIER, name )
             self.model.add( obj )
             return self._construct_session_object( obj )
 
@@ -186,7 +186,7 @@ class Database( Session ):
         from sqlalchemy import and_
 
         check_tag_name( target )
-        tags = self._all_tags( tag, None )
+        tags = self._all_tags( tag )
 
         for t, count in tags.values():
 
@@ -222,7 +222,7 @@ class Database( Session ):
         try:
             d = self._get_tag( target, False ).obj
         except KeyError:
-            d = model.Object( TYPE_CLASSIFIER, target )
+            d = model.Object( model.ObjectType.CLASSIFIER, target )
             self.model.add( d )
 
         for rel in c.child_rel:
@@ -264,7 +264,7 @@ class Database( Session ):
     @Session._with_access( write = True )
     def create_album( self, tags = [], name = None, text = None ) -> hdbfs.Album:
 
-        album = model.Object( TYPE_ALBUM )
+        album = model.Object( model.ObjectType.ALBUM_FREE )
         self.model.add( album )
         album = self._construct_session_object( album )
 
@@ -297,9 +297,9 @@ class Database( Session ):
         new_stream = False
 
         if( len( streams ) == 0 ):
-            obj = model.Object( TYPE_FILE )
+            obj = model.Object( model.ObjectType.FILE )
             self.model.add( obj )
-            stream = model.Stream( obj, '.', model.SP_NORMAL,
+            stream = model.Stream( obj, '.', model.StreamPriority.NORMAL.value,
                                    None, ext, mime_type )
             stream.set_details( *details )
             self.model.add( stream )
@@ -364,7 +364,7 @@ class Database( Session ):
         details = calculate_details( path )
         mime_type = mimetypes.guess_type( path, strict=False )[0]
 
-        stream = model.Stream( obj.obj, name, model.SP_EXPENDABLE,
+        stream = model.Stream( obj.obj, name, model.StreamPriority.EXPENDABLE.value,
                                origin.stream, ext, mime_type )
         stream.set_details( *details )
         self.model.add( stream )

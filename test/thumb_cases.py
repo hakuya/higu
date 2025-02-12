@@ -52,7 +52,7 @@ class ThumbCases( testutil.TestCase ):
                 self.assertFalse( self._diff( fd_root, fd_thumb ),
                         'Smaller thumb stream identical' )
         self.assertTrue( thumb_stream.get_priority()
-                      == hdbfs.model.SP_EXPENDABLE,
+                      == hdbfs.model.StreamPriority.EXPENDABLE.value,
                          'Thumb priority not set correctly' )
 
     def test_return_orig( self ):
@@ -127,7 +127,7 @@ class ThumbCases( testutil.TestCase ):
                       == small_stream.get_stream_id(),
                          'Very small does not match small' )
         self.assertTrue( small_stream.get_priority()
-                      == hdbfs.model.SP_EXPENDABLE,
+                      == hdbfs.model.StreamPriority.EXPENDABLE.value,
                          'Very small priority not set correctly' )
 
 if( __name__ == '__main__' ):

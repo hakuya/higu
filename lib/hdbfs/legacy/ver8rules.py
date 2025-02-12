@@ -1,13 +1,34 @@
 import calendar
 import time
 
-TYPE_NILL       = 0
-TYPE_FILE       = 1000
-TYPE_FILE_DUP   = 1001
-TYPE_FILE_VAR   = 1002
-TYPE_GROUP      = 2000
-TYPE_ALBUM      = 2001
-TYPE_CLASSIFIER = 2002
+from enum import Enum
+
+class Pre15Types( Enum ):
+
+    TYPE_NILL       = 0
+    TYPE_FILE       = 1000
+    TYPE_FILE_DUP   = 1001
+    TYPE_FILE_VAR   = 1002
+    TYPE_GROUP      = 2000
+    TYPE_ALBUM      = 2001
+    TYPE_CLASSIFIER = 2002
+    TYPE_PUBLISHED  = 2003
+
+class V15Types( Enum ):
+
+    NILL          = 0
+
+    FILE          = 10000
+    DUPLICATE     = 10001
+
+    ALBUM_FREE    = 20000
+    ALBUM_FORMAL  = 20001
+    ALBUM_CLOSED  = 20002
+
+    CLASSIFIER    = 20100
+
+    IMPORT_OPEN   = 20200
+    IMPORT_CLOSED = 20201
 
 class LinkedDuplicateIterator:
 
@@ -17,7 +38,7 @@ class LinkedDuplicateIterator:
 
         self.__iter = self.__session.execute(
                 'SELECT id FROM objl WHERE type = :type',
-                { 'type' : TYPE_FILE_DUP, } ).__iter__()
+                { 'type' : Pre15Types.TYPE_FILE_DUP.value, } ).__iter__()
 
     def __iter__( self ):
 
@@ -56,7 +77,7 @@ def determine_duplicate_parent( session, obj_id ):
     if( result is None ):
         return None
 
-    if( result['type'] != TYPE_FILE_DUP ):
+    if( result['type'] != Pre15Types.TYPE_FILE_DUP.value ):
         return obj_id
     else:
         return determine_duplicate_parent( session, result['dup'] )
@@ -734,3 +755,61 @@ def upgrade_from_14_to_14_1( log, session ):
     """ )
 
     return 14, 1
+
+def upgrade_from_14_1_to_15( log, session ):
+
+    # In version 15, we renumbered the types.
+    # New types also added, but no need to migrate
+
+    log.info( 'Database upgrade from VER 14.1 -> VER 15' )
+
+    # Our map in python
+    OBJ_TYPE_MAP = {
+        Pre15Types.TYPE_NILL.value       : V15Types.NILL.value,
+        Pre15Types.TYPE_FILE.value       : V15Types.FILE.value,
+        Pre15Types.TYPE_FILE_DUP.value   : V15Types.DUPLICATE.value,
+        Pre15Types.TYPE_GROUP.value      : V15Types.ALBUM_FORMAL.value,
+        Pre15Types.TYPE_ALBUM.value      : V15Types.ALBUM_FREE.value,
+        Pre15Types.TYPE_CLASSIFIER.value : V15Types.CLASSIFIER.value,
+        Pre15Types.TYPE_PUBLISHED.value  : V15Types.ALBUM_CLOSED.value
+    }
+
+    # Now we'll load the map into a temporary table
+    session.execute(
+        'CREATE TEMPORARY TABLE temp_obj_type_map (\n'
+                'old_type   INTEGER PRIMARY KEY,\n'
+                'new_type   INTEGER NOT NULL\n'
+            ')' )
+
+    for k, v in OBJ_TYPE_MAP.items():
+        session.execute(
+            'INSERT INTO temp_obj_type_map VALUES( :old, :new )',
+            { 'old' : k, 'new' : v } )
+
+    # Now we'll need to load the new types into another termporary table
+    session.execute(
+        'CREATE TEMPORARY TABLE temp_obj_new_types (\n'
+                'object_id  INTEGER PRIMARY KEY,\n'
+                'new_type   INTEGER NOT NULL\n'
+            ')' )
+
+    session.execute(
+        'INSERT INTO temp_obj_new_types\n'
+        'SELECT o.object_id, COALESCE( m.new_type, o.object_type )\n'
+        'FROM objects o\n'
+        'LEFT JOIN temp_obj_type_map m\n'
+        '   ON o.object_type = m.old_type\n' )
+
+    # Now we'll do the update
+    session.execute(
+        'UPDATE objects\n'
+        'SET object_type = (\n'
+        '   SELECT new_type FROM temp_obj_new_types\n'
+        '   WHERE object_id = objects.object_id\n'
+        ')' )
+
+    # Then we'll drop our temporaries
+    session.execute( 'DROP TABLE temp_obj_type_map' )
+    session.execute( 'DROP TABLE temp_obj_new_types' )
+
+    return 15, 0

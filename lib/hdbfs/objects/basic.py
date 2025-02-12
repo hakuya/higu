@@ -7,7 +7,9 @@ from hdbfs.session import Session, SessionObject
 from hdbfs.defs import *
 from hdbfs.hash import calculate_details
 
-from typing import Optional, List
+from typing import Optional, List, Union
+
+ObjectTypeSelect = Union[ ObjectType, ObjectClass, List[ObjectType], List[ObjectClass] ]
 
 class Stream( SessionObject ):
 
@@ -179,26 +181,48 @@ class Obj( SessionObject ):
         return self.obj.object_id
 
     @SessionObject._with_access()
-    def get_type( self ):
+    def get_type( self ) -> ObjectType:
 
-        return self.obj.object_type
+        return self.obj.get_type()
+
+    def __build_obj_type_values( self, obj_type: ObjectTypeSelect ) -> List[int]:
+
+        if( isinstance( obj_type, list ) ):
+            obj_type_ls = obj_type
+        else:
+            obj_type_ls = [ obj_type ]
+
+        obj_type_values = []
+        for ty in obj_type_ls:
+            if( isinstance( ty, model.ObjectClass ) ):
+                obj_type_values.extend( ty.all_type_values() )
+            else:
+                obj_type_values.append( ty.value )
+
+        return obj_type_values
 
     @SessionObject._with_access()
-    def get_parents( self, obj_type, limit = None ):
+    def get_parents( self,
+                obj_type: ObjectTypeSelect,
+                limit: Optional[int] = None
+            ) -> List['Obj']:
 
-        obj_type = [ obj_type ] if( not isinstance( obj_type, list ) ) else obj_type
+        obj_type_values = self.__build_obj_type_values( obj_type )
 
-        objs = [ obj for obj in self.obj.parents if obj.object_type in obj_type ]
+        objs = [ obj for obj in self.obj.parents if obj.object_type in obj_type_values ]
         if( limit is not None and len( objs ) > limit ):
             objs = objs[:limit]
         return list( map( lambda x: self.session._construct_session_object( x ), objs ) )
 
     @SessionObject._with_access()
-    def get_children( self, obj_type, limit = None ):
+    def get_children( self,
+                obj_type: ObjectTypeSelect,
+                limit: Optional[int] = None
+            ) -> List['Obj']:
 
-        obj_type = [ obj_type ] if( not isinstance( obj_type, list ) ) else obj_type
+        obj_type_values = self.__build_obj_type_values( obj_type )
 
-        objs = [ obj for obj in self.obj.children if obj.object_type in obj_type ]
+        objs = [ obj for obj in self.obj.children if obj.object_type in obj_type_values ]
         if( limit is not None and len( objs ) > limit ):
             objs = objs[:limit]
         return list( map( lambda x: self.session._construct_session_object( x ), objs ) )
@@ -215,9 +239,9 @@ class Obj( SessionObject ):
                     self.obj.create_ts,
                     datetime.timezone.utc )
 
-    def get_member_of( self ):
+    def get_member_of( self ) -> List['hdbfs.Album']:
 
-        return self.get_parents( [ model.TYPE_ALBUM, model.TYPE_PUBLISHED ] )
+        return self.get_parents( model.ObjectClass.ALBUM )
 
     @SessionObject._with_access()
     def get_tags( self ) -> List['hdbfs.Tag']:
@@ -228,7 +252,7 @@ class Obj( SessionObject ):
             obj for obj in
             self.session.model.query( model.Object )
                 .filter(
-                    and_( model.Object.object_type == TYPE_CLASSIFIER,
+                    and_( model.Object.object_type == model.ObjectType.CLASSIFIER.value,
                             model.Object.children.contains( self.obj ) ) )
                             .order_by( model.Object.name ) ]
         return list( map( lambda x: self.session._construct_session_object( x ), tag_objs ) )
@@ -246,17 +270,17 @@ class Obj( SessionObject ):
         else:
             return False
 
-    def __assign_duplicate( self, parent, rel ):
+    def __assign_duplicate( self, parent: 'Obj', rel ):
 
         from sqlalchemy import or_
         from sqlalchemy.orm import aliased
 
         # If our parent was a duplicate, we are now promoting it:
         # duplicates do not stack
-        if( parent.obj.object_type == model.TYPE_DUPLICATE ):
-            parent.obj.object_type = model.TYPE_FILE
+        if( parent.obj.get_type() == model.ObjectType.DUPLICATE ):
+            parent.obj.set_type( model.ObjectType.FILE )
 
-        self.obj.object_type = model.TYPE_DUPLICATE
+        self.obj.set_type( model.ObjectType.DUPLICATE )
 
         # Duplicates do not have relations with most other objects
         # so we need to move the relations to the parent now
@@ -281,10 +305,13 @@ class Obj( SessionObject ):
         q = q.filter( model.Relation.child_id == self.obj.object_id )
         # And which isn't the relation with our parent
         q = q.filter( model.Relation.parent_id != parent.obj.object_id )
-        # And which isn't a relation with a PUBLISHED album
+        # And which isn't a relation with a FORMAL or PUBLISHED album
         q = q.filter( ~model.Relation.parent_id.in_(
                         self.session.model.query( model.Object.object_id )
-                            .filter( model.Object.object_type == model.TYPE_PUBLISHED ) ) )
+                            .filter( or_(
+                                model.Object.object_type == model.ObjectType.ALBUM_FORMAL.value,
+                                model.Object.object_type == model.ObjectType.ALBUM_CLOSED.value
+                            ) ) ) )
         # And, for which the parent is not also a parent of our parent
         q = q.filter( ~self.session.model.query( r_i )
                           .filter( r_i.parent_id == model.Relation.parent_id )
@@ -301,68 +328,61 @@ class Obj( SessionObject ):
                            model.Relation.child_id == self.obj.object_id ) )
         # And which isn't the relation with our parent
         q = q.filter( model.Relation.parent_id != parent.obj.object_id )
-        # And which isn't a relation with a PUBLISHED album
+        # And which isn't a relation with a FORMAL or PUBLISHED album
         q = q.filter( ~model.Relation.parent_id.in_(
                         self.session.model.query( model.Object.object_id )
-                            .filter( model.Object.object_type == model.TYPE_PUBLISHED ) ) )
+                            .filter( or_(
+                                model.Object.object_type == model.ObjectType.ALBUM_FORMAL.value,
+                                model.Object.object_type == model.ObjectType.ALBUM_CLOSED.value
+                            ) ) ) )
         # Delete these
         q.delete( synchronize_session = 'fetch' )
 
-    def __assign( self, parent, order, name, is_duplicate, force ):
+    def __assign( self, parent: 'Obj', order, name, is_duplicate ):
 
         # Sanity checks
-        if( self.obj.object_type == model.TYPE_ALBUM ):
+        if( self.obj.get_type() == model.ObjectType.ALBUM_FREE ):
 
-            assert parent.obj.object_type in [
-                        model.TYPE_CLASSIFIER,
-                        model.TYPE_ALBUM,
+            assert parent.obj.get_type() in [
+                        model.ObjectType.CLASSIFIER,
+                        model.ObjectType.ALBUM_FREE,
                     ]
 
-        elif( self.obj.object_type == model.TYPE_PUBLISHED ):
+        elif( self.obj.get_type() in [
+                model.ObjectType.ALBUM_FORMAL,
+                model.ObjectType.ALBUM_CLOSED
+            ] ):
 
-            if( force ):
-                assert parent.obj.object_type in [
-                            model.TYPE_CLASSIFIER,
-                            model.TYPE_ALBUM,
-                            model.TYPE_PUBLISHED,
-                        ]
-            else:
-                assert parent.obj.object_type in [
-                            model.TYPE_CLASSIFIER,
-                            model.TYPE_ALBUM,
+                assert parent.obj.get_type() in [
+                            model.ObjectType.CLASSIFIER,
+                            model.ObjectType.ALBUM_FREE,
+                            model.ObjectType.ALBUM_FORMAL,
                         ]
 
-        elif( self.obj.object_type == model.TYPE_FILE ):
+        elif( self.obj.get_type().get_class() == model.ObjectClass.FILE ):
 
-            if( force ):
-                assert parent.obj.object_type in [
-                            model.TYPE_CLASSIFIER,
-                            model.TYPE_ALBUM,
-                            model.TYPE_PUBLISHED,
-                            model.TYPE_FILE
-                        ]
-            else:
-                assert parent.obj.object_type in [
-                            model.TYPE_CLASSIFIER,
-                            model.TYPE_ALBUM,
-                            model.TYPE_FILE
-                        ]
+            assert parent.obj.get_type() in [
+                        model.ObjectType.CLASSIFIER,
+                        model.ObjectType.ALBUM_FREE,
+                        model.ObjectType.ALBUM_FORMAL,
+                        model.ObjectType.FILE
+                    ]
 
-        elif( self.obj.object_type == model.TYPE_DUPLICATE ):
+            # We can add duplicates to formal albums
+            if( self.obj.get_type() == model.ObjectType.DUPLICATE
+             and parent.obj.get_type() != model.ObjectType.ALBUM_FORMAL ):
 
-            if( force ):
-                assert parent.obj.object_type == model.TYPE_PUBLISHED
-            else:
+                # Otherwise, we need to assign the original file
                 return self.get_original_file().__assign(
                             parent, order, name,
-                            is_duplicate, force )
+                            is_duplicate )
 
         else:
             assert False
 
         # Orders and names are allowed only for albums
         if( order is not None or name is not None ):
-            assert parent.obj.object_type in model.ALBUM_TYPES
+            assert parent.obj.get_type().get_class() == model.ObjectClass.ALBUM
 
         # Fetch an existing relation
         rel = self.session.model.query( model.Relation ) \
@@ -381,7 +401,7 @@ class Obj( SessionObject ):
 
         if( is_duplicate is not None ):
             # Duplicates are allowed only on files
-            assert parent.obj.object_type == model.TYPE_FILE
+            assert parent.obj.get_type() == model.ObjectType.FILE
 
             if( is_duplicate ):
                 self.__assign_duplicate( parent, rel )
@@ -400,16 +420,14 @@ class Obj( SessionObject ):
     def assign( self, parent,
                 order = None,
                 name = None,
-                is_duplicate = None,
-                force = None ):
+                is_duplicate = None ):
 
-        self.__assign( parent, order, name, is_duplicate, force )
+        self.__assign( parent, order, name, is_duplicate )
         parent._on_children_changed()
 
-    def __unassign( self, parent, force ):
+    def __unassign( self, parent: 'Obj' ):
 
-        if( not force ):
-            assert parent.obj.object_type != model.TYPE_PUBLISHED
+        assert parent.obj.get_type() != model.ObjectType.ALBUM_CLOSED
 
         rel = self.session.model.query( model.Relation ) \
                 .filter( model.Relation.parent_id == parent.obj.object_id ) \
@@ -418,22 +436,25 @@ class Obj( SessionObject ):
         if( rel is not None ):
             self.session.model.delete( rel )
 
-            if( self.obj.object_type == model.TYPE_DUPLICATE
-            and parent.obj.object_type == model.TYPE_FILE ):
+            if( self.obj.get_type() == model.ObjectType.DUPLICATE
+            and parent.obj.get_type() == model.ObjectType.FILE ):
 
                 # We're no longer a duplicate
-                self.obj.object_type = model.TYPE_FILE
+                self.obj.set_type( model.ObjectType.FILE )
 
     @SessionObject._with_access( write = True )
-    def unassign( self, parent, force = None  ):
+    def unassign( self, parent ):
 
-        self.__unassign( parent, force )
+        self.__unassign( parent )
         parent._on_children_changed()
 
     @SessionObject._with_access( write = True )
-    def reorder( self, group, order = None ):
+    def reorder( self, group: 'hdbfs.Album', order = None ):
 
-        assert group.obj.object_type == model.TYPE_ALBUM
+        assert group.obj.get_type() in [
+                model.ObjectType.ALBUM_FREE,
+                model.ObjectType.ALBUM_FORMAL
+            ]
 
         rel = self.session.model.query( model.Relation ) \
                 .filter( model.Relation.parent_id == group.obj.object_id ) \

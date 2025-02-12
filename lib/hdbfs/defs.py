@@ -12,15 +12,7 @@ DB_REVISION = model.REVISION
 DEFAULT_LIBRARY = os.path.join( os.environ['HOME'], '.higu' )
 HIGURASHI_DB_NAME = 'hfdb.dat'
 
-TYPE_FILE       = model.TYPE_FILE
-TYPE_DUPLICATE  = model.TYPE_DUPLICATE
-TYPE_GROUP      = model.TYPE_GROUP
-TYPE_ALBUM      = model.TYPE_ALBUM
-TYPE_PUBLISHED  = model.TYPE_PUBLISHED
-TYPE_CLASSIFIER = model.TYPE_CLASSIFIER
-
-FILE_TYPES      = model.FILE_TYPES
-ALBUM_TYPES     = model.ALBUM_TYPES
+from hdbfs.model import ObjectClass, ObjectType
 
 NAME_POLICY_DONT_REGISTER   = 0
 NAME_POLICY_DONT_SET        = 1

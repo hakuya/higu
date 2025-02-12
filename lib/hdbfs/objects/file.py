@@ -13,26 +13,26 @@ class File( Obj ):
 
     def get_variants_of( self ) -> List['File']:
 
-        if( self.obj.object_type == model.TYPE_FILE ):
-            return self.get_parents( model.TYPE_FILE )
+        if( self.obj.get_type() == model.ObjectType.FILE ):
+            return self.get_parents( model.ObjectType.FILE )
         else:
             return []
 
     def get_variants( self ) -> List['File']:
 
-        return self.get_children( model.TYPE_FILE )
+        return self.get_children( model.ObjectType.FILE )
 
     def get_original_file( self ) -> 'File':
 
-        if( self.obj.object_type == model.TYPE_DUPLICATE ):
+        if( self.obj.get_type() == model.ObjectType.DUPLICATE ):
             # Only one duplicate parent is permitted
-            return self.get_parents( model.TYPE_FILE )[0]
+            return self.get_parents( model.ObjectType.FILE )[0]
         else:
             return None
 
     def get_duplicates( self ) -> List['File']:
 
-        return self.get_children( model.TYPE_DUPLICATE )
+        return self.get_children( model.ObjectType.DUPLICATE )
 
     @SessionObject._with_access()
     def get_origin_names( self ) -> List[str]:
@@ -123,7 +123,7 @@ class File( Obj ):
 
         for s in self.session.model.query( model.Stream ) \
                      .filter( model.Stream.object_id == self.obj.object_id ) \
-                     .filter( model.Stream.priority < model.SP_NORMAL ):
+                     .filter( model.Stream.priority < model.StreamPriority.NORMAL.value ):
 
             stream = self.session._construct_session_object( s )
             stream._drop_data()
@@ -138,7 +138,7 @@ class File( Obj ):
 
         self.session.model.query( model.Stream ) \
             .filter( model.Stream.object_id == self.obj.object_id ) \
-            .filter( model.Stream.priority < model.SP_NORMAL ) \
+            .filter( model.Stream.priority < model.StreamPriority.NORMAL.value ) \
             .delete()
 
     @SessionObject._with_access( write = True )

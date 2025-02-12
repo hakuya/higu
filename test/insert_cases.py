@@ -445,7 +445,7 @@ class InsertCases( testutil.TestCase ):
 
         h = hdbfs.Database()
         query = hdbfs.query.Query()
-        query.set_type( hdbfs.TYPE_ALBUM )
+        query.set_type( hdbfs.ObjectType.ALBUM_FREE )
         al = query.execute( h ).__iter__().__next__()
 
         self.assertTrue( isinstance( al, hdbfs.Album ),

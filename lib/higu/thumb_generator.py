@@ -26,8 +26,8 @@ class ThumbGenerator:
             # TODO, this is hacky!
             self.__objects = [ obj_id[0] for obj_id in
                     db.model.query( hdbfs.model.Object.object_id ) \
-                    .filter( or_( hdbfs.model.Object.object_type == hdbfs.TYPE_FILE,
-                                  hdbfs.model.Object.object_type == hdbfs.TYPE_GROUP ) ) \
+                    .filter( or_( hdbfs.model.Object.object_type == hdbfs.ObjectType.FILE.value,
+                                  hdbfs.model.Object.object_type == hdbfs.ObjectType.ALBUM_FREE.value ) ) \
                     .order_by( func.random() ).limit( 500 ) ]
 
         if( len( self.__objects ) == 0 ):

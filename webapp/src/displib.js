@@ -34,13 +34,9 @@ export function make_dummy_display( msg )
  */
 export function make_object_display( info, fields )
 {
-    if( info.type == 'file'
-     || info.type == 'duplicate' )
-    {
+    if( info.type.split( ':' )[0] == 'file' ) {
         return make_file_display( info.object_id, info, fields );
-    } else if( info.type == 'album'
-            || info.type == 'published' )
-    {
+    } else if( info.type.split( ':' )[0] == 'album' ) {
         return make_group_display( info.object_id, info, fields );
     } else {
         return make_dummy_display( 'This is a placeholder for an object '

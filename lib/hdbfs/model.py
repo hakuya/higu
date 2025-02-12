@@ -8,29 +8,75 @@ import calendar
 import numbers
 import re
 import time
-import threading
 
+from typing import Optional, List
 from enum import Enum
 
-TYPE_NILL       = 0
-TYPE_FILE       = 1000
-TYPE_DUPLICATE  = 1001
+class ObjectClass( Enum ):
 
-FILE_TYPES = [ TYPE_FILE, TYPE_DUPLICATE ]
+    NILL        = 0
 
-TYPE_GROUP      = 2000
-TYPE_ALBUM      = 2001
-TYPE_CLASSIFIER = 2002
-TYPE_PUBLISHED  = 2003
+    FILE        = 100
 
-ALBUM_TYPES = [ TYPE_ALBUM, TYPE_PUBLISHED ]
+    ALBUM       = 200
+    CLASSIFIER  = 201
+    IMPORT      = 202
 
-SP_EXPENDABLE = 1000
-SP_NORMAL     = 2000
-SP_PRIORITY   = 3000
+    def all_types( self ) -> List['ObjectType']:
 
-VERSION = 14
-REVISION = 1
+        ALL_TYPES_MAP = {
+            ObjectClass.FILE : [
+                ObjectType.FILE,
+                ObjectType.DUPLICATE,
+            ],
+
+            ObjectClass.ALBUM : [
+                ObjectType.ALBUM_FREE,
+                ObjectType.ALBUM_FORMAL,
+                ObjectType.ALBUM_CLOSED
+            ],
+
+            ObjectClass.CLASSIFIER : [ ObjectType.CLASSIFIER ],
+
+            ObjectClass.IMPORT : [
+                ObjectType.IMPORT_CLOSED,
+                ObjectType.IMPORT_OPEN
+            ]
+        }
+
+        return ALL_TYPES_MAP[self]
+
+    def all_type_values( self ) -> List[int]:
+
+        return list( map( lambda ty: ty.value, self.all_types() ) )
+
+class ObjectType( Enum ):
+
+    NILL          = 0
+
+    FILE          = 10000
+    DUPLICATE     = 10001
+
+    ALBUM_FREE    = 20000
+    ALBUM_FORMAL  = 20001
+    ALBUM_CLOSED  = 20002
+
+    CLASSIFIER    = 20100
+
+    IMPORT_OPEN   = 20200
+    IMPORT_CLOSED = 20201
+
+    def get_class( self ) -> ObjectClass:
+        return ObjectClass( self.value // 100 )
+
+class StreamPriority( Enum ):
+
+    EXPENDABLE = 1000
+    NORMAL     = 2000
+    PRIORITY   = 3000
+
+VERSION = 15
+REVISION = 0
 
 IMGDB_VERSION = 1
 IMGDB_REVISION = 0
@@ -141,11 +187,19 @@ class Object( Base ):
                             backref = backref( 'objects', uselist = False ),
                             post_update = True )
 
-    def __init__( self, object_type, name = None ):
+    def __init__( self, object_type: ObjectType, name: Optional[str] = None ):
 
-        self.object_type = object_type
+        self.object_type = object_type.value
         self.name = name
         self.create_ts = calendar.timegm(time.gmtime())
+
+    def get_type( self ) -> ObjectType:
+
+        return ObjectType( self.object_type )
+
+    def set_type( self, new_type: ObjectType ) -> None:
+
+        self.object_type = new_type.value
 
     def __getitem__( self, key ):
 
@@ -216,8 +270,8 @@ class Stream( Base ):
                         backref = 'derived_streams',
                             remote_side = [ stream_id ] )
 
-    def __init__( self, obj, name, priority,
-                  origin_stream, extension, mime_type ):
+    def __init__( self, obj: Object, name: str, priority: int,
+                  origin_stream: 'Stream', extension: str, mime_type: str ):
 
         self.obj = obj
         self.name = name

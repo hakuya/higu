@@ -7,6 +7,8 @@ import datetime
 
 import hdbfs
 
+from typing import Optional
+
 class LegacyCases( testutil.TestCase ):
 
     def setUp( self ):
@@ -23,7 +25,7 @@ class LegacyCases( testutil.TestCase ):
                                        'ver_%d.%d.db' % ver ),
                          self.db_path )
 
-    def _lookup( self, h, tags = [], type = None ):
+    def _lookup( self, h, tags = [], type: Optional[hdbfs.ObjectType] = None ):
 
         tags = map( lambda x: hdbfs.query.TagConstraint( x ), tags )
 
@@ -46,7 +48,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files = self._lookup( h, type = hdbfs.ObjectType.FILE )
 
         self.assertEqual( len( files ), 8,
                 'Unexpected number of files in DB' )
@@ -82,7 +84,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files = self._lookup( h, type = hdbfs.ObjectType.FILE )
         streams = []
 
         for f in files:
@@ -113,7 +115,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files = self._lookup( h, type = hdbfs.ObjectType.FILE )
 
         now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
@@ -126,7 +128,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files = self._lookup( h, type = hdbfs.ObjectType.FILE )
 
         now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
@@ -227,7 +229,7 @@ class LegacyCases( testutil.TestCase ):
         h = hdbfs.Database()
 
         if( ver[0] < 2 ):
-            cl_al = self._single( h, type = hdbfs.TYPE_ALBUM )
+            cl_al = self._single( h, type = hdbfs.ObjectType.ALBUM_FREE )
 
             self.assertTrue( isinstance( cl_al, hdbfs.Album ),
                     'Unexpected type found %s' % (
@@ -326,7 +328,7 @@ class LegacyCases( testutil.TestCase ):
 
         h = hdbfs.Database()
 
-        files = self._lookup( h, type = hdbfs.TYPE_FILE )
+        files = self._lookup( h, type = hdbfs.ObjectType.FILE )
 
         now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:

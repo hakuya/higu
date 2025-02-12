@@ -57,7 +57,7 @@ def upgrade_from_0_to_1( log, session, dbpath ):
             path = _get_dir_for_id( base_path, stream.stream_id )
 
             # First we need to determine the extension of the stream
-            stream_f = None 
+            stream_f = None
             if( stream.extension is None ):
                 try:
                     ls = os.listdir( path )
@@ -93,7 +93,7 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                         thumbs.append( os.path.join( path, fname ) )
                 except ValueError:
                     pass
-            
+
             if( obj is None ):
                 for t in thumbs:
                     os.remove( t )
@@ -117,7 +117,7 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                     e = 0
                     while( 2**e < w or 2**e < h ):
                         e += 1
-                    
+
                     exp = e
                 else:
                     try:
@@ -130,7 +130,7 @@ def upgrade_from_0_to_1( log, session, dbpath ):
                 mime_type = mimetypes.guess_type( t, strict=False )[0]
 
                 t_stream = model.Stream( obj, 'tb:%d' % ( exp, ),
-                                         model.SP_EXPENDABLE,
+                                         model.StreamPriority.EXPENDABLE.value,
                                          stream, 'jpg', mime_type )
                 t_stream.set_details( *details )
                 session.add( t_stream )

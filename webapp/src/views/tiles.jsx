@@ -198,7 +198,7 @@ export class TileView extends React.Component
         this.componentDidMount();
     }
     render() {
-        if( this.props.type == 'album' || this.props.type == 'published' ) {
+        if( this.props.type.split( ':' )[0] == 'album' ) {
             return (
                 <li ref={ ( el ) => { this.el = el; } }
                     style={{

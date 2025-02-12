@@ -85,9 +85,9 @@ class ObjectLabel extends React.Component
                 <div className='objinfo'>
                     <div>{ 'id: ' } { d.obj_id }</div>
                     { this.renderRating() }
-                    { (d.info.type == 'file' || d.info.type == 'duplicate') &&
+                    { d.info.type.split( ':' )[0] == 'file' &&
                         <div>{ d.info.width } { 'x' } { d.info.height }</div> }
-                    { (d.info.type == 'album' || d.info.type == 'published') &&
+                    { d.info.type.split( ':' )[0] == 'album' &&
                         <div>{ d.info.files.length } { 'images' }</div> }
                 </div>
             </div>
@@ -336,10 +336,10 @@ class ObjectInfoPane extends React.Component
                     this.renderExifInfo( info )
                 }
                 { info.exif && <hr/> }
-                { (info.type == 'file' || info.type == 'duplicate') &&
+                { info.type.split( ':' )[0] == 'file' &&
                     this.renderFileInfo( info )
                 }
-                { (info.type == 'album' || info.type == 'published') &&
+                { info.type.split( ':' )[0] == 'album' &&
                     this.renderGroupInfo( info )
                 }
             </div>

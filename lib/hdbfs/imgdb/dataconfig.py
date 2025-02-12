@@ -12,7 +12,7 @@ class ImageDbDataConfig:
 
     def get_file_vol_path( self, vol_id, priority ):
 
-        if( priority > model.SP_EXPENDABLE ):
+        if( priority > model.StreamPriority.EXPENDABLE.value ):
             path = os.path.join( self.imgdb_path, IMGDB_DATA_PATH )
         else:
             path = os.path.join( self.imgdb_path, IMGDB_THUMB_PATH )

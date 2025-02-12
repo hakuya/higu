@@ -29,7 +29,7 @@ def check_dups_tags():
 
     s = model.Session()
     q = s.query( model.Object ) \
-         .filter( model.Object.type == model.TYPE_CLASSIFIER ) \
+         .filter( model.Object.type == model.ObjectType.CLASSIFIER.value ) \
          .group_by( model.Object.name ) \
          .having( func.count() > 1 )
 
@@ -41,7 +41,7 @@ def check_tag_names():
 
     s = model.Session()
     q = s.query( model.Object ) \
-         .filter( model.Object.type == model.TYPE_CLASSIFIER )
+         .filter( model.Object.type == model.ObjectType.CLASSIFIER.value )
 
     print 'The following tags have bad names:'
     for item in q:

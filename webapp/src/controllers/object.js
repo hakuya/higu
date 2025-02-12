@@ -31,7 +31,8 @@ export class DisplayableObject extends DisplayableBase
 
     is_sortable()
     {
-        return this.info.type == 'album';
+        return this.info.type.split( ':' )[0] == 'album'
+            && this.info.type != 'album:closed';
     }
 
     rename( name, saveold )
@@ -110,7 +111,7 @@ export class DisplayableObject extends DisplayableBase
     _gather_tags_cb( data, response )
     {
         var affected = null;
-        if( this.info.type == 'file') {
+        if( this.info.type.split( ':' )[0] == 'file') {
             affected = [ this.obj_id ];
         } else {
             affected = this.obj_id_list();
@@ -370,23 +371,36 @@ export class DisplayableObject extends DisplayableBase
             var repr = e.drop_data.get_repr()
             var type = e.drop_data.get_type()
 
-            if( this.info.type == 'file') {
+            if( this.info.type == 'file:original') {
                 if( obj_id == this.obj_id ) {
                     alert( 'Cannot drop file on itself' );
                     return;
-                } else if( type != 'file' ) {
+                } else if( type.split( ':' )[0] != 'file' ) {
                     alert( 'Only a file may be dropped on a file' );
                     return;
                 }
 
                 dialogs.show_dup_dialog( this, obj_id, this.obj_id );
-            } else if( this.info.type == 'album' ) {
-                if( type != 'file'
-                 && type != 'selection'
-                 && type != 'album')
-                {
-                    alert( 'Cannot be added to albums' );
-                    return;
+            } else if( this.info.type.split( ':' )[0] == 'album'
+                    && this.info.type != 'album:closed' )
+            {
+                if( this.info.type == 'album:free' ) {
+                    if( type != 'selection'
+                     && type != 'file:original'
+                     && type.split( ':' )[0] != 'album')
+                    {
+                        alert( 'Cannot be added to albums' );
+                        return;
+                    }
+                } else /* album:formal */ {
+                    if( type != 'selection'
+                     && type.split( ':' )[0] != 'file'
+                     && type != 'album:formal'
+                     && type != 'album:closed' )
+                    {
+                        alert( 'Cannot be added to albums' );
+                        return;
+                    }
                 }
 
                 var to_append = []
@@ -421,20 +435,20 @@ export class DisplayableObject extends DisplayableBase
                             drop_data:   e.drop_data
                         }
                     );
-            } else if( this.info.type == 'published' ) {
-                alert( 'Published albums may not be modified' );
+            } else if( this.info.type == 'album:closed' ) {
+                alert( 'Closed albums may not be modified' );
             }
         } else if( e.type == 'trash' ) {
             var obj_id = e.drop_data.get_object()
             var repr = e.drop_data.get_repr()
             var type = e.drop_data.get_type()
 
-            if( this.info.type == 'file') {
+            if( this.info.type.split( ':' )[0] == 'file') {
                 alert( 'delete ' + repr );
-            } else if( this.info.type == 'album' || this.info.type == 'published' ) {
+            } else if( this.info.type.split( ':' )[0] == 'album' ) {
 
-                if( this.info.type == 'published'
-                 && !confirm( 'Are you sure you want to remove this published album?' ) )
+                if( this.info.type.split( ':' )[1] == 'closed'
+                 && !confirm( 'Are you sure you want to remove this closed album?' ) )
                 {
                     return;
                 }
@@ -561,9 +575,7 @@ export class DisplayableObject extends DisplayableBase
 
     create_provider( args )
     {
-        if( this.info.type == 'album'
-         || this.info.type == 'published' )
-        {
+        if( this.info.type.split( ':' )[0] == 'album' ) {
             var search_args = {
                 mode: 'album',
                 album: this.obj_id,

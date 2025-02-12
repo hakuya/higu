@@ -58,6 +58,35 @@ class HiguLibCases( testutil.TestCase ):
                 self.assertTrue( self._diff_data( red_fd, self.red ),
                         'Image not read from library' )
 
+    def test_types( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            ro = h.register_file( red, False )
+            self.assertEqual( ro.get_type(), hdbfs.ObjectType.FILE, 'Red should be a file' )
+
+            yo = h.register_file( yellow, False )
+            yo.assign( ro, is_duplicate = True )
+            self.assertEqual( yo.get_type(), hdbfs.ObjectType.DUPLICATE, 'Red should be a duplicate' )
+
+            free = h.create_album()
+            self.assertEqual( free.get_type(), hdbfs.ObjectType.ALBUM_FREE, 'Free should be a free album' )
+
+            formal = h.create_album()
+            formal.make_formal_album()
+            self.assertEqual( formal.get_type(), hdbfs.ObjectType.ALBUM_FORMAL, 'Free should be a free album' )
+
+            closed = h.create_album()
+            closed.close_album()
+            self.assertEqual( closed.get_type(), hdbfs.ObjectType.ALBUM_CLOSED, 'Free should be a closed album' )
+
+            tag = h.make_tag( 'a_tag' )
+            self.assertEqual( tag.get_type(), hdbfs.ObjectType.CLASSIFIER, 'Tag should be a classifier' )
+
     def test_delete( self ):
 
         yellow = self._load_data( self.yellow )
@@ -928,32 +957,81 @@ class HiguLibCases( testutil.TestCase ):
         with hdbfs.Database() as h:
             h.enable_write_access()
 
-            album = h.create_album()
-            pub = h.create_album()
+            free = h.create_album()
+            formal = h.create_album()
+            closed = h.create_album()
 
             ro = h.register_file( red, False )
             yo = h.register_file( yellow, False )
             go = h.register_file( green, False )
             bo = h.register_file( blue, False )
 
-            yo.assign( album, 2 )
-            bo.assign( album, 3 )
-            ro.assign( album, 1 )
+            yo.assign( free, 2 )
+            bo.assign( free, 3 )
+            ro.assign( free, 1 )
 
-            yo.assign( pub )
-            pub.publish()
+            yo.assign( formal )
+            formal.make_formal_album()
+
+            yo.assign( closed )
+            closed.close_album()
 
             yo.assign( go, is_duplicate = True )
 
-            files = album.get_files()
+            files = free.get_files()
             self.assertEqual( len( files ), 3, 'Album size mismatch' )
             self.assertEqual( files[0], ro, 'Red not first in album' )
             self.assertEqual( files[1], go, 'Green not second in album' )
             self.assertEqual( files[2], bo, 'Blue not third in album' )
 
-            files = pub.get_files()
-            self.assertEqual( len( files ), 1, 'Publish size mismatch' )
-            self.assertEqual( files[0], yo, 'Red not in published album' )
+            files = formal.get_files()
+            self.assertEqual( len( files ), 1, 'Formal size mismatch' )
+            self.assertEqual( files[0], yo, 'Yellow not in formal album' )
+
+            files = closed.get_files()
+            self.assertEqual( len( files ), 1, 'Closed size mismatch' )
+            self.assertEqual( files[0], yo, 'Yellow not in closed album' )
+
+    def test_add_duplicate_to_free( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            alb = h.create_album()
+
+            ro = h.register_file( red, False )
+            yo = h.register_file( yellow, False )
+
+            yo.assign( ro, is_duplicate = True )
+            yo.assign( alb )
+
+            files = alb.get_files()
+            self.assertEqual( len( files ), 1, 'Album size mismatch' )
+            self.assertEqual( files[0], ro, 'Red not in free album' )
+
+    def test_add_duplicate_to_formal( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            alb = h.create_album()
+            alb.make_formal_album()
+
+            ro = h.register_file( red, False )
+            yo = h.register_file( yellow, False )
+
+            yo.assign( ro, is_duplicate = True )
+            yo.assign( alb )
+
+            files = alb.get_files()
+            self.assertEqual( len( files ), 1, 'Album size mismatch' )
+            self.assertEqual( files[0], yo, 'Yellow not in formal album' )
 
     def test_tags_moved( self ):
 
