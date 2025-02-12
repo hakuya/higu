@@ -28,7 +28,7 @@ _LIBRARY = None
 
 def check_tag_name( s ):
 
-    if( re.match( '^[\w\-_:]+$', s ) is None ):
+    if( re.match( r'^[\w\-_:]+$', s ) is None ):
         raise ValueError( f'"{s}" is not a valid tag name' )
 
 class _AccessContext:
