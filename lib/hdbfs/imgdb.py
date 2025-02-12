@@ -817,7 +817,7 @@ class ThumbCache:
                         tw = int( round( w * s / h ) )
                         th = s
 
-                    img = img.resize( ( tw, th, ), Image.ANTIALIAS )
+                    img = img.resize( ( tw, th, ), Image.LANCZOS )
 
                 # Save the image
                 img.save( t[1] )
