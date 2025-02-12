@@ -223,8 +223,11 @@ class MasterFileList:
 
     def register( self, length, crc32, md5, sha1 ):
 
-        if( len( self.lookup( length, crc32, md5, sha1 ) ) != 0 ):
+        try:
+            self.lookup( length, crc32, md5, sha1 ).next()
             return False
+        except StopIteration:
+            pass
 
         length = check_len( length )
         crc32 = check_crc32( crc32 )
