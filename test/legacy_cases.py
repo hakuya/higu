@@ -115,7 +115,7 @@ class LegacyCases( testutil.TestCase ):
 
         files = self._lookup( h, type = hdbfs.TYPE_FILE )
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
             self.assertTrue( now - f.get_creation_time_utc()
                            < datetime.timedelta( minutes = 10 ),
@@ -128,7 +128,7 @@ class LegacyCases( testutil.TestCase ):
 
         files = self._lookup( h, type = hdbfs.TYPE_FILE )
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
             for s in f.get_streams():
                 self.assertTrue( now - s.get_creation_time_utc()
@@ -328,7 +328,7 @@ class LegacyCases( testutil.TestCase ):
 
         files = self._lookup( h, type = hdbfs.TYPE_FILE )
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
             for s in f.get_streams():
 
@@ -420,22 +420,34 @@ class BoundSubtest:
 
 def build_cases():
 
+    VERSIONS_FILE = 'test/data/versions.txt'
+
     import functools
     import sys
 
     cls = LegacyCases
 
     if( len( sys.argv ) > 1 ):
-        VERSIONS = [ tuple( map( int, sys.argv[1].split( '.' ) ) ) ]
+        versions_str = [ sys.argv[1] ]
         sys.argv = sys.argv[0:1] + sys.argv[2:]
+    elif( os.path.isfile( VERSIONS_FILE ) ):
+        with open( VERSIONS_FILE, 'r' ) as f:
+            versions_str = [
+                        v
+                        for v in f.read().strip().split( ' ' )
+                        if v != ''
+                ]
     else:
-        VERSIONS = [ ( 1, 0, ), ( 1, 1, ), ( 2, 0, ), ( 3, 0, ),
-                     ( 4, 0, ), ( 5, 0, ), ( 6, 0, ), ( 7, 0, ),
-                     ( 8, 0, ), ( 8, 1, ), ( 9, 0, ), ( 10, 0, ),
-                     ( 11, 0, ), ( 12, 0, ), ( 13, 0, ), ( 13, 1, ),
-                     ( 14, 0, ), ( 14, 1, ), ]
+        print( f'{VERSIONS_FILE} is missing!' )
+        sys.exit( 1 )
 
-    for ver in VERSIONS:
+    # Convert to list of tuples
+    versions = [
+            ( int( v[0] ), int( v[1] ) )
+            for v in map( lambda it: it.split( '.' ), versions_str )
+        ]
+
+    for ver in versions:
 
         items = dir( cls )
         for item in items:

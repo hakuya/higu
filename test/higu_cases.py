@@ -192,7 +192,7 @@ class HiguLibCases( testutil.TestCase ):
             time.sleep( 5 )
             obj = h.get_object_by_id( obj_id )
 
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now( datetime.timezone.utc )
             d_5sec = datetime.timedelta( seconds = 5 )
             d_10sec = datetime.timedelta( seconds = 10 )
 

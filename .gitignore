@@ -3,6 +3,7 @@
 .DS_Store
 test/data/hfdb_*.dat
 test/data/*.db
+test/data/versions.txt
 test.db/*
 webapp/build/*
 webapp/node_modules/*

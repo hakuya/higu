@@ -48,7 +48,8 @@ class Stream( SessionObject ):
 
         create_log = self.stream.log_entries \
                         .order_by( model.StreamLog.timestamp ).first()
-        return datetime.datetime.utcfromtimestamp( create_log.timestamp )
+        return datetime.datetime.fromtimestamp(
+                    create_log.timestamp, datetime.timezone.utc )
 
     @SessionObject._with_access()
     def get_origin_stream( self ):
@@ -210,7 +211,9 @@ class Obj( SessionObject ):
     @SessionObject._with_access()
     def get_creation_time_utc( self ):
 
-        return datetime.datetime.utcfromtimestamp( self.obj.create_ts )
+        return datetime.datetime.fromtimestamp(
+                    self.obj.create_ts,
+                    datetime.timezone.utc )
 
     def get_member_of( self ):
 
