@@ -15,11 +15,13 @@ REVISION = 0
 def get_type_str( obj ):
 
     TYPE_MAP = {
-        hdbfs.ObjectType.FILE         : 'file:original',
-        hdbfs.ObjectType.DUPLICATE    : 'file:duplicate',
-        hdbfs.ObjectType.ALBUM_FREE   : 'album:free',
-        hdbfs.ObjectType.ALBUM_FORMAL : 'album:formal',
-        hdbfs.ObjectType.ALBUM_CLOSED : 'album:closed'
+        hdbfs.ObjectType.FILE          : 'file:original',
+        hdbfs.ObjectType.DUPLICATE     : 'file:duplicate',
+        hdbfs.ObjectType.ALBUM_FREE    : 'album:free',
+        hdbfs.ObjectType.ALBUM_FORMAL  : 'album:formal',
+        hdbfs.ObjectType.ALBUM_CLOSED  : 'album:closed',
+        hdbfs.ObjectType.IMPORT_OPEN   : 'import:open',
+        hdbfs.ObjectType.IMPORT_CLOSED : 'import:closed'
     }
 
     return TYPE_MAP.get( obj.get_type(), 'unknown' )
@@ -73,7 +75,7 @@ class JsonInterface:
         self.__db = db
         self.__session_id = session_id
 
-    def __fetch_info( self, items, target, album = None, stream = None ):
+    def __fetch_info( self, items, target, parent = None, stream = None ):
 
         if( target is None ):
             return { 'type' : 'invalid' }
@@ -81,11 +83,16 @@ class JsonInterface:
         if( isinstance( target, int ) ):
             target = self.__db.get_object_by_id( target )
 
-        if( album is not None and isinstance( album, int ) ):
-            album = self.__db.get_object_by_id( album )
+        if( parent is not None and isinstance( parent, int ) ):
+            parent = self.__db.get_object_by_id( parent )
 
         info = {}
-        target.check_metadata()
+
+        if( isinstance( target, hdbfs.ImageFile )
+           or isinstance( target, hdbfs.Album ) ):
+
+            target.check_metadata()
+
         if( stream is not None ):
             stream.check_metadata()
         else:
@@ -98,15 +105,15 @@ class JsonInterface:
         if( stream is not None ):
             info['stream_id'] = stream.get_stream_id()
 
-        if( album is not None ):
-            info['album'] = make_obj_tuple( album )
+        if( parent is not None ):
+            info['parent'] = make_obj_tuple( parent )
 
         if( 'type' in items ):
             info['type'] = get_type_str( target )
         if( 'text' in items ):
             info['text'] = target.get_text()
         if( 'repr' in items ):
-            info['repr'] = target.get_repr( album )
+            info['repr'] = target.get_repr( parent )
         if( 'tags' in items ):
             tags = target.get_tags()
             info['tags'] = list( map( lambda x: x.get_name(), tags ) )
@@ -166,12 +173,17 @@ class JsonInterface:
             if( 'exif' in items ):
                 info['exif'] = target.get_exif()
 
+        if( isinstance( target, hdbfs.File ) ):
+            if( 'imports' in items ):
+                imports = target.get_imports()
+                info['imports'] = list( map( make_obj_tuple, imports ) )
+
         if( isinstance( target, hdbfs.File ) or isinstance( target, hdbfs.Album ) ):
             if( 'albums' in items ):
                 albums = target.get_member_of()
                 info['albums'] = list( map( make_obj_tuple, albums ) )
 
-        if( isinstance( target, hdbfs.Album ) ):
+        if( isinstance( target, hdbfs.Album ) or isinstance( target, hdbfs.Import ) ):
             if( 'short_files' in items ):
                 files = target.get_items( limit = 10 )
                 info['files'] = list( map( make_obj_tuple, files ) )
@@ -179,15 +191,16 @@ class JsonInterface:
                 files = target.get_items()
                 info['files'] = list( map( make_obj_tuple, files ) )
 
-        if( 'origin_time' in items ):
-            if( stream is not None ):
-                origin_ts = stream.get_origin_time()
-            else:
-                origin_ts = target.get_origin_time()
-            if( origin_ts is not None ):
-                info['origin_time'] = origin_ts.strftime( '%Y/%m/%d %H:%M:%S' )
-            else:
-                info['origin_time'] = None
+        if( isinstance( target, hdbfs.File ) or isinstance( target, hdbfs.Album ) ):
+            if( 'origin_time' in items ):
+                if( stream is not None ):
+                    origin_ts = stream.get_origin_time()
+                else:
+                    origin_ts = target.get_origin_time()
+                if( origin_ts is not None ):
+                    info['origin_time'] = origin_ts.strftime( '%Y/%m/%d %H:%M:%S' )
+                else:
+                    info['origin_time'] = None
 
         if( 'creation_time' in items ):
             if( stream is not None ):
@@ -398,10 +411,12 @@ class JsonInterface:
                 return hdbfs.query.Query().execute( db ), {}
             elif( data['mode'] == 'untagged' ):
                 return hdbfs.query.Query().set_untagged().execute( db ), {}
-            elif( data['mode'] == 'album' ):
-                album = db.get_object_by_id( data['album'] )
-                return list( map( lambda x: x.get_id(), album.get_items() ) ), \
-                                    { 'album' : data['album'] }
+            elif( data['mode'] == 'object_items' ):
+                obj = db.get_object_by_id( data['object'] )
+                items = []
+                if( isinstance( obj, hdbfs.Album ) or isinstance( obj, hdbfs.Import ) ):
+                    items = list( map( lambda x: x.get_id(), obj.get_items() ) )
+                return items, { 'parent' : data['object'] }
 
         else:
             if( 'query' in data ):

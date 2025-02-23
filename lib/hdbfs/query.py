@@ -331,7 +331,14 @@ class Query:
 
     def __init__( self ):
 
-        self.__obj_type = None
+        self.__search_types = [
+            hdbfs.ObjectType.FILE.value,
+            hdbfs.ObjectType.DUPLICATE.value,
+            hdbfs.ObjectType.ALBUM_FREE.value,
+            hdbfs.ObjectType.ALBUM_FORMAL.value,
+            hdbfs.ObjectType.ALBUM_CLOSED.value
+        ]
+
         self.__order_by = None
         self.__limit = None
         self.__expand = False
@@ -450,6 +457,24 @@ class Query:
 
     def from_string( self, s ):
 
+        try:
+            # If the query is an ID, we search all types
+            int( s )
+            self.__req_constraints = [ self.__create_constraint( s ) ]
+            self.__search_types = [
+                hdbfs.ObjectType.FILE.value,
+                hdbfs.ObjectType.DUPLICATE.value,
+                hdbfs.ObjectType.ALBUM_FREE.value,
+                hdbfs.ObjectType.ALBUM_FORMAL.value,
+                hdbfs.ObjectType.ALBUM_CLOSED.value,
+                hdbfs.ObjectType.IMPORT_OPEN.value,
+                hdbfs.ObjectType.IMPORT_CLOSED.value
+            ]
+
+            return self
+        except:
+            pass
+
         clauses = s.split( ' ' )
         clauses = [i for i in clauses if( len( i ) > 0 )]
 
@@ -486,7 +511,11 @@ class Query:
 
     def set_type( self, obj_type: Union['hdbfs.ObjectClass','hdbfs.ObjectType'] ):
 
-        self.__obj_type = obj_type
+        if( isinstance( obj_type, hdbfs.ObjectClass ) ):
+            self.__search_types = obj_type.all_type_values()
+        else:
+            self.__search_types = [ obj_type.value ]
+
         return self
 
     def set_order( self, prop, desc = False ):
@@ -524,14 +553,6 @@ class Query:
     def execute( self, db: 'hdbfs.Database' ):
 
         from sqlalchemy.sql.expression import func
-
-        SEARCH_TYPES = [
-            hdbfs.ObjectType.FILE.value,
-            hdbfs.ObjectType.DUPLICATE.value,
-            hdbfs.ObjectType.ALBUM_FREE.value,
-            hdbfs.ObjectType.ALBUM_FORMAL.value,
-            hdbfs.ObjectType.ALBUM_CLOSED.value
-        ]
 
         FILE_TYPES = [
             hdbfs.ObjectType.FILE.value,
@@ -583,21 +604,16 @@ class Query:
         if( sub_q is not None ):
             query = query.filter( ~model.Object.object_id.in_( sub_q ) )
 
-        if( isinstance( self.__obj_type, hdbfs.ObjectClass ) ):
-            query = query.filter( model.Object.object_type.in_( self.__obj_type.all_type_values() ) )
-        elif( self.__obj_type is not None ):
-            query = query.filter( model.Object.object_type == self.__obj_type.value )
-        else:
-            query = query.filter( model.Object.object_type.in_( SEARCH_TYPES ) )
+        query = query.filter( model.Object.object_type.in_( self.__search_types ) )
 
         if( self.__nochild
-         or (self.__obj_type is None and req_q is None and add_q is None) ):
+         or (len( self.__search_types ) > 1 and req_q is None and add_q is None) ):
 
             # Extra filter applied in this case if there are otherwise no
             # other filters. We don't want to show files which will already
             # be presented in an album
             all_r = db.model.query( model.Object.object_id ) \
-                      .filter( model.Object.object_type.in_( SEARCH_TYPES ) )
+                      .filter( model.Object.object_type.in_( self.__search_types ) )
             children = db.model.query( model.Relation.child_id ) \
                     .filter( model.Relation.parent_id.in_( all_r ) )
 

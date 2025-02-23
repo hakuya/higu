@@ -286,6 +286,26 @@ class BulkDivide( BulkOperation ):
                 else:
                     self._modified( member, f'Attached to {subset_alb_log}' )
 
+class BulkAlbum2Import( BulkOperation ):
+    '''Performs bulk assign or unassign operations on the membership tree.'''
+
+    def __init__( self, db: 'hdbfs.Database', duplicate: bool ):
+
+        super().__init__( db )
+        self.__duplicate = duplicate
+
+    def _process( self, it ):
+
+        if( it.get_type() != hdbfs.ObjectType.ALBUM_CLOSED ):
+            return
+
+        if( self._commit ):
+            imp = self._db.album_to_import( it, self.__duplicate )
+        else:
+            imp = it
+
+        self._modified( imp, f'Converted to import' )
+
 def op_from_string( db: 'hdbfs.Database', s: str ) -> BulkOperation:
     '''Constructs a bulk operation from a operation string.
 
@@ -310,7 +330,8 @@ def op_from_string( db: 'hdbfs.Database', s: str ) -> BulkOperation:
     try:
         action, operand = tuple( map( lambda x: x.strip(), s.split( ':', 1 ) ) )
     except:
-        raise ParseError()
+        action = s.strip()
+        operand = ''
 
     if( action == 'name' ):
 
@@ -368,5 +389,11 @@ def op_from_string( db: 'hdbfs.Database', s: str ) -> BulkOperation:
                     parts[0],
                     parts[1] if len( parts ) > 1 else None
                 )
+
+    elif( action in [ 'album2import', 'album2import!' ] ):
+
+        return BulkAlbum2Import(
+                    db,
+                    action == 'album2import' )
 
     raise ParseError()

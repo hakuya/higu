@@ -9,7 +9,7 @@ import * as displib from '../displib';
 
 export var info_set = [ 'object_id', 'type', 'repr', 'tags',
     'names', 'variants', 'variants_of', 'original_file',
-    'duplicates', 'albums', 'files', 'text', 'thumb_gen',
+    'duplicates', 'imports', 'albums', 'files', 'text', 'thumb_gen',
     'width', 'height', 'sizes', 'origin_time', 'creation_time',
     'exif' ];
 export var field_set = [ 'rating' ];
@@ -230,8 +230,8 @@ export class SearchProvider extends Provider
          };
 
         if( this.query.mode ) {
-            if( this.query.mode == 'album' ) {
-                request.album = this.query.album;
+            if( this.query.mode == 'object_items' ) {
+                request.object = this.query.object;
             }
 
             request.mode = this.query.mode;

@@ -74,15 +74,22 @@ class HiguLibCases( testutil.TestCase ):
             self.assertEqual( yo.get_type(), hdbfs.ObjectType.DUPLICATE, 'Red should be a duplicate' )
 
             free = h.create_album()
-            self.assertEqual( free.get_type(), hdbfs.ObjectType.ALBUM_FREE, 'Free should be a free album' )
+            self.assertEqual( free.get_type(), hdbfs.ObjectType.ALBUM_FREE, 'free should be a free album' )
 
             formal = h.create_album()
             formal.make_formal_album()
-            self.assertEqual( formal.get_type(), hdbfs.ObjectType.ALBUM_FORMAL, 'Free should be a free album' )
+            self.assertEqual( formal.get_type(), hdbfs.ObjectType.ALBUM_FORMAL, 'formal should be a formal album' )
 
             closed = h.create_album()
             closed.close_album()
-            self.assertEqual( closed.get_type(), hdbfs.ObjectType.ALBUM_CLOSED, 'Free should be a closed album' )
+            self.assertEqual( closed.get_type(), hdbfs.ObjectType.ALBUM_CLOSED, 'closed should be a closed album' )
+
+            import_open = h.start_import()
+            self.assertEqual( import_open.get_type(), hdbfs.ObjectType.IMPORT_OPEN, 'import_open should be an open import' )
+
+            import_closed = h.start_import()
+            import_closed.close_import()
+            self.assertEqual( import_closed.get_type(), hdbfs.ObjectType.IMPORT_CLOSED, 'import_closed should be a closed import' )
 
             tag = h.make_tag( 'a_tag' )
             self.assertEqual( tag.get_type(), hdbfs.ObjectType.CLASSIFIER, 'Tag should be a classifier' )
@@ -1115,6 +1122,171 @@ class HiguLibCases( testutil.TestCase ):
                               'Thumb request priority is not immedate' )
             self.assertIn( 4, r.exps, 'Request for exp 4 is missing' )
 
+    def test_start_import( self ):
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            obj_id = h.start_import().get_id()
+
+            imp = h.get_object_by_id( obj_id )
+            self.assertIsNotNone( imp,
+                    'Unable to get import after creation' )
+            self.assertTrue( isinstance( imp, hdbfs.Import ),
+                    'Created import is not an import' )
+
+    def test_start_import_args( self ):
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            imp = h.start_import( name = 'test', text = 'text' )
+
+            self.assertEqual( imp.get_name(), 'test',
+                    'Import name not registered' )
+            self.assertEqual( imp.get_text(), 'text',
+                    'Text not registered' )
+
+    def test_assign_import( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            wo = h.register_file( white )
+            ko = h.register_file( black )
+
+            imp = h.start_import()
+
+            wo.assign( imp, name = 'not_white.png' )
+            ko.assign( imp )
+
+            self.assertEqual( wo.get_name(), self.white,
+                    'White name not read' )
+            self.assertEqual( wo.get_name( imp ), 'not_white.png',
+                    'Album name not read' )
+            self.assertEqual( ko.get_name( imp ), self.black,
+                    'White name not read from noname album' )
+
+            wimp = wo.get_imports()
+            kimp = ko.get_imports()
+
+            self.assertTrue( imp in wimp, 'Import not in white imports' )
+            self.assertTrue( imp in kimp, 'Import not in black imports' )
+
+    def test_assign_closed_import( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            wo = h.register_file( white )
+            ko = h.register_file( black )
+
+            imp = h.start_import()
+            wo.assign( imp )
+
+            imp.close_import()
+            try:
+                ko.assign( imp )
+                self.fail( 'Succeeded assign to closed import' )
+            except:
+                pass
+
+            f = imp.get_files()
+
+            self.assertTrue( wo in f, 'White not in import children' )
+            self.assertTrue( ko not in f, 'Black in import children' )
+
+    def test_album_to_import( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            wo = h.register_file( white )
+            ko = h.register_file( black )
+
+            tag = h.make_tag( 'a_tag' )
+            alb = h.create_album( [ tag ], 'test', 'text' )
+            alb.make_formal_album()
+
+            wo.assign( alb, name = 'not_white.png' )
+            ko.assign( alb )
+
+            alb.close_album()
+
+            albs = tag.get_albums()
+            self.assertTrue( alb in albs, 'Album not tagged' )
+
+            imp = h.album_to_import( alb )
+            self.assertTrue( len( tag.get_albums() ) == 0, 'Album still tagged' )
+
+            self.assertEqual( wo.get_name(), self.white,
+                    'White name not read' )
+            self.assertEqual( wo.get_name( imp ), 'not_white.png',
+                    'Album name not read' )
+            self.assertEqual( ko.get_name( imp ), self.black,
+                    'White name not read from noname album' )
+
+            self.assertTrue( imp in wo.get_imports(), 'Import not in white imports' )
+            self.assertTrue( imp in ko.get_imports(), 'Import not in black imports' )
+
+            self.assertTrue( len( wo.get_member_of() ) == 0, 'Import not in white imports' )
+            self.assertTrue( len( ko.get_member_of() ) == 0, 'Import not in black imports' )
+
+    def test_album_to_import_w_duplicate( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            wo = h.register_file( white )
+            ko = h.register_file( black )
+
+            tag = h.make_tag( 'a_tag' )
+            alb = h.create_album( [ tag ], 'test', 'text' )
+            alb.make_formal_album()
+
+            wo.assign( alb, name = 'not_white.png' )
+            ko.assign( alb )
+
+            alb.close_album()
+
+            albs = tag.get_albums()
+            self.assertTrue( alb in albs, 'Album not tagged' )
+
+            imp = h.album_to_import( alb, True )
+            albs = tag.get_albums()
+            self.assertTrue( len( albs ) == 1, 'Album not duplicated' )
+            alb = albs[0]
+            self.assertNotEqual( alb.get_id(), imp.get_id(), 'Import not duplicated' )
+
+            self.assertEqual( alb.get_text(), 'text', 'Text not duplicated' )
+
+            self.assertEqual( wo.get_name(), self.white,
+                    'White name not read' )
+            self.assertEqual( wo.get_name( imp ), 'not_white.png',
+                    'Album name not read' )
+            self.assertEqual( ko.get_name( imp ), self.black,
+                    'White name not read from noname album' )
+
+            self.assertEqual( wo.get_name( alb ), 'not_white.png',
+                    'Album name not duplicated' )
+
+            self.assertTrue( imp in wo.get_imports(), 'Import not in white imports' )
+            self.assertTrue( imp in ko.get_imports(), 'Import not in black imports' )
+
+            self.assertTrue( alb in wo.get_member_of(), 'Duplicate not in white albums' )
+            self.assertTrue( alb in ko.get_member_of(), 'Duplicate not in black albums' )
 
 if( __name__ == '__main__' ):
     unittest.main()

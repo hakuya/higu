@@ -365,12 +365,16 @@ class Obj( SessionObject ):
                         model.ObjectType.CLASSIFIER,
                         model.ObjectType.ALBUM_FREE,
                         model.ObjectType.ALBUM_FORMAL,
-                        model.ObjectType.FILE
+                        model.ObjectType.FILE,
+                        model.ObjectType.IMPORT_OPEN
                     ]
 
-            # We can add duplicates to formal albums
+            # We can add duplicates to formal albums and imports
             if( self.obj.get_type() == model.ObjectType.DUPLICATE
-             and parent.obj.get_type() != model.ObjectType.ALBUM_FORMAL ):
+             and parent.obj.get_type() not in [
+                    model.ObjectType.ALBUM_FORMAL,
+                    model.ObjectType.IMPORT_OPEN
+                ] ):
 
                 # Otherwise, we need to assign the original file
                 return self.get_original_file().__assign(
@@ -380,9 +384,12 @@ class Obj( SessionObject ):
         else:
             assert False
 
-        # Orders and names are allowed only for albums
+        # Orders and names are allowed only for albums and imports
         if( order is not None or name is not None ):
-            assert parent.obj.get_type().get_class() == model.ObjectClass.ALBUM
+            assert parent.obj.get_type().get_class() in [
+                    model.ObjectClass.ALBUM,
+                    model.ObjectClass.IMPORT
+                ]
 
         # Fetch an existing relation
         rel = self.session.model.query( model.Relation ) \

@@ -5,6 +5,7 @@ from hdbfs.session import Session
 from hdbfs.objects.basic import Stream
 from hdbfs.objects.file import File
 from hdbfs.objects.album import Album
+from hdbfs.objects.importobj import Import
 from hdbfs.objects.groups import Tag
 from hdbfs.objects.metadata import MetadataManager
 
@@ -31,6 +32,8 @@ class BasicFactory:
                 return Album( session, self.metaman, obj )
             elif( obj.get_type().get_class() == model.ObjectClass.CLASSIFIER ):
                 return Tag( session, obj )
+            elif( obj.get_type().get_class() == model.ObjectClass.IMPORT ):
+                return Import( session, obj )
             else:
                 return None
 

@@ -11,6 +11,10 @@ class File( Obj ):
 
         super().__init__( session, obj )
 
+    def get_imports( self ) -> List['Import']:
+
+        return self.get_parents( model.ObjectClass.IMPORT )
+
     def get_variants_of( self ) -> List['File']:
 
         if( self.obj.get_type() == model.ObjectType.FILE ):

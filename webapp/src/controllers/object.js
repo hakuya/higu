@@ -575,10 +575,12 @@ export class DisplayableObject extends DisplayableBase
 
     create_provider( args )
     {
-        if( this.info.type.split( ':' )[0] == 'album' ) {
+        if( this.info.type.split( ':' )[0] == 'album'
+         || this.info.type.split( ':' )[0] == 'import' )
+        {
             var search_args = {
-                mode: 'album',
-                album: this.obj_id,
+                mode: 'object_items',
+                object: this.obj_id,
             }
 
             if( args && args.start_id ) {

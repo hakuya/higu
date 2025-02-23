@@ -36,7 +36,9 @@ export function make_object_display( info, fields )
 {
     if( info.type.split( ':' )[0] == 'file' ) {
         return make_file_display( info.object_id, info, fields );
-    } else if( info.type.split( ':' )[0] == 'album' ) {
+    } else if( info.type.split( ':' )[0] == 'album'
+            || info.type.split( ':' )[0] == 'import' )
+    {
         return make_group_display( info.object_id, info, fields );
     } else {
         return make_dummy_display( 'This is a placeholder for an object '

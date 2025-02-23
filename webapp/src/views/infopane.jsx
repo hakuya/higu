@@ -63,32 +63,49 @@ class ObjectLabel extends React.Component
     }
     renderRating() {
         var d = this.props.display;
-        return (
-            <div>
-                { this.renderRatingStar( 2, d.fields.rating ) }
-                { this.renderRatingStar( 4, d.fields.rating ) }
-                { this.renderRatingStar( 6, d.fields.rating ) }
-                { this.renderRatingStar( 8, d.fields.rating ) }
-                { this.renderRatingStar( 10, d.fields.rating ) }
-            </div>
-        );
+        if( d.info.type.split( ':' )[0] == 'file'
+         || d.info.type.split( ':' )[0] == 'album' )
+        {
+            return (
+                <div>
+                    { this.renderRatingStar( 2, d.fields.rating ) }
+                    { this.renderRatingStar( 4, d.fields.rating ) }
+                    { this.renderRatingStar( 6, d.fields.rating ) }
+                    { this.renderRatingStar( 8, d.fields.rating ) }
+                    { this.renderRatingStar( 10, d.fields.rating ) }
+                </div>
+            );
+        } else {
+            return (
+                <div>{ 'Import' }</div>
+            );
+        }
+    }
+    renderContents() {
+        var d = this.props.display;
+        if( d.info.type.split( ':' )[0] == 'file' ) {
+            return (
+                <div>{ d.info.width } { 'x' } { d.info.height }</div>
+            );
+        } else {
+            return (
+                <div>{ d.info.files.length } { 'images' }</div>
+            );
+        }
     }
     render() {
         var d = this.props.display;
         return (
             <div className='objitem'>
-                { d.info.album &&
-                  <div className='alblabel'>{ d.info.album[1] + ' /' }</div> }
+                { d.info.parent &&
+                  <div className='alblabel'>{ d.info.parent[1] + ' /' }</div> }
                 <div className='objlabel objitem' ref={ ( el ) => { this.el = el; } }>
                     <ObjectLink label={ d.info.repr } target={ d.obj_id }/>
                 </div>
                 <div className='objinfo'>
                     <div>{ 'id: ' } { d.obj_id }</div>
                     { this.renderRating() }
-                    { d.info.type.split( ':' )[0] == 'file' &&
-                        <div>{ d.info.width } { 'x' } { d.info.height }</div> }
-                    { d.info.type.split( ':' )[0] == 'album' &&
-                        <div>{ d.info.files.length } { 'images' }</div> }
+                    { this.renderContents() }
                 </div>
             </div>
         );
@@ -125,6 +142,23 @@ class SelectionLabel extends React.Component
 
 class ObjectInfoPane extends React.Component
 {
+    hasTags( info ) {
+        return info.type.split( ':' )[0] != 'import';
+    }
+    renderTags( info ) {
+        return (
+            <div>
+                <h1>Tags</h1>
+                <ul className='infotaglist'>
+                    { info.tags &&
+                        info.tags.map( ( it ) => (
+                            <li key={ it }><TagLink label={ it } tag={ it }/></li>
+                        ) )
+                    }
+                </ul>
+            </div>
+        );
+    }
     renderAlternates( info ) {
         var d = this.props.display;
         return (
@@ -160,7 +194,8 @@ class ObjectInfoPane extends React.Component
         );
     }
     hasLinks( info ) {
-        return info.albums && info.albums.length > 0
+        return info.imports && info.imports.length > 0
+            || info.albums && info.albums.length > 0
             || info.original_file
             || info.variants_of && info.variants_of.length > 0
             || info.variants && info.variants.length > 0
@@ -169,6 +204,10 @@ class ObjectInfoPane extends React.Component
     renderLinks( info ) {
         return (
             <div>
+                { info.imports && info.imports.length > 0 &&
+                    <ObjectList label='Imports: ' objects={ info.imports }/>
+                }
+                { info.imports && info.imports.length > 0 && <br/> }
                 { info.albums && info.albums.length > 0 &&
                     <ObjectList label='Albums: ' objects={ info.albums }/>
                 }
@@ -303,14 +342,9 @@ class ObjectInfoPane extends React.Component
         return (
             <div className='iteminfo'>
                 <ObjectLabel display={ this.props.display }/> <br/>
-                <h1>Tags</h1>
-                <ul className='infotaglist'>
-                    { info.tags &&
-                        info.tags.map( ( it ) => (
-                            <li key={ it }><TagLink label={ it } tag={ it }/></li>
-                        ) )
-                    }
-                </ul>
+                { this.hasTags( info ) &&
+                    this.renderTags( info )
+                }
                 <h1>Names</h1>
                 <ul className='infonamlist'>
                     { info.names &&

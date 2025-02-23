@@ -4,6 +4,7 @@ import re
 from hdbfs.hash import calculate_details
 
 from hdbfs.objects.album import Album
+from hdbfs.objects.importobj import Import
 from hdbfs.objects.file import File
 from hdbfs.objects.groups import Tag
 from hdbfs.session import Session
@@ -278,6 +279,79 @@ class Database( Session ):
             album.assign( t, None )
 
         return album
+
+    @Session._with_access( write = True )
+    def start_import( self, name = None, text = None ) -> hdbfs.Import:
+
+        model_import = model.Object( model.ObjectType.IMPORT_OPEN )
+        self.model.add( model_import )
+        importobj = self._construct_session_object( model_import )
+
+        if( name is not None ):
+            importobj.obj.name = name
+
+        if( text is not None ):
+            importobj.obj['text'] = text
+
+        return importobj
+
+    @Session._with_access( write = True )
+    def album_to_import( self, album: hdbfs.Album, duplicate = False ) -> hdbfs.Import:
+
+        assert album.get_type() == model.ObjectType.ALBUM_CLOSED
+
+        import_obj = album.obj
+        album_obj = model.Object( model.ObjectType.ALBUM_CLOSED, import_obj.name ) \
+                        if( duplicate ) else None
+
+        for c in import_obj.children:
+            assert c.get_type().get_class() == model.ObjectClass.FILE
+
+        if( album_obj is not None ):
+            album_obj.create_ts = import_obj.create_ts
+            self.model.add( album_obj )
+            self.model.flush()
+
+            assert album_obj.object_id is not None
+
+            self.model.query( model.Relation ) \
+                .filter( model.Relation.child_id == import_obj.object_id ) \
+                .update( { 'child_id' : album_obj.object_id } )
+
+            q = self.model.query( model.Relation ) \
+                .filter( model.Relation.parent_id == import_obj.object_id )
+            rs = [r for r in q]
+
+            # Duplicate children
+            for r in rs:
+                dup = model.Relation()
+                dup.parent_id = album_obj.object_id
+                dup.child_id = r.child_id
+                dup.child_name = r.child_name
+                dup.sort = r.sort
+
+                self.model.add( dup )
+
+            q = self.model.query( model.ObjectMetadata ) \
+                .filter( model.ObjectMetadata.object_id == import_obj.object_id )
+            rs = [r for r in q]
+
+            # Duplicate metadata
+            for r in rs:
+                meta = model.ObjectMetadata( r.key, r.value, r.numeric )
+                meta.object_id = album_obj.object_id
+
+                self.model.add( meta )
+
+        else:
+            self.model.query( model.Relation ) \
+                .filter( model.Relation.child_id == import_obj.object_id ) \
+                .delete()
+
+        import_obj.set_type( model.ObjectType.IMPORT_CLOSED )
+        self.model.flush()
+
+        return self._construct_session_object( import_obj )
 
     def __register_file( self, path, name_policy, name = None ):
 
