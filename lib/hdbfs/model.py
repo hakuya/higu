@@ -201,6 +201,18 @@ class Object( Base ):
 
         self.object_type = new_type.value
 
+    def metadata_items( self ):
+
+        return [
+            (
+                row.key,
+                row.numeric
+                    if row.numeric is not None
+                    else row.value
+             )
+             for row in self.metadata
+        ]
+
     def __getitem__( self, key ):
 
         row = self.metadata.filter( ObjectMetadata.key == key ).first()

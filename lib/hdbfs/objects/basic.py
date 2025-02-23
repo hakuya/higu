@@ -7,7 +7,7 @@ from hdbfs.session import Session, SessionObject
 from hdbfs.defs import *
 from hdbfs.hash import calculate_details
 
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 
 ObjectTypeSelect = Union[ ObjectType, ObjectClass, List[ObjectType], List[ObjectClass] ]
 
@@ -525,6 +525,11 @@ class Obj( SessionObject ):
             return f'Object( {id=} )'
         else:
             return f'Object( "{name}", {id=} )'
+
+    @SessionObject._with_access()
+    def get_metadata( self ) -> Dict[ str, Union[ str, int ] ]:
+
+        return dict( self.obj.metadata_items() )
 
     @SessionObject._with_access()
     def __getitem__( self, key ):
