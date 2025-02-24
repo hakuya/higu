@@ -31,14 +31,13 @@ html, body, #app{
     height: 100%;
 }
 
-#trash{
+#editmenu{
     float: right;
-    text-align:center;
-    border-width:2px;
-    border-color:#000000;
-    background-color:#dddddd;
-    width: 4em;
-    height: 2em;
+}
+
+#editmenu > * {
+    display: inline-block;
+    padding-left: 10px;
 }
 
 .objitem{

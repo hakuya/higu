@@ -258,32 +258,6 @@ class ObjectInfoPane extends React.Component
     renderFileInfo( info ) {
         return (
             <div>
-                { info.type == 'file' &&
-                    <span>
-                        { 'Transform: ' }
-                        <a href='#' onClick={ () => {
-                                            this.props.display.transform( 'auto_orientation' )
-                                        } }>
-                            { 'auto' }
-                        </a> { ' | ' }
-                        <a href='#' onClick={ () => {
-                                            this.props.display.transform( 'rotate_ccw' )
-                                        } }>
-                            { 'ccw' }
-                        </a> { ' | ' }
-                        <a href='#' onClick={ () => {
-                                            this.props.display.transform( 'rotate_cw' )
-                                        } }>
-                            { 'cw' }
-                        </a> { ' | ' }
-                        <a href='#' onClick={ () => {
-                                            this.props.display.transform( 'mirror' )
-                                        } }>
-                            { 'mirror' }
-                        </a>
-                    </span>
-                }
-                { info.type == 'file' && <br/> }
                 { this.props.display.stream_id === null &&
                     <a href={ '/img?id=' + this.props.display.obj_id } target='_blank'>
                         { 'View Fullsize' }
@@ -312,12 +286,6 @@ class ObjectInfoPane extends React.Component
                         { 'View text' }
                     </a>
                 }
-                { info.text && <br/> }
-                <a href='#' onClick={ () => {
-                                this.props.display.gather_tags();
-                            } }>
-                    { 'Gather Tags' }
-                </a>
             </div>
         );
     }
@@ -405,11 +373,6 @@ class SelectionInfoPane extends React.Component
                                         this.props.display.reverse_sort();
                                     } }>
                         { 'Reverse Sort' }
-                    </a></li>
-                    <li><a href='#' onClick={ () => {
-                                        this.props.display.make_group();
-                                    } }>
-                        { 'Make Album' }
                     </a></li>
                 </ul>
             </div>

@@ -6,7 +6,7 @@ import 'jquery-ui/ui/widgets/droppable';
 
 import * as tabs from './controllers/tabs';
 
-import { Header, Trash } from './views/topbar';
+import { Header, ActionsGroup } from './views/topbar';
 import { TabsView } from './views/tabs';
 
 import {
@@ -35,7 +35,7 @@ class Application extends React.Component
        <div id="page">
          <div>
            <Header/>
-           <Trash/>
+           <ActionsGroup/>
          </div>
          <MainView/>
 

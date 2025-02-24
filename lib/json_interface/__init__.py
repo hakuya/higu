@@ -734,6 +734,27 @@ class JsonInterface:
 
         return json_ok()
 
+    def cmd_change_album( self, target, subtype ):
+
+        db = self.__db
+
+        target = db.get_object_by_id( target )
+        assert isinstance( target, hdbfs.Album )
+
+        if( subtype == 'free' ):
+            target.make_free_album()
+        elif( subtype == 'formal' ):
+            if( target.get_type() == hdbfs.ObjectType.ALBUM_CLOSED ):
+                target.open_album()
+            else:
+                target.make_formal_album()
+        elif( subtype == 'closed' ):
+            target.close_album()
+        else:
+            assert False
+
+        return json_ok()
+
     def cmd_set_root_stream( self, target, stream ):
 
         db = self.__db

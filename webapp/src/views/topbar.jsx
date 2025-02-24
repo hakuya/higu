@@ -1,8 +1,12 @@
 import * as React from 'react';
 
+import Dropdown from 'react-bootstrap/Dropdown';
+import DropdownButton from 'react-bootstrap/DropdownButton';
+
 import $ from 'jquery';
 import 'jquery-ui/ui/widgets/droppable';
 
+import * as dialogs from '../controllers/dialogs';
 import * as tabs from '../controllers/tabs';
 
 import { SelectionProvider, SearchProvider } from '../models/providers';
@@ -125,34 +129,317 @@ export class Header extends React.Component
     }
 }
 
-export class Trash extends React.Component
+class RemoveAction extends React.Component
 {
-    componentDidMount() {
-        $( this.el ).droppable({
-            accept: '.objitem',
-            hoverClass: 'ui-state-hover',
-            drop: function( event, ui ) {
-                if( ui.helper.is( '.dropped' ) ) {
-                    return false;
-                }
-
-                var tab = tabs.active();
-                var item = $( ui.draggable );
-
-                if( tab && tab.onEvent ) {
-                    tab.onEvent( {
-                        type: 'trash',
-                        drop_data: item.data( 'drop_data' )
-                    } );
-                }
-
-                ui.helper.addClass( 'dropped' );
-            },
-        });
-    }
     render() {
         return (
-            <div id="trash" ref={ ( el ) => { this.el = el; } }>Trash</div>
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.on_event( {
+                            type: 'trash',
+                            drop_data: this.props.dropData,
+                        } );
+                    } }>
+                    { this.props.label }
+            </Dropdown.Item>
         );
+    }
+}
+
+class TagAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        dialogs.show_tag_dialog( this.props.display );
+                    } }>
+                    { 'Tag' }
+            </Dropdown.Item>
+        );
+    }
+}
+
+class NameAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        dialogs.show_name_dialog( this.props.display );
+                    } }>
+                    { 'Name' }
+            </Dropdown.Item>
+        );
+    }
+}
+
+class MakeAlbumAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.make_group();
+                    } }>
+                    { 'Make Album' }
+            </Dropdown.Item>
+        );
+    }
+}
+
+class ModifyAlbumAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.change_album( this.props.target );
+                    } }>
+                    { this.props.label }
+            </Dropdown.Item>
+        );
+    }
+}
+
+class GatherTagsAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.gather_tags();
+                    } }>
+                    { 'Gather Tags' }
+            </Dropdown.Item>
+        );
+    }
+}
+
+class TransformFileAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.transform( this.props.transform );
+                    } }>
+                    { this.props.label }
+            </Dropdown.Item>
+        );
+    }
+}
+
+export class ActionsGroup extends React.Component
+{
+    constructor( props ) {
+        super( props );
+        this.state = {
+            display: null,
+            view: null,
+            selected: null,
+            gen: 0
+        };
+    }
+
+    componentDidMount() {
+        tabs.register_tabs_listener( this );
+    }
+
+    // for tab_listener
+    on_tab_added( tab ) {}
+    on_tab_removed( tab ) {}
+    on_tab_selected( tab ) {
+        if( tab !== null && tab.type == 'display' ) {
+            this.setState( {
+                display: tab.display,
+                view: tab.view,
+                selected: tab.display.selected_items,
+                gen: this.state.gen,
+            } );
+        } else {
+            this.setState( {
+                display: null,
+                view: null,
+                selected: null,
+                gen: 0,
+            } );
+        }
+    }
+    on_tab_changed( tab ) {
+        if( tabs.active().id == tab.id ) {
+            this.on_tab_selected( tab );
+        }
+    }
+    on_tab_event( e ) {
+        if( e.type == 'selected_items_changed'
+         && e.display == this.state.display )
+        {
+            this.setState( {
+                display: this.state.display,
+                view: this.state.view,
+                selected: this.state.display.selected_items,
+                gen: this.state.gen,
+            } );
+        } else if( e.affected
+            && this.state.display
+            && this.state.display.obj_id
+            && e.affected.indexOf( this.state.display.obj_id ) >= 0 )
+        {
+            this.setState( {
+                display: this.state.display,
+                view: this.state.view,
+                selected: this.state.selected,
+                gen: this.state.gen + 1,
+            } );
+        }
+    }
+
+    selection_drop_data() {
+        return {
+            view:   this.state.view,
+            disp:   this.state.display,
+
+            obj_id: this.state.selected[0][0],
+            repr:   this.state.selected[0][1],
+            type:   this.state.selected[0][2],
+
+            files:  [...this.state.selected],
+
+            get_display: function() { return this.disp; },
+            get_object: function() { return this.obj_id; },
+            get_repr:   function() { return this.repr; },
+            get_type:   function() { return this.type; },
+
+            get_files: function() {
+                return this.files;
+            },
+        };
+    }
+
+    renderSelectedItemsContext() {
+        return (
+            <div id='editmenu'>
+                { this.state.selected.length + ' selected' }
+                <DropdownButton size='sm' algin='end' title='Edit'>
+                    <RemoveAction
+                        label='Remove'
+                        display={ this.state.display }
+                        dropData={ this.selection_drop_data() }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
+    renderFileContext() {
+        return (
+            <div id='editmenu'>
+                <DropdownButton size='sm' align='end' title='Edit'>
+                    <TagAction display={ this.state.display }/>
+                    <NameAction display={ this.state.display }/>
+                    <Dropdown.Divider/>
+                    <TransformFileAction
+                        label='Auto'
+                        transform='auto_orientation'
+                        display={ this.state.display }/>
+                    <TransformFileAction
+                        label='Rotate CCW'
+                        transform='rotate_ccw'
+                        display={ this.state.display }/>
+                    <TransformFileAction
+                        label='Rotate CW'
+                        transform='rotate_cw'
+                        display={ this.state.display }/>
+                    <TransformFileAction
+                        label='Mirror'
+                        transform='mirror'
+                        display={ this.state.display }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
+    renderAlbumContext() {
+        var album_type = this.state.display.info.type.split( ':' )[1];
+        return (
+            <div id='editmenu'>
+                <DropdownButton size='sm' align='end' title='Edit'>
+                    <TagAction display={ this.state.display }/>
+                    <NameAction display={ this.state.display }/>
+                    <Dropdown.Divider/>
+                    <GatherTagsAction display={ this.state.display }/>
+                    <Dropdown.Divider/>
+                    { album_type == 'formal' &&
+                        <ModifyAlbumAction
+                            label='Make Free'
+                            target='free'
+                            display={ this.state.display }/>
+                    }
+                    { album_type == 'free' &&
+                        <ModifyAlbumAction
+                            label='Make Formal'
+                            target='formal'
+                            display={ this.state.display }/>
+                    }
+                    { album_type == 'closed' &&
+                        <ModifyAlbumAction
+                            label='Open Album'
+                            target='formal'
+                            display={ this.state.display }/>
+                    }
+                    { album_type == 'formal' &&
+                        <ModifyAlbumAction
+                            label='Close Album'
+                            target='closed'
+                            display={ this.state.display }/>
+                    }
+                    <Dropdown.Divider/>
+                    <RemoveAction
+                        label='Delete'
+                        display={ this.state.display }
+                        dropData={ this.state.display.get_obj_drop_data() }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
+    renderSelectionContext() {
+        return (
+            <div id='editmenu'>
+                <DropdownButton size='sm' align='end' title='Edit'>
+                    <TagAction display={ this.state.display }/>
+                    <Dropdown.Divider/>
+                    <MakeAlbumAction display={ this.state.display }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
+    renderDefaultContext() {
+        return (
+            <div id='editmenu'>
+                <DropdownButton size='sm' align='end' title='Edit' disabled={true}>
+                </DropdownButton>
+            </div>
+        );
+    }
+
+    render() {
+        if( this.state.selected !== null ) {
+            return this.renderSelectedItemsContext();
+        } else if( this.state.display !== null ) {
+            if( this.state.display.type == 'object' ) {
+                var obj_type = this.state.display.info.type.split(':')[0];
+                if( obj_type == 'file' ) {
+                    return this.renderFileContext();
+                } else if( obj_type == 'album' ) {
+                    return this.renderAlbumContext();
+                }
+            } else if( this.state.display.type == 'selection' ) {
+                return this.renderSelectionContext();
+            }
+        }
+        // Not supported / handled
+        return this.renderDefaultContext();
     }
 }

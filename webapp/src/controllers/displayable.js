@@ -14,6 +14,9 @@ export class DisplayableBase
         return false;
     }
 
+    set_selected_items( items )
+    {}
+
     set_field( field, value )
     {}
 
@@ -48,6 +51,9 @@ export class DisplayableBase
     {}
 
     get_obj_id()
+    { return null; }
+
+    get_obj_drop_data()
     { return null; }
 
     get_files()

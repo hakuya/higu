@@ -1,5 +1,3 @@
-var TAGLINK_TEMPLATE = "<li><a class='taglink' href='##{tag}'>#{tag}</a></li>";
-
 // Local module vars
 var tabs_counter = 1;
 
@@ -41,6 +39,14 @@ var add_tab = function( tab )
     tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_added( tab ); } )
 };
 
+function notify_tab_selected( tab )
+{
+    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_selected( tab ); } )
+    if( tab != null && tab.onEvent ) {
+        tab.onEvent( { type: 'tab_focus' } );
+    }
+}
+
 /**
  * init() - Initialize the module
  */
@@ -58,6 +64,11 @@ export function all_tabs()
 export function register_tabs_listener( listener )
 {
     tabs_listeners.push( listener );
+}
+
+export function notify_tab_changed( tab )
+{
+    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_changed( tab ); } )
 }
 
 /**
@@ -79,18 +90,7 @@ export function on_event( e )
             it.onEvent( e );
         }
     });
-};
-
-/**
- * on_select()
- */
-export function on_select()
-{
-    tab = active();
-    obj = tab.data( 'obj' );
-    if( obj && obj.display ) {
-        obj.on_event( { type: 'focused' } );
-    }
+    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_event( e ); } )
 };
 
 /**
@@ -103,7 +103,7 @@ export function select( tab_id )
     var tab = tabs.find( ( it ) => { return it.id == tab_id; } );
     if( tab ) {
         active_tab_id = tab_id;
-        tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_selected( tab ); } )
+        notify_tab_selected( tab );
     }
 };
 
@@ -181,21 +181,20 @@ export function show_tagslist_tab()
 }
 
 /**
- * remove( elem ) - removes the given tab
+ * Removes the given tab
  */
 export function remove( tab )
 {
     var idx = tabs.findIndex( function( it ) { return it === tab; } );
-    if( idx >= 0 ) {
-        if( active_tab_id == tabs[idx].id ) {
-            if( idx == 0 ) {
-                active_tab_id = null;
-            } else {
-                active_tab_id = tabs[idx-1].id;
-            }
-        }
-        tabs.splice( idx, 1 );
-        tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_removed( tab ); } )
+    if( idx < 0 ) return;
 
+    if( active_tab_id == tabs[idx].id ) {
+        // If the removed tab is selected, we need to select a new tab
+        var new_tab = (idx > 0 ? tabs[idx-1] : null);
+        active_tab_id = (new_tab != null ? new_tab.id : null);
+        notify_tab_selected( new_tab );
     }
+
+    tabs.splice( idx, 1 );
+    tabs_listeners.forEach( function( it, idx, arr ) { it.on_tab_removed( tab ); } )
 };

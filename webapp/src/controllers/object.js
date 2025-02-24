@@ -6,6 +6,7 @@ import * as util from '../util';
 import {
     SingleProvider,
     SearchProvider,
+    SelectionProvider,
     info_set,
     field_set
 } from '../models/providers';
@@ -14,7 +15,7 @@ import { DisplayableBase } from './displayable';
 import { get_selection } from '../models/selection';
 
 /**
- * class DisplayableObject
+ * Manages the presentation and actions of any object that is displayable.
  */
 export class DisplayableObject extends DisplayableBase
 {
@@ -27,12 +28,27 @@ export class DisplayableObject extends DisplayableBase
         this.stream_id = null;
         this.info = info;
         this.fields = fields;
+
+        this.selected_items = null;
     }
 
     is_sortable()
     {
         return this.info.type.split( ':' )[0] == 'album'
             && this.info.type != 'album:closed';
+    }
+
+    set_selected_items( items )
+    {
+        if( items.length == 0 ) {
+            this.selected_items = null;
+        } else {
+            this.selected_items = items;
+        }
+        tabs.on_event( {
+            type: 'selected_items_changed',
+            display: this,
+        } );
     }
 
     rename( name, saveold )
@@ -290,9 +306,29 @@ export class DisplayableObject extends DisplayableBase
         tabs.on_event( { type: 'info_changed', affected: [ data.original, data.duplicate ] } );
     }
 
+    change_album( subtype )
+    {
+        if( this.info.type.split( ':' )[0] != 'album') {
+            return;
+        }
+
+        var request = {
+            action:     'change_album',
+            target:     this.obj_id,
+            subtype:    subtype,
+        };
+        load_async( request, this._change_album_cb.bind( this ), {} );
+    }
+
+    _change_album_cb( data, response )
+    {
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+    }
+
     transform( xform )
     {
-        if( this.info.type != 'file') {
+        if( this.info.type.split( ':' )[0] != 'file') {
             return;
         }
 
@@ -333,6 +369,46 @@ export class DisplayableObject extends DisplayableBase
                 [ this.obj_id ] } );
     }
 
+    on_key( e )
+    {
+        switch( e.charCode ) {
+            case 116: // t
+                dialogs.show_tag_dialog( this );
+                break;
+            case 110: // n
+                dialogs.show_name_dialog( this );
+                break;
+            case 49: // 1
+            case 50: // 2
+            case 51: // 3
+            case 52: // 4
+            case 53: // 5
+            case 54: // 6
+            case 55: // 7
+            case 56: // 8
+            case 57: // 9
+                this.on_event( { type: 'push_selection', selection: e.charCode - 49 } )
+                break;
+            case 48: // 0
+                this.on_event( { type: 'push_selection', selection: 10 } )
+                break;
+            case 46: // .
+            case 62: // >
+                // Creates a selection with our selected items
+                var provider = new SelectionProvider();
+                var objs = (this.selected_items === null
+                                ? this.get_files()
+                                : this.selected_items);
+
+                provider.init_objs = [...objs];
+                tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
+
+                break;
+            default:
+                break;
+        }
+    }
+
     on_event( e )
     {
         if( e.affected && e.affected.indexOf( this.obj_id ) == -1 ) {
@@ -340,31 +416,7 @@ export class DisplayableObject extends DisplayableBase
         }
 
         if( e.type == 'key' ) {
-            switch( e.charCode ) {
-                case 116: // t
-                    dialogs.show_tag_dialog( this );
-                    break;
-                case 110: // n
-                    dialogs.show_name_dialog( this );
-                    break;
-                case 49: // 1
-                case 50: // 2
-                case 51: // 3
-                case 52: // 4
-                case 53: // 5
-                case 54: // 6
-                case 55: // 7
-                case 56: // 8
-                case 57: // 9
-                    this.on_event( { type: 'push_selection', selection: e.charCode - 49 } )
-                    break;
-                case 48: // 0
-                    this.on_event( { type: 'push_selection', selection: 10 } )
-                    break;
-                default:
-                    break;
-            }
-            return;
+            this.on_key( e );
         } else if( e.type == 'drop' ) {
             var disp = e.drop_data.get_display();
             var obj_id = e.drop_data.get_object()
@@ -489,10 +541,7 @@ export class DisplayableObject extends DisplayableBase
 
             selection.on_event( {
                 type: 'drop',
-                drop_data: util.make_basic_drop_data( this,
-                                this.obj_id,
-                                this.info.repr,
-                                this.info.type )
+                drop_data: this.get_obj_drop_data()
             } );
         }
     }
@@ -566,6 +615,15 @@ export class DisplayableObject extends DisplayableBase
     get_obj_id()
     {
         return this.obj_id;
+    }
+
+    get_obj_drop_data()
+    {
+        return util.make_basic_drop_data(
+                        this,
+                        this.obj_id,
+                        this.info.repr,
+                        this.info.type );
     }
 
     get_files()

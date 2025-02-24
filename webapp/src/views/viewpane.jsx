@@ -33,28 +33,31 @@ class TileViewPane extends React.Component
                 drop_data: drop_data,
             } );
     }
+    setSelection( selection ) {
+        this.props.display.set_selected_items( selection );
+        this.setState( { selection: selection } );
+    }
     toggleSelection( drop_data ) {
         if( this.selectionIndexOf( drop_data.get_object() ) < 0 ) {
-            this.setState( {
-                selection: this.state.selection.concat(
+            this.setSelection(
+                this.state.selection.concat(
                             [ [ drop_data.get_object(),
                                 drop_data.get_repr(),
                                 drop_data.get_type() ] ] )
-            } );
+            );
         } else {
-            this.setState( {
-                selection: this.state.selection.filter( ( it ) => {
+            this.setSelection(
+                this.state.selection.filter( ( it ) => {
                                 return it[0] != drop_data.get_object();
                             } )
-            } );
+            );
         }
     }
     toggleSelectAll() {
         if( this.state.selection.length == 0 ) {
-            var new_selection = [].concat( this.props.display.get_files() );
-            this.setState( { selection: new_selection } );
+            this.setSelection( [].concat( this.props.display.get_files() ) );
         } else {
-            this.setState( { selection: [] } );
+            this.setSelection( [] );
         }
     }
     selectUntil( drop_data ) {
@@ -98,7 +101,7 @@ class TileViewPane extends React.Component
         if( this.selectionIndexOf( files[newIdx][0] ) < 0 ) {
             new_selection = new_selection.concat( [ files[newIdx] ] );
         }
-        this.setState( { selection: new_selection } );
+        this.setSelection( new_selection );
     }
     itemClicked( e, drop_data ) {
         if( e.metaKey ) {
@@ -118,48 +121,6 @@ class TileViewPane extends React.Component
             switch( e.charCode ) {
                 case 96: // `
                     this.toggleSelectAll();
-                    break;
-                case 46: // .
-                case 62: // >
-                    var provider = new SelectionProvider();
-                    var objs = this.state.selection;
-
-                    if( objs.length == 0 ) {
-                        objs = this.props.display.get_files();
-                    }
-
-                    provider.init_objs = [...objs];
-                    tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
-
-                    if( objs.length > 0 ) {
-                        var drop_data = {
-                            view:   this,
-                            disp:   this.props.display,
-
-                            obj_id: objs[0][0],
-                            repr:   objs[0][1],
-                            type:   objs[0][2],
-
-                            files:  [...objs],
-
-                            get_display: function() { return this.disp; },
-                            get_object: function() { return this.obj_id; },
-                            get_repr:   function() { return this.repr; },
-                            get_type:   function() { return this.type; },
-
-                            get_files: function() {
-                                return this.files;
-                            },
-                        };
-
-                        this.props.display.on_event( {
-                                type: 'dropped',
-                                drop_target: provider.selection,
-                                drop_method: e.charCode == 62 ? 'move' : 'add',
-                                drop_data: drop_data
-                            } );
-                    }
-
                     break;
                 default:
                     break;

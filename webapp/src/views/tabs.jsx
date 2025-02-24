@@ -7,6 +7,7 @@ import 'jquery-ui/ui/widgets/draggable';
 import { load_async } from '../script';
 import * as dialogs from '../controllers/dialogs';
 import * as tabs from '../controllers/tabs';
+import * as displib from '../displib';
 
 import { InfoPane, NavigatePane } from './infopane';
 import { ViewPane } from './viewpane';
@@ -88,6 +89,9 @@ class DisplayTab extends React.Component
             info_gen: this.state.info_gen ? this.state.info_gen + 1 : 1,
             view_gen: this.state.view_gen ? this.state.view_gen + 1 : 1
         } );
+        this.props.data.display = display.disp;
+        this.props.data.view = display.view;
+        tabs.notify_tab_changed( this.props.data );
     }
 
     onDisplayReady( display )
@@ -463,6 +467,9 @@ export class TabsView extends React.Component
             active_key: active_tab != null ? active_tab.id : 'welcome'
         } );
     }
+
+    on_tab_changed( tab ) {}
+    on_tab_event( e ) {}
 
     render() {
         var tab_components = tabs.all_tabs().map( ( it, idx ) => (

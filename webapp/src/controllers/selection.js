@@ -2,7 +2,11 @@ import { load_async } from '../script';
 import * as dialogs from '../controllers/dialogs';
 import * as tabs from '../controllers/tabs';
 
-import { SingleProvider, ListProvider } from '../models/providers';
+import {
+    SingleProvider,
+    SelectionProvider,
+    ListProvider
+} from '../models/providers';
 
 import { DisplayableBase } from './displayable';
 
@@ -17,10 +21,25 @@ export class DisplayableSelection extends DisplayableBase
 
         this.type = 'selection';
         this.objs = [];
+
+        this.selected_items = null;
     }
 
     is_sortable()
     { return true; }
+
+    set_selected_items( items )
+    {
+        if( items.length == 0 ) {
+            this.selected_items = null;
+        } else {
+            this.selected_items = items;
+        }
+        tabs.on_event( {
+            type: 'selected_items_changed',
+            display: this,
+        } );
+    }
 
     tag( tags, callback )
     {
@@ -148,17 +167,49 @@ export class DisplayableSelection extends DisplayableBase
         this.notify_change( null );
     }
 
+    on_key( e )
+    {
+        switch( e.charCode ) {
+            case 116: // t
+                dialogs.show_tag_dialog( this );
+                break;
+            case 46: // .
+            case 62: // >
+                // Creates a new selection, copies or moves our selected items
+                var provider = new SelectionProvider();
+                var objs = (this.selected_items !== null
+                                ? this.selected_items
+                                : this.objs);
+
+                provider.init_objs = [...objs];
+                tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
+
+                if( e.charCode == 62 ) {
+                    // We've moving the selection
+                    var removed = false;
+
+                    for( var i = 0; i < objs.length; i++ ) {
+                        var index = this.find_item( objs[i][0] );
+                        if( index == -1 ) continue;
+                        this.objs.splice( index, 1 );
+                        removed = true;
+                    }
+
+                    if( removed ) {
+                        this.notify_change( null );
+                    }
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
+
     on_event( e )
     {
         if( e.type == 'key' ) {
-            switch( e.charCode ) {
-                case 116: // t
-                    dialogs.show_tag_dialog( this );
-                    break;
-                default:
-                    break;
-            }
-            return;
+            this.on_key( e );
         } else if( e.type == 'drop' ) {
             var disp = e.drop_data.get_display();
             var files = e.drop_data.get_files();
