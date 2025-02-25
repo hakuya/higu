@@ -329,7 +329,9 @@ class Obj( SessionObject ):
                         self.session.model.query( model.Object.object_id )
                             .filter( or_(
                                 model.Object.object_type == model.ObjectType.ALBUM_FORMAL.value,
-                                model.Object.object_type == model.ObjectType.ALBUM_CLOSED.value
+                                model.Object.object_type == model.ObjectType.ALBUM_CLOSED.value,
+                                model.Object.object_type == model.ObjectType.IMPORT_OPEN.value,
+                                model.Object.object_type == model.ObjectType.IMPORT_CLOSED.value
                             ) ) ) )
         # And, for which the parent is not also a parent of our parent
         q = q.filter( ~self.session.model.query( r_i )
@@ -352,7 +354,9 @@ class Obj( SessionObject ):
                         self.session.model.query( model.Object.object_id )
                             .filter( or_(
                                 model.Object.object_type == model.ObjectType.ALBUM_FORMAL.value,
-                                model.Object.object_type == model.ObjectType.ALBUM_CLOSED.value
+                                model.Object.object_type == model.ObjectType.ALBUM_CLOSED.value,
+                                model.Object.object_type == model.ObjectType.IMPORT_OPEN.value,
+                                model.Object.object_type == model.ObjectType.IMPORT_CLOSED.value
                             ) ) ) )
         # Delete these
         q.delete( synchronize_session = 'fetch' )

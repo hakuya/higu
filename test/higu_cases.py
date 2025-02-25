@@ -967,10 +967,24 @@ class HiguLibCases( testutil.TestCase ):
             formal = h.create_album()
             closed = h.create_album()
 
+            im_open = h.start_import()
+            im_closed = h.start_import()
+
             ro = h.register_file( red, False )
             yo = h.register_file( yellow, False )
             go = h.register_file( green, False )
             bo = h.register_file( blue, False )
+
+            ro.assign( im_open )
+            yo.assign( im_open )
+            go.assign( im_open )
+            bo.assign( im_open )
+
+            ro.assign( im_closed )
+            yo.assign( im_closed )
+            go.assign( im_closed )
+            bo.assign( im_closed )
+            im_closed.close_import()
 
             yo.assign( free, 2 )
             bo.assign( free, 3 )
@@ -997,6 +1011,20 @@ class HiguLibCases( testutil.TestCase ):
             files = closed.get_files()
             self.assertEqual( len( files ), 1, 'Closed size mismatch' )
             self.assertEqual( files[0], yo, 'Yellow not in closed album' )
+
+            files = im_open.get_files()
+            self.assertEqual( len( files ), 4, 'Import size mismatch' )
+            self.assertEqual( files[0], ro, 'Red not first in import' )
+            self.assertEqual( files[1], yo, 'yellow not second in import' )
+            self.assertEqual( files[2], go, 'Green not third in import' )
+            self.assertEqual( files[3], bo, 'Blue not fourth in import' )
+
+            files = im_closed.get_files()
+            self.assertEqual( len( files ), 4, 'Import size mismatch' )
+            self.assertEqual( files[0], ro, 'Red not first in import' )
+            self.assertEqual( files[1], yo, 'yellow not second in import' )
+            self.assertEqual( files[2], go, 'Green not third in import' )
+            self.assertEqual( files[3], bo, 'Blue not fourth in import' )
 
     def test_add_duplicate_to_free( self ):
 

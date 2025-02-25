@@ -229,6 +229,9 @@ class BulkDivide( BulkOperation ):
             else:
                 group = re.match( self._pattern, name ).group( 0 )
 
+                if( self._subset_pattern is not None ):
+                    group = re.sub( self._pattern, self._subset_pattern, group )
+
             if( group not in group_map ):
                 groups.append( group )
                 group_map[group] = []
@@ -251,12 +254,7 @@ class BulkDivide( BulkOperation ):
         if( len( groups ) <= 1 ):
             return
 
-        for g in groups:
-            if( self._subset_pattern is not None ):
-                gname = re.sub( self._pattern, self._subset_pattern, g )
-            else:
-                gname = g
-
+        for gname in groups:
             if( self._commit ):
                 alb = self._db.create_album( [], gname )
             else:
@@ -275,7 +273,7 @@ class BulkDivide( BulkOperation ):
 
                 self._modified( it, f'Attached {subset_alb_log}' )
 
-            for member in group_map[g]:
+            for member in group_map[gname]:
                 if( self._commit ):
                     member.assign( alb )
                     if( self._inplace ):
