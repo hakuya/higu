@@ -204,9 +204,9 @@ class JsonInterface:
 
         if( 'creation_time' in items ):
             if( stream is not None ):
-                creation_ts = stream.get_creation_time()
+                creation_ts = stream.get_add_time()
             else:
-                creation_ts = target.get_creation_time()
+                creation_ts = target.get_add_time()
             if( creation_ts is not None ):
                 info['creation_time'] = creation_ts.strftime( '%Y/%m/%d %H:%M:%S' )
             else:
@@ -652,31 +652,6 @@ class JsonInterface:
             obj.assign( t )
             for f in files:
                 f.unassign( t )
-
-        return json_ok()
-
-    def cmd_set_creation( self, target ):
-
-        db = self.__db
-
-        obj = db.get_object_by_id( target )
-
-        if( isinstance( obj, hdbfs.Album ) ):
-            files = obj.get_items()
-
-        else:
-            assert False
-
-        min_ts = None
-
-        for f in files:
-            f_ts = f.get_creation_time()
-            if( f_ts is not None
-            and (min_ts is None or f_ts < min_ts) ):
-                min_ts = f_ts
-
-        if( min_ts is not None ):
-            obj.set_creation_time( min_ts )
 
         return json_ok()
 

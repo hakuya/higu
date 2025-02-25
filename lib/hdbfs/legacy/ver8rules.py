@@ -813,3 +813,70 @@ def upgrade_from_14_1_to_15( log, session ):
     session.execute( 'DROP TABLE temp_obj_new_types' )
 
     return 15, 0
+
+def upgrade_from_15_to_16( log, session ):
+
+    # In version 16, the objects.create_ts column was renamed to add_ts and the
+    # relations table also gained instance and add_ts columns
+
+    # First deal with the easy stuff
+    session.execute(
+        'ALTER TABLE objects\n'
+        'RENAME COLUMN create_ts TO add_ts' )
+
+    # The relations table is changing its primary key and adding a column that
+    # isn't nullable, so we'll create a new one shuffle the data in there and
+    # swap it back
+    session.execute(
+        'CREATE TABLE relations_new (\n'
+            'child_id          INTEGER NOT NULL,\n'
+            'parent_id         INTEGER NOT NULL,\n'
+            'instance          INTEGER NOT NULL,\n'
+            'add_ts            INTEGER NOT NULL,\n'
+            'sort              INTEGER,\n'
+            'child_name        TEXT,\n'
+            'PRIMARY KEY ( child_id, parent_id, sort ),\n'
+            'FOREIGN KEY ( child_id ) '
+                'REFERENCES objects( object_id ),\n'
+            'FOREIGN KEY ( parent_id ) '
+                'REFERENCES objects( object_id )\n'
+        ')\n' )
+
+    # Now the big query
+    session.execute(
+        'INSERT INTO relations_new (\n'
+            'child_id,\n'
+            'parent_id,\n'
+            'instance,\n'
+            'add_ts,\n'
+            'sort,\n'
+            'child_name\n'
+        ') SELECT\n'
+            'r.child_id,\n'
+            'r.parent_id,\n'
+            '0,\n'
+            'CASE\n'
+                'WHEN c.add_ts > p.add_ts THEN c.add_ts\n'
+                'ELSE p.add_ts\n'
+            'END AS add_ts,\n'
+            'r.sort,\n'
+            'r.child_name\n'
+        'FROM relations r\n'
+        'INNER JOIN objects c ON c.object_id = r.child_id\n'
+        'INNER JOIN objects p ON p.object_id = r.parent_id' )
+
+    # Now drop the old relations table
+    session.execute( 'DROP INDEX Relation_sort_child_id' )
+    session.execute( 'DROP INDEX Relation_parent_id' )
+    session.execute( 'DROP TABLE relations' )
+
+    # And swap the new one back in
+    session.execute( 'ALTER TABLE relations_new RENAME TO relations' )
+    session.execute(
+        'CREATE INDEX Relation_sort_child_id\n'
+        'ON relations ( sort, child_id )' )
+    session.execute(
+        'CREATE INDEX Relation_parent_id\n'
+        'ON relations ( parent_id )' )
+
+    return 16, 0

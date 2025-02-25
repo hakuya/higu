@@ -39,19 +39,24 @@ class Stream( SessionObject ):
         return self.stream.priority
 
     @SessionObject._with_access()
-    def get_creation_time( self ):
+    def get_add_timestamp( self ) -> int:
+        '''Gets the numeric timestamp this stream was added to the database'''
 
         create_log = self.stream.log_entries \
                         .order_by( model.StreamLog.timestamp ).first()
-        return datetime.datetime.fromtimestamp( create_log.timestamp )
+        return create_log.timestamp
 
-    @SessionObject._with_access()
-    def get_creation_time_utc( self ):
+    def get_add_time( self ) -> datetime.datetime:
+        '''Gets the time this stream was added to the database'''
 
-        create_log = self.stream.log_entries \
-                        .order_by( model.StreamLog.timestamp ).first()
+        return datetime.datetime.fromtimestamp( self.get_add_timestamp() )
+
+    def get_add_time_utc( self ):
+        '''Gets the time this stream was added to the database in UTC'''
+
         return datetime.datetime.fromtimestamp(
-                    create_log.timestamp, datetime.timezone.utc )
+                    self.get_add_timestamp(),
+                    datetime.timezone.utc )
 
     @SessionObject._with_access()
     def get_origin_stream( self ):
@@ -209,7 +214,7 @@ class Obj( SessionObject ):
 
         obj_type_values = self.__build_obj_type_values( obj_type )
 
-        objs = [ obj for obj in self.obj.parents if obj.object_type in obj_type_values ]
+        objs = list( set( [ obj for obj in self.obj.parents if obj.object_type in obj_type_values ] ) )
         if( limit is not None and len( objs ) > limit ):
             objs = objs[:limit]
         return list( map( lambda x: self.session._construct_session_object( x ), objs ) )
@@ -228,15 +233,29 @@ class Obj( SessionObject ):
         return list( map( lambda x: self.session._construct_session_object( x ), objs ) )
 
     @SessionObject._with_access()
-    def get_creation_time( self ):
+    def get_add_timestamp( self, group: Optional['Obj'] = None ) -> int:
+        '''Gets the numeric timestamp when this object was added to the database
+        '''
 
-        return datetime.datetime.fromtimestamp( self.obj.create_ts )
+        if( group is not None ):
+            rel = self.session.model.query( model.Relation ) \
+                    .filter( model.Relation.parent_id == group.obj.object_id ) \
+                    .filter( model.Relation.child_id == self.obj.object_id ).first()
+            assert rel is not None
+            return rel.add_ts
 
-    @SessionObject._with_access()
-    def get_creation_time_utc( self ):
+        return self.obj.add_ts
+
+    def get_add_time( self, group: Optional['Obj'] = None ) -> datetime.datetime:
+        '''Gets the time when this object was added to the database'''
+
+        return datetime.datetime.fromtimestamp( self.get_add_timestamp( group ) )
+
+    def get_add_time_utc( self, group: Optional['Obj'] = None ) -> datetime.datetime:
+        '''Gets the time when this object was added to the database in UTC'''
 
         return datetime.datetime.fromtimestamp(
-                    self.obj.create_ts,
+                    self.get_add_timestamp( group ),
                     datetime.timezone.utc )
 
     def get_member_of( self ) -> List['hdbfs.Album']:
@@ -392,19 +411,46 @@ class Obj( SessionObject ):
                 ]
 
         # Fetch an existing relation
-        rel = self.session.model.query( model.Relation ) \
+        rels = [r for r in self.session.model.query( model.Relation ) \
                 .filter( model.Relation.parent_id == parent.obj.object_id ) \
-                .filter( model.Relation.child_id == self.obj.object_id ).first()
+                .filter( model.Relation.child_id == self.obj.object_id )]
 
         # Loops aren't permitted, so reverse a relation if we get into that case
-        if( rel is None ):
-            rel = self.session.model.query( model.Relation ) \
-                    .filter( model.Relation.child_id == parent.obj.object_id ) \
-                    .filter( model.Relation.parent_id == self.obj.object_id ).first()
+        rrels = [r for r in self.session.model.query( model.Relation ) \
+                .filter( model.Relation.child_id == parent.obj.object_id ) \
+                .filter( model.Relation.parent_id == self.obj.object_id )]
 
-            if( rel is not None ):
-                rel.parent_obj = parent.obj
-                rel.child_obj = self.obj
+        assert rels == [] or rrels == []
+        rel = None
+
+        if( rrels != [] ):
+            # Need to reverse the relationship
+            assert len( rrels ) == 1
+            rel = rrels[0]
+
+            rel.parent_obj = parent.obj
+            rel.child_obj = self.obj
+
+        elif( rels != [] ):
+
+            if( parent.obj.get_type() in [
+                        model.ObjectType.ALBUM_FORMAL,
+                        model.ObjectType.IMPORT_OPEN,
+                    ] ):
+
+                # Poly linking allowed, though see if we're being sloted to
+                # an existing position
+                for r in rels:
+                    if( r.sort == order ):
+                        rel = r
+                        break
+
+                # Otherwise leave null to add another instance
+
+            else:
+                # Poly linking not allowed
+                assert len( rels ) == 1
+                rel = rels[0]
 
         if( is_duplicate is not None ):
             # Duplicates are allowed only on files
@@ -414,9 +460,16 @@ class Obj( SessionObject ):
                 self.__assign_duplicate( parent, rel )
 
         if( rel is None ):
+            # Make sure we have a unique instance number for poly linking
+            instance = 0
+            for r in rels:
+                instance = max( instance, r.instance + 1 )
+
             rel = model.Relation()
             rel.parent_obj = parent.obj
             rel.child_obj = self.obj
+            rel.instance = instance
+            self.session.model.add( rel )
 
         if( order is not None ):
             rel.sort = order

@@ -233,7 +233,7 @@ class HiguLibCases( testutil.TestCase ):
             timestamp = datetime.datetime.fromtimestamp(
                                 TIMESTAMP, datetime.timezone.utc )
 
-            self.assertEqual( obj.get_creation_time_utc(), timestamp,
+            self.assertEqual( obj.get_add_time_utc(), timestamp,
                     'Unexpected timestamp' )
 
     def test_double_add( self ):
@@ -1038,6 +1038,58 @@ class HiguLibCases( testutil.TestCase ):
             files = alb.get_files()
             self.assertEqual( len( files ), 1, 'Album size mismatch' )
             self.assertEqual( files[0], yo, 'Yellow not in formal album' )
+
+    def test_formal_poly_add( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            alb = h.create_album()
+            alb.make_formal_album()
+
+            ro = h.register_file( red, False )
+            yo = h.register_file( yellow, False )
+
+            ro.assign( alb, order = 0 )
+            yo.assign( alb, order = 1 )
+            ro.assign( alb, order = 2 )
+
+            files = alb.get_files()
+            self.assertEqual( len( files ), 3, 'Album size mismatch' )
+
+            self.assertEqual( files[0], ro, 'Red not in formal album, pos 0' )
+            self.assertEqual( files[1], yo, 'Yellow not in formal album, pos 1' )
+            self.assertEqual( files[2], ro, 'Red not in formal album, pos 2' )
+
+            par = ro.get_member_of()
+            self.assertEqual( len( par ), 1, 'Multiple parents for red' )
+
+    def test_make_formal_w_poly_free( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            alb = h.create_album()
+            alb.make_formal_album()
+
+            ro = h.register_file( red, False )
+            yo = h.register_file( yellow, False )
+
+            ro.assign( alb, order = 0 )
+            yo.assign( alb, order = 1 )
+            ro.assign( alb, order = 2 )
+
+            try:
+                alb.make_free_album()
+                self.fail( 'Succeeded converting poly to free' )
+            except:
+                pass
 
     def test_tags_moved( self ):
 

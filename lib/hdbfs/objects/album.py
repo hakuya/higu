@@ -58,6 +58,9 @@ class Album( OrderedGroup ):
             assert len( [f for f in self.get_files()
                     if f.obj.get_type() == model.ObjectType.DUPLICATE] ) == 0
 
+            for rel in self.obj.child_rel:
+                assert rel.instance == 0
+
             self.obj.set_type( model.ObjectType.ALBUM_FREE )
 
         else:

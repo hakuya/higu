@@ -230,6 +230,7 @@ class Database( Session ):
             rel_copy = model.Relation( rel.sort )
             rel_copy.parent_obj = d
             rel_copy.child_obj = rel.child_obj
+            self.model.add( rel_copy )
 
     def __recover_file( self, path ):
 
@@ -308,7 +309,7 @@ class Database( Session ):
             assert c.get_type().get_class() == model.ObjectClass.FILE
 
         if( album_obj is not None ):
-            album_obj.create_ts = import_obj.create_ts
+            album_obj.add_ts = import_obj.add_ts
             self.model.add( album_obj )
             self.model.flush()
 

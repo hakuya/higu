@@ -9,6 +9,9 @@ import hdbfs
 
 from typing import Optional
 
+BASE_TIMESTAMP = 1740448453
+LEGACY_TIMEDELTA = datetime.timedelta( minutes = 10 )
+
 class LegacyCases( testutil.TestCase ):
 
     def setUp( self ):
@@ -119,10 +122,15 @@ class LegacyCases( testutil.TestCase ):
 
         now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
-            self.assertTrue( now - f.get_creation_time_utc()
-                           < datetime.timedelta( minutes = 10 ),
-                    'Unexpected timestamp in file, %r' % (
-                        f.get_creation_time_utc(), ) )
+            if( ver[0] < 15 ):
+                self.assertTrue( now - f.get_add_time_utc()
+                                < LEGACY_TIMEDELTA,
+                        'Unexpected timestamp in file, %r' % (
+                                f.get_add_time_utc(), ) )
+            else:
+                offset = f.get_add_timestamp() - BASE_TIMESTAMP
+                self.assertTrue( offset in [ 0, 5, 50 ],
+                        f'Unexpected timestamp in file, {offset}' )
 
     def subtest_ensure_streams_have_timestamp( self, ver ):
 
@@ -133,10 +141,85 @@ class LegacyCases( testutil.TestCase ):
         now = datetime.datetime.now( datetime.timezone.utc )
         for f in files:
             for s in f.get_streams():
-                self.assertTrue( now - s.get_creation_time_utc()
-                               < datetime.timedelta( minutes = 5 ),
-                        'Unexpected timestamp in file, %r' % (
-                            s.get_creation_time_utc(), ) )
+                if( ver[0] < 15 ):
+                     self.assertTrue( now - s.get_add_time_utc()
+                                    < LEGACY_TIMEDELTA,
+                             'Unexpected timestamp in file, %r' % (
+                                 s.get_add_time_utc(), ) )
+                else:
+                     offset = f.get_add_timestamp() - BASE_TIMESTAMP
+                     self.assertTrue( offset in [ 0, 5, 50 ],
+                             f'Unexpected timestamp in file, {offset}' )
+
+    def subtest_ensure_relations_have_timestamps( self, ver ):
+
+        h = hdbfs.Database()
+
+        def check_timestamp_old( f, al ):
+
+            now = datetime.datetime.now( datetime.timezone.utc )
+            self.assertTrue( now - f.get_add_time_utc( al )
+                            < LEGACY_TIMEDELTA,
+                    f'Unexpected timestamp in relation, {f.get_add_time_utc()}' )
+
+        def check_timestamp_new( f, al, offset ):
+
+            calc = f.get_add_timestamp( al ) - BASE_TIMESTAMP
+
+            self.assertEqual( offset, calc,
+                    f'Unexpected timestamp in relation, {calc}' )
+
+        if( ver[0] < 2 ):
+            cl_al = self._single( h, type = hdbfs.ObjectType.ALBUM_FREE )
+
+            for f in cl_al.get_files():
+                check_timestamp_old( f, cl_al )
+
+        elif( ver[0] < 15 ):
+            cl_al = self._single( h, [ 'colour_album'] )
+            bw_al = self._single( h, [ 'white_blue_album'] )
+
+            for f in cl_al.get_files():
+                check_timestamp_old( f, cl_al )
+
+            for f in bw_al.get_files():
+                check_timestamp_old( f, bw_al )
+
+        elif( ver[0] < 16 ):
+            # Relations didn't have timestamps, so the relation timestamps
+            # were set by the migration and defined by the timestamp of the
+            # newest object in the relation
+            cl_al = self._single( h, [ 'colour_album'] )
+            bw_al = self._single( h, [ 'white_blue_album'] )
+
+            cl_f = cl_al.get_files()
+            check_timestamp_new( cl_f[0], cl_al, 50 )
+            check_timestamp_new( cl_f[1], cl_al, 30 )
+            check_timestamp_new( cl_f[2], cl_al, 30 )
+            check_timestamp_new( cl_f[3], cl_al, 30 )
+            check_timestamp_new( cl_f[4], cl_al, 30 )
+            check_timestamp_new( cl_f[5], cl_al, 30 )
+
+            bw_f = bw_al.get_files()
+            check_timestamp_new( bw_f[0], bw_al, 45 )
+            check_timestamp_new( bw_f[1], bw_al, 50 )
+
+        else:
+            # Relations have timestamps
+            cl_al = self._single( h, [ 'colour_album'] )
+            bw_al = self._single( h, [ 'white_blue_album'] )
+
+            cl_f = cl_al.get_files()
+            check_timestamp_new( cl_f[0], cl_al, 55 )
+            check_timestamp_new( cl_f[1], cl_al, 35 )
+            check_timestamp_new( cl_f[2], cl_al, 35 )
+            check_timestamp_new( cl_f[3], cl_al, 30 )
+            check_timestamp_new( cl_f[4], cl_al, 30 )
+            check_timestamp_new( cl_f[5], cl_al, 30 )
+
+            bw_f = bw_al.get_files()
+            check_timestamp_new( bw_f[0], bw_al, 45 )
+            check_timestamp_new( bw_f[1], bw_al, 55 )
 
     def subtest_check_tagging( self, ver ):
 

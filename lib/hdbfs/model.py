@@ -90,7 +90,7 @@ class StreamPriority( Enum ):
     NORMAL     = 2000
     PRIORITY   = 3000
 
-VERSION = 15
+VERSION = 16
 REVISION = 0
 
 IMGDB_VERSION = 1
@@ -150,18 +150,22 @@ class DatabaseInfo( Base ):
 class Relation( Base ):
     __tablename__ = 'relations'
     __table_args__ = (
-        PrimaryKeyConstraint( 'child_id', 'parent_id' ),
+        PrimaryKeyConstraint( 'child_id', 'parent_id', 'instance' ),
         Index( 'Relation_sort_child_id', 'sort', 'child_id' ),
-        Index( "Relation_parent_id", 'parent_id' )
+        Index( 'Relation_parent_id', 'parent_id' )
     )
 
     child_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
     parent_id = Column( Integer, ForeignKey( 'objects.object_id' ), primary_key = True )
+    instance = Column( Integer, primary_key = True )
+    add_ts = Column( Integer, nullable = False )
     sort = Column( Integer )
     child_name = Column( Text )
 
     def __init__( self, sort = None ):
 
+        self.instance = 0
+        self.add_ts = get_timestamp()
         self.sort = sort
 
     def __repr__( self ):
@@ -174,7 +178,7 @@ class Object( Base ):
 
     object_id = Column( Integer, primary_key = True )
     object_type = Column( Integer, nullable = False )
-    create_ts = Column( Integer, nullable = False )
+    add_ts = Column( Integer, nullable = False )
     name = Column( Text )
 
     # use_alter is required here to avoid circular dependency
@@ -206,7 +210,7 @@ class Object( Base ):
 
         self.object_type = object_type.value
         self.name = name
-        self.create_ts = get_timestamp()
+        self.add_ts = get_timestamp()
 
     def get_type( self ) -> ObjectType:
 
@@ -264,10 +268,10 @@ class Object( Base ):
 
     def __repr__( self ):
 
-        return 'Object( {id}, {type}, {create_ts}, {name} )'.format(
+        return 'Object( {id}, {type}, {add_ts}, {name} )'.format(
                     id = self.object_id,
                     type = self.object_type,
-                    create_ts = time.gmtime( self.create_ts ),
+                    add_ts = time.gmtime( self.add_ts ),
                     name = self.name )
 
 class Stream( Base ):
