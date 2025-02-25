@@ -218,24 +218,23 @@ class HiguLibCases( testutil.TestCase ):
 
     def test_timestamp( self ):
 
+        TIMESTAMP = 1740448453
+
         blue = self._load_data( self.blue )
 
         with hdbfs.Database() as h:
             h.enable_write_access()
 
+            hdbfs.model.debug_set_timestamp( TIMESTAMP )
             obj_id = h.register_file( blue, False ).get_id()
-
-            time.sleep( 5 )
             obj = h.get_object_by_id( obj_id )
+            hdbfs.model.debug_set_timestamp( None )
 
-            now = datetime.datetime.now( datetime.timezone.utc )
-            d_5sec = datetime.timedelta( seconds = 5 )
-            d_10sec = datetime.timedelta( seconds = 10 )
+            timestamp = datetime.datetime.fromtimestamp(
+                                TIMESTAMP, datetime.timezone.utc )
 
-            self.assertTrue( now - obj.get_creation_time_utc() < d_10sec,
-                    'Unexpected timestamp > 10secs away' )
-            self.assertTrue( now - obj.get_creation_time_utc() > d_5sec,
-                    'Unexpected timestamp < 5secs away' )
+            self.assertEqual( obj.get_creation_time_utc(), timestamp,
+                    'Unexpected timestamp' )
 
     def test_double_add( self ):
 

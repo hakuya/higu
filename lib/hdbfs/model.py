@@ -12,6 +12,21 @@ import time
 from typing import Optional, List
 from enum import Enum
 
+_DEBUG_TIME_OVERRIDE = None
+
+def get_timestamp() -> int:
+    global _DEBUG_TIME_OVERRIDE
+
+    if( _DEBUG_TIME_OVERRIDE is None ):
+        return calendar.timegm(time.gmtime())
+    else:
+        return _DEBUG_TIME_OVERRIDE
+
+def debug_set_timestamp( timestamp: Optional[int] = None ) -> None:
+    global _DEBUG_TIME_OVERRIDE
+
+    _DEBUG_TIME_OVERRIDE = timestamp
+
 class ObjectClass( Enum ):
 
     NILL        = 0
@@ -191,7 +206,7 @@ class Object( Base ):
 
         self.object_type = object_type.value
         self.name = name
-        self.create_ts = calendar.timegm(time.gmtime())
+        self.create_ts = get_timestamp()
 
     def get_type( self ) -> ObjectType:
 
@@ -364,7 +379,7 @@ class StreamLog( Base ):
                   origin_stream, origin_name ):
 
         self.stream = stream
-        self.timestamp = calendar.timegm(time.gmtime())
+        self.timestamp = get_timestamp()
         self.origin_method = origin_method
         self.origin_stream = origin_stream
         self.origin_name = origin_name
