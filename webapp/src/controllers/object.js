@@ -139,10 +139,10 @@ export class DisplayableObject extends DisplayableBase
 
     reorder( drop_data, idx )
     {
-        var files = drop_data.get_files()
+        var files = drop_data.get_files();
 
-        var src_idxs = []
-        var src_objs = []
+        var src_idxs = [];
+        var src_objs = [];
 
         for( var i = 0; i < files.length; i++ ) {
             var src_idx = this.find_item( files[i][0] );
@@ -154,12 +154,12 @@ export class DisplayableObject extends DisplayableBase
             src_idxs.push( src_idx );
         }
 
-        src_idxs.sort();
+        src_idxs.sort( ( a, b ) => ( a - b ) );
         for( var i = 0; i < src_idxs.length; i++ ) {
             src_objs.push( this.info.files[src_idxs[i]] )
         }
 
-        var output = []
+        var output = [];
         for( var i = 0; i < this.info.files.length; i++ ) {
             if( i == idx ) {
                 for( var j = 0; j < src_objs.length; j++ ) {
