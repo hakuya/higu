@@ -415,13 +415,16 @@ class Query:
         elif( cmd[0] == 'type' ):
 
             TYPE_MAP = {
-                'file'         : hdbfs.ObjectClass.FILE,
-                'file:nodup'   : hdbfs.ObjectType.FILE,
-                'file:dup'     : hdbfs.ObjectType.DUPLICATE,
-                'album'        : hdbfs.ObjectClass.ALBUM,
-                'album:free'   : hdbfs.ObjectType.ALBUM_FREE,
-                'album:formal' : hdbfs.ObjectType.ALBUM_FREE,
-                'album:closed' : hdbfs.ObjectType.ALBUM_CLOSED,
+                'file'          : hdbfs.ObjectClass.FILE,
+                'file:nodup'    : hdbfs.ObjectType.FILE,
+                'file:dup'      : hdbfs.ObjectType.DUPLICATE,
+                'album'         : hdbfs.ObjectClass.ALBUM,
+                'album:free'    : hdbfs.ObjectType.ALBUM_FREE,
+                'album:formal'  : hdbfs.ObjectType.ALBUM_FREE,
+                'album:closed'  : hdbfs.ObjectType.ALBUM_CLOSED,
+                'import'        : hdbfs.ObjectClass.IMPORT,
+                'import:open'   : hdbfs.ObjectType.IMPORT_OPEN,
+                'import:closed' : hdbfs.ObjectType.IMPORT_CLOSED,
             }
 
             if( len( cmd ) < 2 ):
