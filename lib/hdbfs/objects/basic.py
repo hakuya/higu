@@ -539,12 +539,15 @@ class Obj( SessionObject ):
         return rel.sort
 
     @SessionObject._with_access()
-    def get_name( self, group = None ) -> Optional[str]:
+    def get_name( self, group = None, index = None ) -> Optional[str]:
 
         if( group is not None ):
-            rel = self.session.model.query( model.Relation ) \
+            q = self.session.model.query( model.Relation ) \
                     .filter( model.Relation.parent_id == group.obj.object_id ) \
-                    .filter( model.Relation.child_id == self.obj.object_id ).first()
+                    .filter( model.Relation.child_id == self.obj.object_id )
+            if( index is not None ):
+                q = q.filter( model.Relation.sort == index )
+            rel = q.first()
             if( rel is not None and rel.child_name is not None ):
                 return rel.child_name
 

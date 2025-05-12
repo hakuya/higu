@@ -264,11 +264,23 @@ class Database( Session ):
                 pass
 
     @Session._with_access( write = True )
-    def create_album( self, tags = [], name = None, text = None ) -> hdbfs.Album:
+    def create_album( self,
+                tags = [],
+                name = None,
+                text = None,
+                from_import : Optional[hdbfs.Import] = None
+            ) -> hdbfs.Album:
 
-        album = model.Object( model.ObjectType.ALBUM_FREE )
-        self.model.add( album )
-        album = self._construct_session_object( album )
+        model_album = model.Object( model.ObjectType.ALBUM_FREE )
+        self.model.add( model_album )
+
+        album = self._construct_session_object( model_album )
+        assert isinstance( album, hdbfs.Album )
+
+        if( name is None and from_import is not None ):
+            name = from_import.get_name()
+        if( text is None and from_import is not None ):
+            text = from_import['text']
 
         if( name is not None ):
             album.obj.name = name
@@ -278,6 +290,12 @@ class Database( Session ):
 
         for t in tags:
             album.assign( t, None )
+
+        if( from_import is not None ):
+            album.make_formal_album()
+            for it, f in enumerate( from_import.get_files() ):
+                f.assign( album, it, f.get_name( from_import, it ) )
+            album.close_album()
 
         return album
 

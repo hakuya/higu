@@ -403,6 +403,16 @@ export class ActionsGroup extends React.Component
         );
     }
 
+    renderImportContext() {
+        return (
+            <div id='editmenu'>
+                <DropdownButton size='sm' align='end' title='Edit'>
+                    <MakeAlbumAction display={ this.state.display }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
     renderSelectionContext() {
         return (
             <div id='editmenu'>
@@ -434,6 +444,8 @@ export class ActionsGroup extends React.Component
                     return this.renderFileContext();
                 } else if( obj_type == 'album' ) {
                     return this.renderAlbumContext();
+                } else if( obj_type == 'import' ) {
+                    return this.renderImportContext();
                 }
             } else if( this.state.display.type == 'selection' ) {
                 return this.renderSelectionContext();

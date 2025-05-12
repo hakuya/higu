@@ -96,6 +96,33 @@ export class DisplayableObject extends DisplayableBase
         }
     }
 
+    make_group()
+    {
+        if( this.info.type.split( ':' )[0] != 'import' ) {
+            alert( 'Can only create album from import' );
+            return;
+        }
+
+        var targets = this.obj_id_list();
+        var request = {
+            action:      'group_create',
+            from_import: this.obj_id,
+        };
+
+        load_async(
+                request,
+                this._make_group_cb.bind( this ),
+                {}
+            );
+    }
+
+    _make_group_cb( data, response )
+    {
+        var provider = new SingleProvider( response.group );
+        tabs.create_display_tab( 'New Album', provider );
+        tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
+    }
+
     rm_group()
     {
         var request = {

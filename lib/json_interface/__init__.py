@@ -578,19 +578,32 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_create( self, targets ):
+    def cmd_group_create( self, targets = None, from_import = None ):
 
         db = self.__db
 
-        targets = list( map( db.get_object_by_id, targets ) )
+        if( targets is not None ):
+            targets = list( map( db.get_object_by_id, targets ) )
 
-        group = db.create_album()
-        assert( isinstance( group, hdbfs.Album ) )
+            group = db.create_album()
+            assert( isinstance( group, hdbfs.Album ) )
 
-        for target in targets:
-            target.assign( group )
+            for target in targets:
+                target.assign( group )
 
-        return json_ok( group = group.get_id() )
+            return json_ok( group = group.get_id() )
+
+        elif( from_import is not None ):
+            imp = db.get_object_by_id( from_import )
+            assert( isinstance( imp, hdbfs.Import ) )
+
+            group = db.create_album( from_import = imp )
+            assert( isinstance( group, hdbfs.Album ) )
+
+            return json_ok( group = group.get_id() )
+
+        else:
+            return json_err( 'argument', 'must specify targets or from_import' )
 
     def cmd_group_delete( self, group ):
 

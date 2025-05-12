@@ -1367,5 +1367,41 @@ class HiguLibCases( testutil.TestCase ):
             self.assertTrue( alb in wo.get_member_of(), 'Duplicate not in white albums' )
             self.assertTrue( alb in ko.get_member_of(), 'Duplicate not in black albums' )
 
+    def test_album_from_import( self ):
+
+        white = self._load_data( self.white )
+        black = self._load_data( self.black )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            wo = h.register_file( white )
+            ko = h.register_file( black )
+
+            imp = h.start_import( name = 'test_import', text = 'test_text' )
+
+            wo.assign( imp, 0 )
+            wo.assign( imp, 1, name = 'not_white.png' )
+            ko.assign( imp, 2 )
+
+            imp.close_import()
+
+            alb = h.create_album( from_import = imp )
+
+            self.assertEqual( alb.get_name(), 'test_import',
+                    'Album name from import mismatch' )
+            self.assertEqual( alb['text'], 'test_text',
+                    'Album text from import mismatch' )
+
+            files = alb.get_files()
+            self.assertEqual( len( files ), 3,
+                    'Unexpected number of files' )
+            for idx, a, b in zip( range( 3 ), files, [ wo, wo, ko ] ):
+                self.assertEqual( a.get_id(), b.get_id(),
+                        f'Incorrect file returned at idx={idx}: {a} {b}' )
+            for idx, a, name in zip( range( 3 ), files, [ wo.get_name(), 'not_white.png', ko.get_name() ] ):
+                self.assertEqual( a.get_name( alb, idx ), name,
+                        f'Incorrect name returned at idx={idx}: {a} {name}' )
+
 if( __name__ == '__main__' ):
     unittest.main()
