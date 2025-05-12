@@ -591,7 +591,7 @@ class JsonInterface:
             for target in targets:
                 target.assign( group )
 
-            return json_ok( group = group.get_id() )
+            return json_ok( group = make_obj_tuple( group ) )
 
         elif( from_import is not None ):
             imp = db.get_object_by_id( from_import )

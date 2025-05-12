@@ -11,7 +11,7 @@ import {
 import { DisplayableBase } from './displayable';
 
 /**
- * class DisplayableSelection
+ * Controller for displaying selections.
  */
 export class DisplayableSelection extends DisplayableBase
 {
@@ -22,6 +22,9 @@ export class DisplayableSelection extends DisplayableBase
         this.type = 'selection';
         this.objs = [];
 
+        /**
+         * List of object tuples for the items which are selected.
+         */
         this.selected_items = null;
     }
 
@@ -69,19 +72,56 @@ export class DisplayableSelection extends DisplayableBase
         }
     }
 
+    make_selection( extract = false )
+    {
+        // Creates a new selection, copies or moves our selected items
+        var provider = new SelectionProvider();
+        var objs = (this.selected_items !== null
+                        ? this.selected_items
+                        : this.objs);
+
+        provider.init_objs = [...objs];
+        tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
+
+        if( extract ) {
+            // We've moving the selection
+            var removed = false;
+
+            for( var i = 0; i < objs.length; i++ ) {
+                var index = this.find_item( objs[i][0] );
+                if( index == -1 ) continue;
+                this.objs.splice( index, 1 );
+                removed = true;
+            }
+
+            if( removed ) {
+                this.notify_change( null );
+            }
+        }
+    }
+
     make_group()
     {
         if( this.objs.length == 0 ) {
-            alert( 'No objects selected' );
+            alert( 'No objects in this selection' );
             return;
         }
 
+        // By default, create an album from the whole selection
         var targets = this.obj_id_list();
+
+        // If we have selected items, we'll make the album from the selection
+        if( this.selected_items !== null
+         && this.selected_items.length != 0 )
+        {
+            targets = this.selected_item_ids_list();
+        }
+
+        // Kick off the request
         var request = {
             action:     'group_create',
             targets:    targets,
         };
-
         load_async(
                 request,
                 this._make_group_cb.bind( this ),
@@ -91,8 +131,37 @@ export class DisplayableSelection extends DisplayableBase
 
     _make_group_cb( data, response )
     {
-        var provider = new SingleProvider( response.group );
-        tabs.create_display_tab( 'New Album', provider );
+        if( data.targets.length != this.objs.length
+         && data.targets.length == this.selected_items.length )
+        {
+            // Keep track of the index to insert the album
+            var alb_index = null;
+
+            for( var i = 0; i < data.targets.length; i++ ) {
+                // Find the object
+                var index = this.find_item( data.targets[i] );
+                if( index == -1 ) {
+                    continue;
+                } else if( alb_index === null || index < alb_index ) {
+                    alb_index = index;
+                }
+
+                // And remove it
+                this.objs.splice( index, 1 );
+            }
+
+            // Finally, insert the album
+            if( alb_index !== null ) {
+                this.objs.splice( alb_index, 0, response.group );
+                this.selected_items = null;
+
+                this.notify_change( null );
+            }
+        } else {
+            var provider = new SingleProvider( response.group[0] );
+            tabs.create_display_tab( 'New Album', provider );
+        }
+
         tabs.on_event( { type: 'info_changed', affected: data.targets } );
     }
 
@@ -175,31 +244,7 @@ export class DisplayableSelection extends DisplayableBase
                 break;
             case 46: // .
             case 62: // >
-                // Creates a new selection, copies or moves our selected items
-                var provider = new SelectionProvider();
-                var objs = (this.selected_items !== null
-                                ? this.selected_items
-                                : this.objs);
-
-                provider.init_objs = [...objs];
-                tabs.create_display_tab( 'Selection ' + (provider.selection_id + 1), provider );
-
-                if( e.charCode == 62 ) {
-                    // We've moving the selection
-                    var removed = false;
-
-                    for( var i = 0; i < objs.length; i++ ) {
-                        var index = this.find_item( objs[i][0] );
-                        if( index == -1 ) continue;
-                        this.objs.splice( index, 1 );
-                        removed = true;
-                    }
-
-                    if( removed ) {
-                        this.notify_change( null );
-                    }
-                }
-
+                this.make_selection( e.charCode == 62 );
                 break;
             default:
                 break;
@@ -269,6 +314,22 @@ export class DisplayableSelection extends DisplayableBase
 
         for( var i = 0; i < this.objs.length; i++ ) {
             obj_ids.push( this.objs[i][0] );
+        }
+
+        return obj_ids;
+    }
+
+    /**
+     * @returns A list of object ids for items that are selected
+     */
+    selected_item_ids_list()
+    {
+        var obj_ids = [];
+
+        if( this.selected_items !== null ) {
+            for( var i = 0; i < this.selected_items.length; i++ ) {
+                obj_ids.push( this.selected_items[i][0] );
+            }
         }
 
         return obj_ids;

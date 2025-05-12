@@ -174,6 +174,20 @@ class NameAction extends React.Component
     }
 }
 
+class MakeSelectionAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.make_selection( this.props.inplace );
+                    } }>
+                    { this.props.inplace ? 'Extract Selection' : 'Make Selection' }
+            </Dropdown.Item>
+        );
+    }
+}
+
 class MakeAlbumAction extends React.Component
 {
     render() {
@@ -317,11 +331,30 @@ export class ActionsGroup extends React.Component
         };
     }
 
-    renderSelectedItemsContext() {
+    renderSelectedItemsObjectContext() {
         return (
             <div id='editmenu'>
                 { this.state.selected.length + ' selected' }
                 <DropdownButton size='sm' algin='end' title='Edit'>
+                    <RemoveAction
+                        label='Remove'
+                        display={ this.state.display }
+                        dropData={ this.selection_drop_data() }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
+    renderSelectedItemsSelectionContext() {
+        return (
+            <div id='editmenu'>
+                { this.state.selected.length + ' selected' }
+                <DropdownButton size='sm' algin='end' title='Edit'>
+                    <MakeSelectionAction display={ this.state.display } inplace={ false }/>
+                    <MakeSelectionAction display={ this.state.display } inplace={ true }/>
+                    <Dropdown.Divider/>
+                    <MakeAlbumAction display={ this.state.display }/>
+                    <Dropdown.Divider/>
                     <RemoveAction
                         label='Remove'
                         display={ this.state.display }
@@ -436,7 +469,11 @@ export class ActionsGroup extends React.Component
 
     render() {
         if( this.state.selected !== null ) {
-            return this.renderSelectedItemsContext();
+            if( this.state.display.type == 'object' ) {
+                return this.renderSelectedItemsObjectContext();
+            } else if( this.state.display.type == 'selection' ) {
+                return this.renderSelectedItemsSelectionContext();
+            }
         } else if( this.state.display !== null ) {
             if( this.state.display.type == 'object' ) {
                 var obj_type = this.state.display.info.type.split(':')[0];

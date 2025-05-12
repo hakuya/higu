@@ -1,6 +1,6 @@
 
 /**
- * class DisplayableBase
+ * Abstract controller for displaying objects.
  */
 export class DisplayableBase
 {
