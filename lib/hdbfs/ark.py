@@ -5,8 +5,8 @@ import zipfile
 
 class FileUnavailableError( Exception ):
 
-    def __init__( self ):
-        Exception.__init__( self )
+    def __init__( self, msg: str ):
+        Exception.__init__( self, msg )
 
 class ZipVolume:
 
@@ -40,7 +40,7 @@ class ZipVolume:
             info = self.ls[id]
             return self.zf.open( info, 'r' )
         except KeyError:
-            raise FileUnavailableError()
+            raise FileUnavailableError( f'File with id={id} is not available' )
 
     def _debug_write( self, id, extension ):
 
@@ -78,12 +78,13 @@ class FileVolume:
         p = self.__get_path( id, priority, extension )
 
         # If we have items to commit, it may have not yet been comitted
-        tcp = [it[0] for it in self.to_commit if it[1] == p]
-        if( len( tcp ) > 0 ):
-            p = tcp[0]
+        if( self.state == 'dirty' ):
+            tcp = [it[0] for it in self.to_commit if it[1] == p]
+            if( len( tcp ) > 0 ):
+                p = tcp[0]
 
         if( not os.path.isfile( p ) ):
-            raise FileUnavailableError()
+            raise FileUnavailableError( f'File at {p} is not available' )
         else:
             try:
                 return open( p, 'rb' )
@@ -97,7 +98,7 @@ class FileVolume:
         try:
             return open( p, 'wb' )
         except IndexError:
-            raise FileUnavailableError()
+            raise FileUnavailableError( f'File at {p} is not available' )
 
     def get_state( self ):
 
