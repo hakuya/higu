@@ -126,30 +126,40 @@ class Database( Session ):
         return self._all_tags( scope )
 
     def _get_tag( self, name: str, fuzzy: bool = False ) -> Tag:
-        obj = self.model.query( model.Object ) \
-                .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
-                .filter( model.Object.name == name ).first()
+
+        if( not fuzzy ):
+            obj = self.model.query( model.Object ) \
+                    .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
+                    .filter( model.Object.name == name ).first()
+
+        else:
+            obj = None
+
+            patterns = [
+                name,
+                '*' + ':' + name,
+                '*' + ':' + name + '*',
+                '*' + name,
+                '*' + name + '*'
+            ]
+
+            for name_s in patterns:
+
+                name_sql = name_s.replace( '%', '[%]' ).replace( '*', '%' )
+
+                q = self.model.query( model.Object ) \
+                        .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
+                        .filter( model.Object.name.like( name_sql ) )
+                r = [r for r in q]
+
+                if( len( r ) == 1 ):
+                    obj = r[0]
+                    break;
+                elif( len( r ) > 1 ):
+                    raise KeyError( f'Tag name "{name}" is ambiguous' )
 
         if( obj is None ):
-            if( not fuzzy ):
-                raise KeyError( f'No such tag "{name}"' )
-
-            name_s = '%' \
-                + name.replace( '%', '[%]' ) \
-                        .replace( '*', '%' ) \
-                + '%'
-
-            q = self.model.query( model.Object ) \
-                    .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
-                    .filter( model.Object.name.like( name_s ) )
-
-            r = [r for r in q]
-            if( len( r ) == 0 ):
-                raise KeyError( f'No tags match "{name}"' )
-            elif( len( r ) > 1 ):
-                raise KeyError( f'Tag name "{name}" is ambiguous' )
-
-            obj = r[0]
+            raise KeyError( f'No such tag "{name}"' )
 
         return self._construct_session_object( obj )
 
