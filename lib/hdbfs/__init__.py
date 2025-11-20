@@ -25,7 +25,12 @@ import hdbfs.bulk as bulk
 
 from hdbfs.model import ImageRequestPriority
 
-from typing import Optional, NamedTuple, List
+from typing import \
+        Optional, \
+        NamedTuple, \
+        List, \
+        Dict, \
+        Tuple
 
 _LIBRARY = None
 
@@ -105,7 +110,7 @@ class Database( Session ):
                               model.Object,
                               func.count( model.Relation.child_id ) ) \
                 .join( model.Relation, model.Object.object_id == model.Relation.parent_id ) \
-                .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value )
+                .filter( model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() ) )
 
         if( scope is not None ):
             q = q.filter( or_( model.Object.name == scope,
@@ -121,7 +126,7 @@ class Database( Session ):
         return result
 
     @Session._with_access()
-    def all_tags( self, scope: Optional[str] = None ) -> List[Tag]:
+    def all_tags( self, scope: Optional[str] = None ) -> Dict[ str, Tuple[Tag,int] ]:
 
         return self._all_tags( scope )
 
@@ -129,7 +134,7 @@ class Database( Session ):
 
         if( not fuzzy ):
             obj = self.model.query( model.Object ) \
-                    .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
+                    .filter( model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() ) ) \
                     .filter( model.Object.name == name ).first()
 
         else:
@@ -148,7 +153,7 @@ class Database( Session ):
                 name_sql = name_s.replace( '%', '[%]' ).replace( '*', '%' )
 
                 q = self.model.query( model.Object ) \
-                        .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
+                        .filter( model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() ) ) \
                         .filter( model.Object.name.like( name_sql ) )
                 r = [r for r in q]
 
@@ -176,7 +181,7 @@ class Database( Session ):
         try:
             return self._get_tag( name, False )
         except KeyError:
-            obj = model.Object( model.ObjectType.CLASSIFIER, name )
+            obj = model.Object( model.ObjectType.CLASSIFIER_UNORDERED, name )
             self.model.add( obj )
             return self._construct_session_object( obj )
 
@@ -233,7 +238,7 @@ class Database( Session ):
         try:
             d = self._get_tag( target, False ).obj
         except KeyError:
-            d = model.Object( model.ObjectType.CLASSIFIER, target )
+            d = model.Object( model.ObjectType.CLASSIFIER_UNORDERED, target )
             self.model.add( d )
 
         for rel in c.child_rel:

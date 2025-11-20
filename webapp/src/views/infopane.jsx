@@ -75,6 +75,10 @@ class ObjectLabel extends React.Component
                     { this.renderRatingStar( 10, d.fields.rating ) }
                 </div>
             );
+        } else if( d.info.type.split( ':' )[0] == 'tag' ) {
+            return (
+                <div>{ 'Tag' }</div>
+            );
         } else {
             return (
                 <div>{ 'Import' }</div>
@@ -143,7 +147,8 @@ class SelectionLabel extends React.Component
 class ObjectInfoPane extends React.Component
 {
     hasTags( info ) {
-        return info.type.split( ':' )[0] != 'import';
+        return info.type.split( ':' )[0] != 'import'
+            && info.type.split( ':' )[0] != 'tag';
     }
     renderTags( info ) {
         return (
@@ -152,7 +157,7 @@ class ObjectInfoPane extends React.Component
                 <ul className='infotaglist'>
                     { info.tags &&
                         info.tags.map( ( it ) => (
-                            <li key={ it }><TagLink label={ it } tag={ it }/></li>
+                            <li key={ it[0] }><TagLink label={ it[0] } tag={ it[1] }/></li>
                         ) )
                     }
                 </ul>

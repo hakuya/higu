@@ -37,7 +37,8 @@ export function make_object_display( info, fields )
     if( info.type.split( ':' )[0] == 'file' ) {
         return make_file_display( info.object_id, info, fields );
     } else if( info.type.split( ':' )[0] == 'album'
-            || info.type.split( ':' )[0] == 'import' )
+            || info.type.split( ':' )[0] == 'import'
+            || info.type.split( ':' )[0] == 'tag' )
     {
         return make_group_display( info.object_id, info, fields );
     } else {

@@ -49,8 +49,8 @@ export class TagLink extends React.Component
             <a className='taglink'
                href='#'
                onClick={ () => {
-                    var provider = new SearchProvider( { query: this.props.tag } );
-                    tabs.create_display_tab( this.props.tag, provider );
+                    var provider = new SingleProvider( this.props.tag );
+                    tabs.create_display_tab( this.props.label, provider );
                 } }>{ this.props.label }</a>
         );
     }

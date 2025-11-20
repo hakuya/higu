@@ -34,8 +34,9 @@ export class DisplayableObject extends DisplayableBase
 
     is_sortable()
     {
-        return this.info.type.split( ':' )[0] == 'album'
-            && this.info.type != 'album:closed';
+        return (this.info.type.split( ':' )[0] == 'album'
+             && this.info.type != 'album:closed')
+            || this.info.type == 'tag:ordered';
     }
 
     set_selected_items( items )
@@ -353,6 +354,26 @@ export class DisplayableObject extends DisplayableBase
                 [ this.obj_id ] } );
     }
 
+    change_tag( subtype )
+    {
+        if( this.info.type.split( ':' )[0] != 'tag') {
+            return;
+        }
+
+        var request = {
+            action:     'change_tag',
+            target:     this.obj_id,
+            subtype:    subtype,
+        };
+        load_async( request, this._change_tag_cb.bind( this ), {} );
+    }
+
+    _change_tag_cb( data, response )
+    {
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ] } );
+    }
+
     transform( xform )
     {
         if( this.info.type.split( ':' )[0] != 'file') {
@@ -661,7 +682,8 @@ export class DisplayableObject extends DisplayableBase
     create_provider( args )
     {
         if( this.info.type.split( ':' )[0] == 'album'
-         || this.info.type.split( ':' )[0] == 'import' )
+         || this.info.type.split( ':' )[0] == 'import'
+         || this.info.type.split( ':' )[0] == 'tag' )
         {
             var search_args = {
                 mode: 'object_items',

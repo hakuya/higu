@@ -51,7 +51,12 @@ class ObjectClass( Enum ):
                 ObjectType.ALBUM_CLOSED
             ],
 
-            ObjectClass.CLASSIFIER : [ ObjectType.CLASSIFIER ],
+            ObjectClass.CLASSIFIER : [
+                ObjectType.CLASSIFIER_UNORDERED,
+                ObjectType.CLASSIFIER_ORDERED,
+                ObjectType.CLASSIFIER_NAME_ORDER,
+                ObjectType.CLASSIFIER_DATE_ORDER
+            ],
 
             ObjectClass.IMPORT : [
                 ObjectType.IMPORT_CLOSED,
@@ -67,19 +72,22 @@ class ObjectClass( Enum ):
 
 class ObjectType( Enum ):
 
-    NILL          = 0
+    NILL                  = 0
 
-    FILE          = 10000
-    DUPLICATE     = 10001
+    FILE                  = 10000
+    DUPLICATE             = 10001
 
-    ALBUM_FREE    = 20000
-    ALBUM_FORMAL  = 20001
-    ALBUM_CLOSED  = 20002
+    ALBUM_FREE            = 20000
+    ALBUM_FORMAL          = 20001
+    ALBUM_CLOSED          = 20002
 
-    CLASSIFIER    = 20100
+    CLASSIFIER_UNORDERED  = 20100
+    CLASSIFIER_ORDERED    = 20101
+    CLASSIFIER_NAME_ORDER = 20102
+    CLASSIFIER_DATE_ORDER = 20103
 
-    IMPORT_OPEN   = 20200
-    IMPORT_CLOSED = 20201
+    IMPORT_OPEN           = 20200
+    IMPORT_CLOSED         = 20201
 
     def get_class( self ) -> ObjectClass:
         return ObjectClass( self.value // 100 )
@@ -91,7 +99,7 @@ class StreamPriority( Enum ):
     PRIORITY   = 3000
 
 VERSION = 16
-REVISION = 0
+REVISION = 1
 
 IMGDB_VERSION = 1
 IMGDB_REVISION = 0

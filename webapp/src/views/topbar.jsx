@@ -216,6 +216,20 @@ class ModifyAlbumAction extends React.Component
     }
 }
 
+class ModifyTagAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.change_tag( this.props.target );
+                    } }>
+                    { this.props.label }
+            </Dropdown.Item>
+        );
+    }
+}
+
 class GatherTagsAction extends React.Component
 {
     render() {
@@ -436,6 +450,45 @@ export class ActionsGroup extends React.Component
         );
     }
 
+    renderTagContext() {
+        var sorting = this.state.display.info.type.split( ':' )[1];
+        return (
+            <div id='editmenu'>
+                <DropdownButton size='sm' align='end' title='Edit'>
+                    { sorting != 'unordered' &&
+                        <ModifyTagAction
+                            label='Remove Sort'
+                            target='unordered'
+                            display={ this.state.display }/>
+                    }
+                    { sorting != 'ordered' &&
+                        <ModifyTagAction
+                            label='Make Sorted'
+                            target='ordered'
+                            display={ this.state.display }/>
+                    }
+                    { sorting != 'nameorder' &&
+                        <ModifyTagAction
+                            label='Sort by Name'
+                            target='nameorder'
+                            display={ this.state.display }/>
+                    }
+                    { sorting != 'dateorder' &&
+                        <ModifyTagAction
+                            label='Sort by Date'
+                            target='dateorder'
+                            display={ this.state.display }/>
+                    }
+                    <Dropdown.Divider/>
+                    <RemoveAction
+                        label='Delete'
+                        display={ this.state.display }
+                        dropData={ this.state.display.get_obj_drop_data() }/>
+                </DropdownButton>
+            </div>
+        );
+    }
+
     renderImportContext() {
         return (
             <div id='editmenu'>
@@ -481,6 +534,8 @@ export class ActionsGroup extends React.Component
                     return this.renderFileContext();
                 } else if( obj_type == 'album' ) {
                     return this.renderAlbumContext();
+                } else if( obj_type == 'tag' ) {
+                    return this.renderTagContext();
                 } else if( obj_type == 'import' ) {
                     return this.renderImportContext();
                 }

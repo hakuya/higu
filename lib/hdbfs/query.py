@@ -34,7 +34,7 @@ class TagConstraint:
                 sql_s = tag.replace( '%', '[%]' ) \
                            .replace( '*', '%' )
                 tag = db.model.query( model.Object.object_id ) \
-                        .filter( model.Object.object_type == hdbfs.ObjectType.CLASSIFIER.value ) \
+                        .filter( model.Object.object_type.in_( hdbfs.ObjectClass.CLASSIFIER.all_type_values() ) ) \
                         .filter( model.Object.name.like( sql_s ) )
             else:
                 tag = db.get_tag( self.__tag )
@@ -64,14 +64,14 @@ class TagCountConstraint:
         tagged = db.model.query( model.Relation.child_id.label( 'id' ),
                                    func.count( model.Relation.child_id ).label( 'tagc' ) ) \
                    .join( model.Object, model.Object.object_id == model.Relation.parent_id ) \
-                   .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) \
+                   .filter( model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() ) ) \
                    .group_by( model.Relation.child_id.label( 'id' ) )
         notags = db.model.query( model.Object.object_id, literal_column( '0' ).label( 'tagc' ) ) \
                    .filter( ~model.Object.object_id.in_(
                                 db.model.query( model.Relation.child_id ) \
                                   .join( model.Object, model.Object.object_id
                                                     == model.Relation.parent_id ) \
-                                  .filter( model.Object.object_type == model.ObjectType.CLASSIFIER.value ) ) )
+                                  .filter( model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() ) ) ) )
         tagq = tagged.union( notags ).subquery()
 
         q = db.model.query( tagq.c.id )
@@ -145,7 +145,7 @@ class UnboundConstraint:
                     .replace( '*', '%' )
 
         tag_q = db.model.query( model.Object.object_id ) \
-                  .filter( model.Object.object_type == hdbfs.ObjectType.CLASSIFIER.value ) \
+                  .filter( model.Object.object_type.in_( hdbfs.ObjectClass.CLASSIFIER.all_type_values() ) ) \
                   .filter( model.Object.name.like( '%' + sql_s + '%' ) )
 
         child_q = db.model.query( model.Relation.child_id ) \

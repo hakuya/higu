@@ -271,7 +271,7 @@ class Obj( SessionObject ):
             obj for obj in
             self.session.model.query( model.Object )
                 .filter(
-                    and_( model.Object.object_type == model.ObjectType.CLASSIFIER.value,
+                    and_( model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() ),
                             model.Object.children.contains( self.obj ) ) )
                             .order_by( model.Object.name ) ]
         return list( map( lambda x: self.session._construct_session_object( x ), tag_objs ) )
@@ -366,10 +366,8 @@ class Obj( SessionObject ):
         # Sanity checks
         if( self.obj.get_type() == model.ObjectType.ALBUM_FREE ):
 
-            assert parent.obj.get_type() in [
-                        model.ObjectType.CLASSIFIER,
-                        model.ObjectType.ALBUM_FREE,
-                    ]
+            assert parent.obj.get_type() == model.ObjectType.ALBUM_FREE \
+                or parent.obj.get_type().get_class() == model.ObjectClass.CLASSIFIER
 
         elif( self.obj.get_type() in [
                 model.ObjectType.ALBUM_FORMAL,
@@ -377,20 +375,20 @@ class Obj( SessionObject ):
             ] ):
 
                 assert parent.obj.get_type() in [
-                            model.ObjectType.CLASSIFIER,
                             model.ObjectType.ALBUM_FREE,
                             model.ObjectType.ALBUM_FORMAL,
-                        ]
+                        ] \
+                    or parent.obj.get_type().get_class() == model.ObjectClass.CLASSIFIER
 
         elif( self.obj.get_type().get_class() == model.ObjectClass.FILE ):
 
             assert parent.obj.get_type() in [
-                        model.ObjectType.CLASSIFIER,
                         model.ObjectType.ALBUM_FREE,
                         model.ObjectType.ALBUM_FORMAL,
                         model.ObjectType.FILE,
                         model.ObjectType.IMPORT_OPEN
-                    ]
+                    ] \
+                or parent.obj.get_type().get_class() == model.ObjectClass.CLASSIFIER
 
             # We can add duplicates to formal albums and imports
             if( self.obj.get_type() == model.ObjectType.DUPLICATE
@@ -513,11 +511,12 @@ class Obj( SessionObject ):
         parent._on_children_changed()
 
     @SessionObject._with_access( write = True )
-    def reorder( self, group: 'hdbfs.Album', order = None ):
+    def reorder( self, group: 'hdbfs.OrderedGroup', order = None ):
 
         assert group.obj.get_type() in [
                 model.ObjectType.ALBUM_FREE,
-                model.ObjectType.ALBUM_FORMAL
+                model.ObjectType.ALBUM_FORMAL,
+                model.ObjectType.CLASSIFIER_ORDERED
             ]
 
         rel = self.session.model.query( model.Relation ) \

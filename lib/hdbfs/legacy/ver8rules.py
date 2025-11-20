@@ -880,3 +880,11 @@ def upgrade_from_15_to_16( log, session ):
         'ON relations ( parent_id )' )
 
     return 16, 0
+
+def upgrade_from_16_to_16_1( log, session ):
+
+    # No major changes, tags now have sorting
+
+    log.info( 'Database upgrade from VER 16 -> VER 16.1' )
+
+    return 16, 1

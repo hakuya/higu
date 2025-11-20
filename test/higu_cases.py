@@ -92,7 +92,7 @@ class HiguLibCases( testutil.TestCase ):
             self.assertEqual( import_closed.get_type(), hdbfs.ObjectType.IMPORT_CLOSED, 'import_closed should be a closed import' )
 
             tag = h.make_tag( 'a_tag' )
-            self.assertEqual( tag.get_type(), hdbfs.ObjectType.CLASSIFIER, 'Tag should be a classifier' )
+            self.assertEqual( tag.get_type(), hdbfs.ObjectType.CLASSIFIER_UNORDERED, 'Tag should be a classifier' )
 
     def test_delete( self ):
 

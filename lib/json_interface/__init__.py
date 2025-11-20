@@ -15,13 +15,17 @@ REVISION = 0
 def get_type_str( obj ):
 
     TYPE_MAP = {
-        hdbfs.ObjectType.FILE          : 'file:original',
-        hdbfs.ObjectType.DUPLICATE     : 'file:duplicate',
-        hdbfs.ObjectType.ALBUM_FREE    : 'album:free',
-        hdbfs.ObjectType.ALBUM_FORMAL  : 'album:formal',
-        hdbfs.ObjectType.ALBUM_CLOSED  : 'album:closed',
-        hdbfs.ObjectType.IMPORT_OPEN   : 'import:open',
-        hdbfs.ObjectType.IMPORT_CLOSED : 'import:closed'
+        hdbfs.ObjectType.FILE                  : 'file:original',
+        hdbfs.ObjectType.DUPLICATE             : 'file:duplicate',
+        hdbfs.ObjectType.ALBUM_FREE            : 'album:free',
+        hdbfs.ObjectType.ALBUM_FORMAL          : 'album:formal',
+        hdbfs.ObjectType.ALBUM_CLOSED          : 'album:closed',
+        hdbfs.ObjectType.IMPORT_OPEN           : 'import:open',
+        hdbfs.ObjectType.IMPORT_CLOSED         : 'import:closed',
+        hdbfs.ObjectType.CLASSIFIER_UNORDERED  : 'tag:unordered',
+        hdbfs.ObjectType.CLASSIFIER_ORDERED    : 'tag:ordered',
+        hdbfs.ObjectType.CLASSIFIER_NAME_ORDER : 'tag:nameorder',
+        hdbfs.ObjectType.CLASSIFIER_DATE_ORDER : 'tag:dateorder',
     }
 
     return TYPE_MAP.get( obj.get_type(), 'unknown' )
@@ -110,13 +114,13 @@ class JsonInterface:
 
         if( 'type' in items ):
             info['type'] = get_type_str( target )
-        if( 'text' in items ):
-            info['text'] = target.get_text()
         if( 'repr' in items ):
             info['repr'] = target.get_repr( parent )
         if( 'tags' in items ):
-            tags = target.get_tags()
-            info['tags'] = list( map( lambda x: x.get_name(), tags ) )
+            info['tags'] = [
+                    ( t.get_name(), t.get_id() )
+                    for t in target.get_tags()
+                ]
         if( 'names' in items ):
             if( isinstance( target, hdbfs.File ) ):
                 info['names'] = target.get_origin_names()
@@ -179,11 +183,15 @@ class JsonInterface:
                 info['imports'] = list( map( make_obj_tuple, imports ) )
 
         if( isinstance( target, hdbfs.File ) or isinstance( target, hdbfs.Album ) ):
+            if( 'text' in items ):
+                info['text'] = target.get_text()
             if( 'albums' in items ):
                 albums = target.get_member_of()
                 info['albums'] = list( map( make_obj_tuple, albums ) )
 
-        if( isinstance( target, hdbfs.Album ) or isinstance( target, hdbfs.Import ) ):
+        if( isinstance( target, hdbfs.Album )
+         or isinstance( target, hdbfs.Import )
+         or isinstance( target, hdbfs.Tag ) ):
             if( 'short_files' in items ):
                 files = target.get_items( limit = 10 )
                 info['files'] = list( map( make_obj_tuple, files ) )
@@ -396,8 +404,10 @@ class JsonInterface:
 
         db = self.__db
 
-        tags = db.all_tags()
-        tags = list( map( lambda x: ( x, tags[x][1] ), tags ) )
+        tags = [
+            ( k, v[0].get_id(), v[1] )
+            for k, v in db.all_tags().items()
+        ]
 
         return json_ok( tags = tags )
 
@@ -414,7 +424,9 @@ class JsonInterface:
             elif( data['mode'] == 'object_items' ):
                 obj = db.get_object_by_id( data['object'] )
                 items = []
-                if( isinstance( obj, hdbfs.Album ) or isinstance( obj, hdbfs.Import ) ):
+                if( isinstance( obj, hdbfs.Album )
+                 or isinstance( obj, hdbfs.Import )
+                 or isinstance( obj, hdbfs.Tag ) ):
                     items = list( map( lambda x: x.get_id(), obj.get_items() ) )
                 return items, { 'parent' : data['object'] }
 
@@ -740,6 +752,22 @@ class JsonInterface:
             target.close_album()
         else:
             assert False
+
+        return json_ok()
+
+    def cmd_change_tag( self, target, subtype ):
+
+        db = self.__db
+
+        target = db.get_object_by_id( target )
+        assert isinstance( target, hdbfs.Tag )
+
+        target.set_ordering( {
+                'unordered' : hdbfs.Tag.Order.UNORDERED,
+                'ordered'   : hdbfs.Tag.Order.EXPLICIT,
+                'nameorder' : hdbfs.Tag.Order.NAME,
+                'dateorder' : hdbfs.Tag.Order.DATE,
+            }[subtype] )
 
         return json_ok()
 
