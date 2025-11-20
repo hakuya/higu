@@ -340,7 +340,7 @@ class Query:
         ]
 
         self.__order_by = None
-        self.__limit = None
+        self.__range = None
         self.__expand = False
         self.__nochild = False
 
@@ -397,56 +397,75 @@ class Query:
         else:
             return UnboundConstraint( s )
 
+    def __process_command_sort( self, *args ):
+
+        if( len( args ) < 1 ):
+            raise ValueError( 'Sort command needs an argument' )
+
+        desc = False
+
+        if( len( args ) > 1 and args[1] == 'desc' ):
+            desc = True
+
+        self.set_order( args[0], desc )
+
+    def __process_command_type( self, *args ):
+
+        TYPE_MAP = {
+            'file'          : hdbfs.ObjectClass.FILE,
+            'file:nodup'    : hdbfs.ObjectType.FILE,
+            'file:dup'      : hdbfs.ObjectType.DUPLICATE,
+            'album'         : hdbfs.ObjectClass.ALBUM,
+            'album:free'    : hdbfs.ObjectType.ALBUM_FREE,
+            'album:formal'  : hdbfs.ObjectType.ALBUM_FREE,
+            'album:closed'  : hdbfs.ObjectType.ALBUM_CLOSED,
+            'import'        : hdbfs.ObjectClass.IMPORT,
+            'import:open'   : hdbfs.ObjectType.IMPORT_OPEN,
+            'import:closed' : hdbfs.ObjectType.IMPORT_CLOSED,
+        }
+
+        if( len( args ) < 1 ):
+            raise ValueError( 'Type command needs an argument' )
+
+        ty = TYPE_MAP.get( ':'.join( args ), None )
+        if( ty is not None ):
+            self.set_type( ty )
+        else:
+            raise ValueError( 'Bad type' )
+
+    def __process_command_expand( self, *args ):
+
+        self.set_expand()
+
+    def __process_command_untagged( self, *args ):
+
+        self.set_untagged()
+
+    def __process_command_limit( self, *args ):
+
+        self.set_limit( int( args[0] ) )
+
+    def __process_command_range( self, *args ):
+
+        self.set_range( int( args[0] ), int( args[1] ) )
+
     def __process_command( self, cmd ):
+
+        COMMANDS = {
+            'sort' : self.__process_command_sort,
+            'type' : self.__process_command_type,
+            'expand' : self.__process_command_expand,
+            'untagged' : self.__process_command_untagged,
+            'limit' : self.__process_command_limit,
+            'range' : self.__process_command_range,
+        }
 
         cmd = cmd.split( ':' )
 
-        if( cmd[0] == 'sort' ):
-            if( len( cmd ) < 2 ):
-                raise ValueError( 'Sort command needs an argument' )
-
-            desc = False
-
-            if( len( cmd ) > 2 and cmd[2] == 'desc' ):
-                desc = True
-
-            self.set_order( cmd[1], desc )
-
-        elif( cmd[0] == 'type' ):
-
-            TYPE_MAP = {
-                'file'          : hdbfs.ObjectClass.FILE,
-                'file:nodup'    : hdbfs.ObjectType.FILE,
-                'file:dup'      : hdbfs.ObjectType.DUPLICATE,
-                'album'         : hdbfs.ObjectClass.ALBUM,
-                'album:free'    : hdbfs.ObjectType.ALBUM_FREE,
-                'album:formal'  : hdbfs.ObjectType.ALBUM_FREE,
-                'album:closed'  : hdbfs.ObjectType.ALBUM_CLOSED,
-                'import'        : hdbfs.ObjectClass.IMPORT,
-                'import:open'   : hdbfs.ObjectType.IMPORT_OPEN,
-                'import:closed' : hdbfs.ObjectType.IMPORT_CLOSED,
-            }
-
-            if( len( cmd ) < 2 ):
-                raise ValueError( 'Type command needs an argument' )
-
-            ty = TYPE_MAP.get( ':'.join( cmd[1:] ), None )
-            if( ty is not None ):
-                self.set_type( ty )
-            else:
-                raise ValueError( 'Bad type' )
-
-        elif( cmd[0] == 'expand' ):
-            self.set_expand()
-
-        elif( cmd[0] == 'untagged' ):
-            self.set_untagged()
-
-        elif( cmd[0] == 'limit' ):
-            self.set_limit( int( cmd[1] ) )
-
-        else:
+        if( cmd[0] not in COMMANDS ):
             raise ValueError( 'Bad Command' )
+
+        COMMANDS[ cmd[0] ]( *cmd[1:] )
 
     def __process_sorts( self, sorts ):
 
@@ -528,7 +547,12 @@ class Query:
 
     def set_limit( self, limit ):
 
-        self.__limit = limit
+        self.__range = ( 0, limit, )
+        return self
+
+    def set_range( self, offset, limit ):
+
+        self.__range = ( offset, limit, )
         return self
 
     def add_require_constraint( self, constraint ):
@@ -658,7 +682,9 @@ class Query:
                 query = query.order_by( model.ObjectMetadata.numeric.desc(),
                                         model.Object.object_id.desc() )
 
-        if( self.__limit is not None ):
-            query = query.limit( self.__limit )
+        if( self.__range is not None ):
+            query = query.limit( self.__range[1] )
+            if( self.__range[0] != 0 ):
+                query = query.offset( self.__range[0] )
 
         return SessionObjectFactoryIterator( db, query )
