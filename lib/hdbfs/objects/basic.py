@@ -406,7 +406,16 @@ class Obj( SessionObject ):
             assert False
 
         # Orders and names are allowed only for albums and imports
-        if( order is not None or name is not None ):
+        if( order is not None ):
+            assert parent.obj.get_type().get_class() in [
+                    model.ObjectClass.ALBUM,
+                    model.ObjectClass.IMPORT
+                ] or parent.obj.get_type() in [
+                    model.ObjectType.CLASSIFIER_ORDERED
+                ]
+
+        # Names are allowed only for albums and imports
+        if( name is not None ):
             assert parent.obj.get_type().get_class() in [
                     model.ObjectClass.ALBUM,
                     model.ObjectClass.IMPORT

@@ -660,23 +660,8 @@ class JsonInterface:
 
         obj = db.get_object_by_id( target )
 
-        if( isinstance( obj, hdbfs.Album ) ):
-            files = obj.get_items()
-
-        else:
-            assert False
-
-        tags = []
-
-        for f in files:
-            for t in f.get_tags():
-                if( t not in tags ):
-                    tags.append( t )
-
-        for t in tags:
-            obj.assign( t )
-            for f in files:
-                f.unassign( t )
+        assert isinstance( obj, hdbfs.Album )
+        obj.gather_tags()
 
         return json_ok()
 

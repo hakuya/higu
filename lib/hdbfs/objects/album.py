@@ -101,6 +101,42 @@ class Album( OrderedGroup ):
         else:
             assert False
 
+    @SessionObject._with_access( write = True )
+    def gather_tags( self ) -> None:
+        """ Aggregates tags of all children.
+
+        The tags are then assigned to this album.
+        """
+
+        files = self.get_items()
+
+        tags = {}
+
+        def accum( tags, f ):
+
+            for t in f.get_tags():
+                order = None
+                if( t.get_type() == model.ObjectType.CLASSIFIER_ORDERED ):
+                    order = f.get_order( t )
+                if( t not in tags
+                    or order is not None and (
+                        tags[t] is None
+                        or order < tags[t]
+                    ) ):
+
+                    tags[t] = order
+
+        # Accumulate self, or we may loose our own order
+        accum( tags, self )
+
+        for f in files:
+            accum( tags, f )
+
+        for t, order in tags.items():
+            self.assign( t, order = order )
+            for f in files:
+                f.unassign( t )
+
     def get_origin_time( self ):
 
         self.check_metadata()

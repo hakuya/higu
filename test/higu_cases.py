@@ -1403,5 +1403,53 @@ class HiguLibCases( testutil.TestCase ):
                 self.assertEqual( a.get_name( alb, idx ), name,
                         f'Incorrect name returned at idx={idx}: {a} {name}' )
 
+    def test_gather_tags( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            tag1 = h.make_tag( 'a_tag' )
+            tag2 = h.make_tag( 'b_tag' )
+            tag3 = h.make_tag( 'c_tag' )
+
+            tag1.set_ordering( hdbfs.Tag.Order.EXPLICIT )
+
+            ro = h.register_file( red, False )
+            go = h.register_file( green, False )
+            bo = h.register_file( blue, False )
+
+            alb = h.create_album()
+
+            ro.assign( alb )
+            go.assign( alb )
+            bo.assign( alb )
+
+            ro.assign( tag1, order = 1 )
+
+            go.assign( tag1, order = 2 )
+            go.assign( tag2 )
+
+            bo.assign( tag3 )
+
+            alb.gather_tags()
+
+            self.assertEqual( len( alb.get_tags() ), 3, 'Album tag list mismatch' )
+
+            tags = alb.get_tags()
+            self.assertTrue( tag1 in tags, 'tag1 not in album' )
+            self.assertTrue( tag2 in tags, 'tag2 not in album' )
+            self.assertTrue( tag3 in tags, 'tag3 not in album' )
+
+            self.assertEqual( len( ro.get_tags() ), 0, 'Red still has tags' )
+            self.assertEqual( len( go.get_tags() ), 0, 'Green still has tags' )
+            self.assertEqual( len( bo.get_tags() ), 0, 'Blue still has tags' )
+
+            self.assertEqual( alb.get_order( tag1 ), 1, 'Tag ordering not preserved' )
+
+
 if( __name__ == '__main__' ):
     unittest.main()
