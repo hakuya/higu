@@ -144,69 +144,125 @@ class SelectionLabel extends React.Component
     }
 }
 
-class ObjectInfoPane extends React.Component
+class SegmentLabel extends React.Component
 {
-    hasTags( info ) {
-        return info.type.split( ':' )[0] != 'import'
-            && info.type.split( ':' )[0] != 'tag';
+    render() {
+        return (
+            <div className='segmentlabel'>
+                <span className='label'>{ this.props.label }</span>
+                { this.props.action &&
+                    <span className='action'>
+                        { ' ' }
+                        <a href='#' onClick={ this.props.onAction }>
+                            { '(' }
+                            { this.props.action }
+                            { ')' }
+                        </a>
+                    </span>
+                }
+            </div>
+        )
     }
-    renderTags( info ) {
+}
+
+class TagsSegment extends React.Component
+{
+    constructor( props ) {
+        super( props );
+        this.state = { edit: false };
+    }
+    onUntag( tag ) {
+        this.props.display.tag( '-' + tag, this.onUntagCallback.bind( this ) );
+    }
+    onUntagCallback( r ) {
+    }
+    render() {
+        var info = this.props.display.info;
+
         return (
             <div>
-                <h1>Tags</h1>
+                <SegmentLabel
+                    label='Tags'
+                    action={ this.state.edit ? 'done' : 'edit' }
+                    onAction={ () => {
+                            this.setState( { edit: !this.state.edit } );
+                        } }/>
                 <ul className='infotaglist'>
-                    { info.tags &&
+                    { !this.state.edit && info.tags &&
                         info.tags.map( ( it ) => (
                             <li key={ it[0] }><TagLink label={ it[0] } tag={ it[1] }/></li>
+                        ) )
+                    }
+                    { this.state.edit && info.tags &&
+                        info.tags.map( ( it ) => (
+                            <li key={ it[0] }>
+                                { it[0] }
+                                { ' ' }
+                                <a href='#' onClick={ () => { this.onUntag( it[0] ); } }>
+                                    { '(x)' }
+                                </a>
+                            </li>
+                        ) )
+                    }
+                    { this.state.edit &&
+                        <li key={ '#edit' }>
+                            <a href='#' onClick={ () => {
+                                    dialogs.show_tag_dialog( this.props.display );
+                                } }>
+                                { 'Add' }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        );
+    }
+}
+
+class NamesSegment extends React.Component
+{
+    render() {
+        var info = this.props.display.info;
+
+        return (
+            <div>
+                <SegmentLabel label='Names'/>
+                <ul className='infonamlist'>
+                    { info.names &&
+                        info.names.map( ( it ) => (
+                            <li key={ it }>{ it }</li>
                         ) )
                     }
                 </ul>
             </div>
         );
     }
-    renderAlternates( info ) {
-        var d = this.props.display;
+}
+
+class TimestampSegment extends React.Component
+{
+    render() {
+        var info = this.props.display.info;
+
         return (
             <div>
-                <h1>Alternates</h1>
-                { d.stream_id !== null &&
-                    <a href='#' onClick={ () => {
-                                    d.set_as_main_stream( null );
-                                } }>
-                        { 'Set as Main' }
-                    </a>
+                { info.origin_time &&
+                    <span> { 'Created: ' } { info.origin_time } </span>
                 }
-                { d.stream_id !== null && <br/> }
-                { d.stream_id !== null &&
-                    <a href='#' onClick={ () => {
-                                    d.show_stream( null );
-                                } }>
-                        { 'View Main' }
-                    </a>
+                { info.origin_time && <br/> }
+                { info.creation_time &&
+                    <span> { 'Added: ' } { info.creation_time } </span>
                 }
-                { d.stream_id !== null && <br/> }
-                { 'Duplicates:' }
-                { info.dup_streams.map( ( it, i ) => (
-                    <span key={i}> { ' ' }
-                        <a href='#' onClick={ () => {
-                                        d.show_stream( it );
-                                    } }>
-                            { ( i + 1 ) }
-                        </a>
-                    </span>
-                ) ) }
             </div>
         );
     }
-    hasLinks( info ) {
-        return info.imports && info.imports.length > 0
-            || info.albums && info.albums.length > 0
-            || info.original_file
-            || info.variants_of && info.variants_of.length > 0
-            || info.variants && info.variants.length > 0
-            || info.duplicates && info.duplicates.length > 0
-    }
-    renderLinks( info ) {
+}
+
+class LinksSegment extends React.Component
+{
+    render() {
+        var info = this.props.display.info;
+
         return (
             <div>
                 { info.imports && info.imports.length > 0 &&
@@ -260,7 +316,67 @@ class ObjectInfoPane extends React.Component
             </div>
         )
     }
-    renderFileInfo( info ) {
+}
+
+class ExifInfoSegment extends React.Component
+{
+    render() {
+        var info = this.props.display.info;
+        var keys = Object.keys( info.exif );
+
+        return (
+            <table className='exiftable'>
+                {
+                    keys.map( ( it ) => (
+                        <tr key={ it }>
+                            <td> { it + ':' } </td> <td> { info.exif[it] } </td>
+                        </tr>
+                    ) )
+                }
+            </table>
+        );
+    }
+}
+
+class FileInfoSegment extends React.Component
+{
+    renderAlternates( info ) {
+        var d = this.props.display;
+        return (
+            <div>
+                <h1>Alternates</h1>
+                { d.stream_id !== null &&
+                    <a href='#' onClick={ () => {
+                                    d.set_as_main_stream( null );
+                                } }>
+                        { 'Set as Main' }
+                    </a>
+                }
+                { d.stream_id !== null && <br/> }
+                { d.stream_id !== null &&
+                    <a href='#' onClick={ () => {
+                                    d.show_stream( null );
+                                } }>
+                        { 'View Main' }
+                    </a>
+                }
+                { d.stream_id !== null && <br/> }
+                { 'Duplicates:' }
+                { info.dup_streams.map( ( it, i ) => (
+                    <span key={i}> { ' ' }
+                        <a href='#' onClick={ () => {
+                                        d.show_stream( it );
+                                    } }>
+                            { ( i + 1 ) }
+                        </a>
+                    </span>
+                ) ) }
+            </div>
+        );
+    }
+    render() {
+        var info = this.props.display.info;
+
         return (
             <div>
                 { this.props.display.stream_id === null &&
@@ -281,7 +397,13 @@ class ObjectInfoPane extends React.Component
             </div>
         )
     }
-    renderGroupInfo( info ) {
+}
+
+class GroupInfoSegment extends React.Component
+{
+    render() {
+        var info = this.props.display.info;
+
         return (
             <div>
                 { info.text &&
@@ -294,20 +416,21 @@ class ObjectInfoPane extends React.Component
             </div>
         );
     }
-    renderExifInfo( info ) {
-        var keys = Object.keys( info.exif );
+}
 
-        return (
-            <table className='exiftable'>
-                {
-                    keys.map( ( it ) => (
-                        <tr key={ it }>
-                            <td> { it + ':' } </td> <td> { info.exif[it] } </td>
-                        </tr>
-                    ) )
-                }
-            </table>
-        );
+class ObjectInfoPane extends React.Component
+{
+    hasTags( info ) {
+        return info.type.split( ':' )[0] != 'import'
+            && info.type.split( ':' )[0] != 'tag';
+    }
+    hasLinks( info ) {
+        return info.imports && info.imports.length > 0
+            || info.albums && info.albums.length > 0
+            || info.original_file
+            || info.variants_of && info.variants_of.length > 0
+            || info.variants && info.variants.length > 0
+            || info.duplicates && info.duplicates.length > 0
     }
     render() {
         var info = this.props.display.info;
@@ -316,38 +439,25 @@ class ObjectInfoPane extends React.Component
             <div className='iteminfo'>
                 <ObjectLabel display={ this.props.display }/> <br/>
                 { this.hasTags( info ) &&
-                    this.renderTags( info )
+                    <TagsSegment display={ this.props.display }/>
                 }
-                <h1>Names</h1>
-                <ul className='infonamlist'>
-                    { info.names &&
-                        info.names.map( ( it ) => (
-                            <li key={ it }>{ it }</li>
-                        ) )
-                    }
-                </ul>
+                <NamesSegment display={ this.props.display }/>
                 <hr/>
-                { info.origin_time &&
-                    <span> { 'Created: ' } { info.origin_time } </span>
-                }
-                { info.origin_time && <br/> }
-                { info.creation_time &&
-                    <span> { 'Added: ' } { info.creation_time } </span>
-                }
+                <TimestampSegment display={ this.props.display }/>
                 <hr/>
                 { this.hasLinks( info ) &&
-                    this.renderLinks( info )
+                    <LinksSegment display={ this.props.display }/>
                 }
                 { this.hasLinks( info ) && <hr/> }
                 { info.exif != null &&
-                    this.renderExifInfo( info )
+                    <ExifInfoSegment display={ this.props.display }/>
                 }
                 { info.exif && <hr/> }
                 { info.type.split( ':' )[0] == 'file' &&
-                    this.renderFileInfo( info )
+                    <FileInfoSegment display={ this.props.display }/>
                 }
                 { info.type.split( ':' )[0] == 'album' &&
-                    this.renderGroupInfo( info )
+                    <GroupInfoSegment display={ this.props.display }/>
                 }
             </div>
         );

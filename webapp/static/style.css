@@ -311,5 +311,15 @@ a:hover{
     display:none;
 }
 
+.segmentlabel .label{
+    font-weight: bold;
+    font-size: large;
+}
+
+.segmentlabel .action{
+    font-size: 80%;
+    color: #666;
+}
+
 /* vim:sts=4:sw=4:et
  */
