@@ -146,17 +146,6 @@ class Album( OrderedGroup ):
         except:
             return None
 
-    def set_text( self, text ):
-
-        self['text'] = text
-
-    def get_text( self ):
-
-        try:
-            return self['text']
-        except KeyError:
-            return None
-
     def check_metadata( self ):
 
         self.metaman.check_metadata( self, None )

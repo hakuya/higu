@@ -25,10 +25,3 @@ class Import( Obj ):
     def get_files( self, limit = None ) -> List['File']:
 
         return self.get_children( model.ObjectClass.FILE, limit )
-
-    def get_text( self ):
-
-        try:
-            return self['text']
-        except KeyError:
-            return None

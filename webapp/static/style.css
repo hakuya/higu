@@ -321,5 +321,14 @@ a:hover{
     color: #666;
 }
 
+.infosegment {
+    font-size: 80%;
+    color: #666;
+}
+
+.infosegment .text{
+    white-space: pre-wrap;
+}
+
 /* vim:sts=4:sw=4:et
  */

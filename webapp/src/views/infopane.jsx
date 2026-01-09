@@ -401,16 +401,33 @@ class FileInfoSegment extends React.Component
 
 class GroupInfoSegment extends React.Component
 {
+    // 521451
+    isEditPermitted( type ) {
+        return (type.split( ':' )[0] == 'album'
+                && type != 'album:closed')
+            || type.split( ':' )[0] == 'tag';
+    }
+    onTextSave( text ) {
+        this.props.display.set_field( 'text', text );
+        return true;
+    }
     render() {
         var info = this.props.display.info;
+        var hasText = info.text && info.text.length > 0;
 
         return (
-            <div>
-                { info.text &&
+            <div className='infosegment'>
+                { hasText &&
+                    <span className='text'>{ info.text }</span>
+                }
+                { hasText &&
+                    <br/>
+                }
+                { this.isEditPermitted( info.type ) &&
                     <a href='#' onClick={ () => {
-                                    dialogs.show_text_dialog( info.text );
+                                    dialogs.show_text_dialog( info.text, this.onTextSave.bind( this ) );
                                 } }>
-                        { 'View text' }
+                        { '(edit info)' }
                     </a>
                 }
             </div>
@@ -431,6 +448,11 @@ class ObjectInfoPane extends React.Component
             || info.variants_of && info.variants_of.length > 0
             || info.variants && info.variants.length > 0
             || info.duplicates && info.duplicates.length > 0
+    }
+    hasGroupSegment( info ) {
+        return info.type.split( ':' )[0] == 'album'
+            || info.type.split( ':' )[0] == 'import'
+            || info.type.split( ':' )[0] == 'tag';
     }
     render() {
         var info = this.props.display.info;
@@ -456,7 +478,7 @@ class ObjectInfoPane extends React.Component
                 { info.type.split( ':' )[0] == 'file' &&
                     <FileInfoSegment display={ this.props.display }/>
                 }
-                { info.type.split( ':' )[0] == 'album' &&
+                { this.hasGroupSegment( info ) &&
                     <GroupInfoSegment display={ this.props.display }/>
                 }
             </div>

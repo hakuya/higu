@@ -302,16 +302,26 @@ export class TextDialog extends React.Component
         super( props );
         this.state = {
             show: false,
-            text: ''
+            text: '',
+            savecb: null
         }
     }
     show( data ) {
         this.setState( {
             show: true,
-            text: data.text
+            text: data.text,
+            savecb: data.savecb
         } );
     }
+    onSave() {
+        if( this.state.savecb( $( '#info-text' ).val() ) ) {
+            this.dismiss();
+        }
+    }
     onCancel() {
+        this.dismiss();
+    }
+    dismiss() {
         $( document ).focus();
         this.setState( {
             show: false,
@@ -339,11 +349,19 @@ export class TextDialog extends React.Component
                                 }}
                               rows={ 10 }
                               defaultValue={ this.state.text }
-                              readOnly={ true }/>
+                              readOnly={ this.state.savecb === null }/>
                 </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="primary" onClick={ this.onCancel.bind( this ) }>OK</Button>
-                </Modal.Footer>
+                { this.state.savecb === null &&
+                    <Modal.Footer>
+                        <Button variant="primary" onClick={ this.onCancel.bind( this ) }>OK</Button>
+                    </Modal.Footer>
+                }
+                { this.state.savecb !== null &&
+                    <Modal.Footer>
+                        <Button variant="primary" onClick={ this.onSave.bind( this ) }>Save</Button>
+                        <Button variant="secondary" onClick={ this.onCancel.bind( this ) }>Close</Button>
+                    </Modal.Footer>
+                }
             </Modal>
         );
     }

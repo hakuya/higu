@@ -575,6 +575,17 @@ class Obj( SessionObject ):
         else:
             self.obj.name = name
 
+    def set_text( self, text ):
+
+        self['text'] = text
+
+    def get_text( self ):
+
+        try:
+            return self['text']
+        except KeyError:
+            return None
+
     def get_repr( self, group = None ):
 
         name = self.get_name( group )

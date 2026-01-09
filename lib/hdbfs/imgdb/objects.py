@@ -80,17 +80,6 @@ class ImageFile( File ):
 
         return self.tbcache.get_origin_time( self )
 
-    def set_text( self, text ):
-
-        self['text'] = text
-
-    def get_text( self ):
-
-        try:
-            return self['text']
-        except KeyError:
-            return None
-
     def __drop_info( self ):
 
         self.obj.info = None

@@ -182,9 +182,10 @@ class JsonInterface:
                 imports = target.get_imports()
                 info['imports'] = list( map( make_obj_tuple, imports ) )
 
+        if( 'text' in items ):
+            info['text'] = target.get_text()
+
         if( isinstance( target, hdbfs.File ) or isinstance( target, hdbfs.Album ) ):
-            if( 'text' in items ):
-                info['text'] = target.get_text()
             if( 'albums' in items ):
                 albums = target.get_member_of()
                 info['albums'] = list( map( make_obj_tuple, albums ) )

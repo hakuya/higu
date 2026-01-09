@@ -98,7 +98,7 @@ export class AdminTab extends React.Component {
                                         return it[0] + ': ' + it[1];
                                     } ));
 
-            dialogs.show_text_dialog( lines.join( '\n' ) );
+            dialogs.show_text_dialog( lines.join( '\n' ), null );
         } else {
             alert( response.msg );
         }

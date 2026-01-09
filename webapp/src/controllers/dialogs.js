@@ -39,10 +39,11 @@ export function show_name_dialog( obj )
     show_dialog( 'name', { obj: obj } );
 };
 
-export function show_text_dialog( text )
+export function show_text_dialog( text, savecb )
 {
     show_dialog( 'text', {
-        text: text
+        text: text,
+        savecb: savecb
     } );
 };
 
