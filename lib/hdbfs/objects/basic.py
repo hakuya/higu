@@ -564,6 +564,16 @@ class Obj( SessionObject ):
     @SessionObject._with_access( write = True )
     def set_name( self, name, group = None ):
 
+        from sqlalchemy import and_
+
+        if( self.get_type().get_class() == model.ObjectClass.CLASSIFIER ):
+            # Tags are not permitted to have duplicate names
+            assert self.session.model.query( model.Object.object_id ) \
+                .filter( and_(
+                    model.Object.name == name,
+                    model.Object.object_type.in_( model.ObjectClass.CLASSIFIER.all_type_values() )
+                ) ).first() is None
+
         if( group is not None ):
             rel = self.session.model.query( model.Relation ) \
                     .filter( model.Relation.parent_id == group.obj.object_id ) \

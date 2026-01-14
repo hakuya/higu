@@ -166,7 +166,9 @@ class NameAction extends React.Component
         return (
             <Dropdown.Item
                 onClick={ () => {
-                        dialogs.show_name_dialog( this.props.display );
+                        dialogs.show_name_dialog(
+                                this.props.display,
+                                this.props.display.info.repr );
                     } }>
                     { 'Name' }
             </Dropdown.Item>
@@ -455,6 +457,8 @@ export class ActionsGroup extends React.Component
         return (
             <div id='editmenu'>
                 <DropdownButton size='sm' align='end' title='Edit'>
+                    <NameAction display={ this.state.display }/>
+                    <Dropdown.Divider/>
                     { sorting != 'unordered' &&
                         <ModifyTagAction
                             label='Remove Sort'

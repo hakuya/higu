@@ -519,6 +519,33 @@ class HiguLibCases( testutil.TestCase ):
             self.assertEqual( tag.get_id(), tag2.get_id(),
                     'Tag ID mismatch' )
 
+    def test_rename_tag( self ):
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            tag = h.make_tag( 'a_tag' )
+            tag.set_name( 'b_tag' )
+
+            tag2 = h.get_tag( 'b_tag' )
+
+            self.assertEqual( tag.get_id(), tag2.get_id(),
+                    'Tag ID mismatch' )
+
+    def test_duplicate_tag_name( self ):
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            tag1 = h.make_tag( 'a_tag' )
+            h.make_tag( 'b_tag' )
+
+            try:
+                tag1.set_name( 'b_tag' )
+                self.fail( 'Succeeded setting duplicate tag name' )
+            except:
+                pass
+
     def test_tag_file( self ):
 
         black = self._load_data( self.black )

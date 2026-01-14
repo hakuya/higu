@@ -230,6 +230,7 @@ export class NameDialog extends React.Component
     show( data ) {
         this.setState( {
             show: true,
+            name: data.name,
         } );
         this.obj = data.obj;
     }
@@ -281,7 +282,7 @@ export class NameDialog extends React.Component
 
                     <form id='name-dialog-form' onSubmit={ this.onApply.bind( this ) }><fieldset>
                     <label htmlFor='fname'>Name</label>
-                    <input type='text' name='fname' id='fname'/>
+                    <input type='text' name='fname' id='fname' defaultValue={ this.state.name }/>
                     { ' ' }
                     <label htmlFor='saveold'>Save old name</label>
                     <input type='checkbox' name='saveold' id='saveold'/>

@@ -34,9 +34,12 @@ export function show_dup_dialog( obj, dropped, received )
     });
 };
 
-export function show_name_dialog( obj )
+export function show_name_dialog( obj, name )
 {
-    show_dialog( 'name', { obj: obj } );
+    show_dialog( 'name', {
+        obj: obj,
+        name: name
+    } );
 };
 
 export function show_text_dialog( text, savecb )

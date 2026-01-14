@@ -424,7 +424,7 @@ export class DisplayableObject extends DisplayableBase
                 dialogs.show_tag_dialog( this );
                 break;
             case 110: // n
-                dialogs.show_name_dialog( this );
+                dialogs.show_name_dialog( this, this.info.repr );
                 break;
             case 49: // 1
             case 50: // 2
