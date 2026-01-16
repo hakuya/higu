@@ -124,20 +124,22 @@ export class DisplayableObject extends DisplayableBase
         tabs.on_event( { type: 'info_changed', affected: [ this.obj_id ] } );
     }
 
-    rm_group()
+    rm()
     {
         var request = {
-            action:     'group_delete',
-            group:      this.obj_id,
+            action: 'obj_delete',
+            target: this.obj_id,
         };
 
-        load_async( request, this._rm_group_cb.bind( this ), {} );
+        load_async( request, this._rm_cb.bind( this ), {} );
     }
 
-    _rm_group_cb( data, response )
+    _rm_cb( data, response )
     {
-        tabs.on_event( { type: 'info_changed', affected:
-                this.obj_id_list() } );
+        if( this.info.type.split( ':' )[0] != 'file') {
+            tabs.on_event( { type: 'info_changed', affected:
+                    this.obj_id_list() } );
+        }
         tabs.on_event( { type: 'removed', affected:
                 [ this.obj_id ] } );
     }
@@ -544,7 +546,10 @@ export class DisplayableObject extends DisplayableBase
             var type = e.drop_data.get_type()
 
             if( this.info.type.split( ':' )[0] == 'file') {
-                alert( 'delete ' + repr );
+                if( !confirm( 'Are you sure you want to remove this file?' ) ) {
+                    return;
+                }
+                this.rm();
             } else if( this.info.type.split( ':' )[0] == 'album' ) {
 
                 if( this.info.type.split( ':' )[1] == 'closed'
@@ -554,7 +559,7 @@ export class DisplayableObject extends DisplayableBase
                 }
 
                 if( obj_id == this.obj_id ) {
-                    this.rm_group();
+                    this.rm();
                     return;
                 } else if( this.find_item( obj_id ) == -1 ) {
                     alert( repr + ' not in album' );

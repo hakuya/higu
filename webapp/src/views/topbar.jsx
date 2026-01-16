@@ -403,6 +403,11 @@ export class ActionsGroup extends React.Component
                         label='Mirror'
                         transform='mirror'
                         display={ this.state.display }/>
+                    <Dropdown.Divider/>
+                    <RemoveAction
+                        label='Delete'
+                        display={ this.state.display }
+                        dropData={ this.state.display.get_obj_drop_data() }/>
                 </DropdownButton>
             </div>
         );

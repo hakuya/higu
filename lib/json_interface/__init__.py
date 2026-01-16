@@ -591,6 +591,20 @@ class JsonInterface:
 
         return json_ok()
 
+    def cmd_obj_delete( self, target ):
+
+        db = self.__db
+
+        obj = db.get_object_by_id( target )
+        assert(
+                isinstance( obj, hdbfs.File )
+            or isinstance( obj, hdbfs.Album )
+            )
+
+        db.delete_object( obj )
+
+        return json_ok()
+
     def cmd_group_create( self, targets = None, from_import = None ):
 
         db = self.__db
@@ -617,17 +631,6 @@ class JsonInterface:
 
         else:
             return json_err( 'argument', 'must specify targets or from_import' )
-
-    def cmd_group_delete( self, group ):
-
-        db = self.__db
-
-        group = db.get_object_by_id( group )
-        assert( isinstance( group, hdbfs.Album ) )
-
-        db.delete_object( group )
-
-        return json_ok()
 
     def cmd_group_append( self, group, targets ):
 
