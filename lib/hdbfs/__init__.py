@@ -98,6 +98,21 @@ class Database( Session ):
 
         return [ self._construct_session_object( s ) for s in q ]
 
+    @Session._with_access()
+    def get_stream_by_sha1( self, stream_sha1: str ) -> Optional[Stream]:
+        """ Gets a stream from the database given its sha-1 hash. """
+
+        streams = self._lookup_streams_by_details( hash_sha1 = stream_sha1 )
+        assert( len( streams ) < 2 )
+
+        return streams[0] if( len( streams ) > 0 ) else None
+
+    def get_object_by_sha1( self, stream_sha1: str ) -> Optional[Obj]:
+        """ Gets an object from the database given sha-1 hash of its stream. """
+
+        stream = self.get_stream_by_sha1( stream_sha1 )
+        return stream.get_file() if( stream is not None ) else None
+
     def lookup_untagged_files( self ):
 
         return self.unowned_files()
@@ -581,19 +596,24 @@ class Database( Session ):
         taglist += map( self._get_tag, tags )
         taglist += map( self._make_tag, tags_new )
 
+        imp = self.start_import()
+
         if( create_album ):
             album = self.create_album( taglist, album_name, album_text )
         else:
             album = None
 
-        for f in files:
+        for idx, f in enumerate( files ):
             x, stream, is_new = self.__register_file( f, name_policy )
+            x.assign( imp, idx )
 
             if( album is not None ):
-                x.assign( album, None )
+                x.assign( album, idx )
             else:
                 for t in taglist:
                     x.assign( t, None )
+
+        imp.close_import()
 
     @Session._with_access( write = True )
     def delete_object( self, obj ):

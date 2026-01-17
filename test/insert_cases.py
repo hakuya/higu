@@ -140,7 +140,7 @@ class InsertCases( testutil.TestCase ):
         self._run( black )
 
         h = hdbfs.Database()
-        obj = h.get_object_by_id( 1 )
+        obj = h.get_object_by_sha1( self.black_hash )
 
         self.assertFalse( obj is None,
                 'Image not in DB' )
@@ -186,7 +186,7 @@ class InsertCases( testutil.TestCase ):
         self._run( black )
 
         h = hdbfs.Database()
-        obj = h.get_object_by_id( 1 )
+        obj = h.get_object_by_sha1( self.black_hash )
 
         self.assertFalse( obj is None,
                 'Image not in DB' )
@@ -199,7 +199,7 @@ class InsertCases( testutil.TestCase ):
         self._run( black, name = 'setundef' )
 
         h = hdbfs.Database()
-        obj = h.get_object_by_id( 1 )
+        obj = h.get_object_by_sha1( self.black_hash )
 
         self.assertFalse( obj is None,
                 'Image not in DB' )
@@ -215,7 +215,7 @@ class InsertCases( testutil.TestCase ):
         self._run( black2 )
 
         h = hdbfs.Database()
-        obj = h.get_object_by_id( 1 )
+        obj = h.get_object_by_sha1( self.black_hash )
 
         self.assertFalse( obj is None,
                 'Image not in DB' )
@@ -234,7 +234,7 @@ class InsertCases( testutil.TestCase ):
         self._run( black, name = 'noset' )
 
         h = hdbfs.Database()
-        obj = h.get_object_by_id( 1 )
+        obj = h.get_object_by_sha1( self.black_hash )
 
         self.assertFalse( obj is None,
                 'Image not in DB' )
@@ -248,7 +248,7 @@ class InsertCases( testutil.TestCase ):
         self._run( black )
 
         h = hdbfs.Database()
-        obj = h.get_object_by_id( 1 )
+        obj = h.get_object_by_sha1( self.black_hash )
 
         self.assertEqual( obj.get_name(), self.black,
                 'name not loaded' )
@@ -318,9 +318,9 @@ class InsertCases( testutil.TestCase ):
         yt = h.get_tag( 'yellow' )
         ct = h.get_tag( 'cyan' )
 
-        ro = h.get_object_by_id( 4 )
-        go = h.get_object_by_id( 5 )
-        bo = h.get_object_by_id( 6 )
+        ro = h.get_object_by_sha1( self.red_hash )
+        go = h.get_object_by_sha1( self.green_hash )
+        bo = h.get_object_by_sha1( self.blue_hash )
 
         magenta = mt.get_files()
         yellow = yt.get_files()
@@ -384,10 +384,14 @@ class InsertCases( testutil.TestCase ):
 
         h = hdbfs.Database()
         al = h.get_object_by_id( 1 )
-        wo = h.get_object_by_id( 2 )
-        lo = h.get_object_by_id( 3 )
-        ko = h.get_object_by_id( 4 )
+        wo = h.get_object_by_sha1( self.white_hash )
+        lo = h.get_object_by_sha1( self.grey_hash )
+        ko = h.get_object_by_sha1( self.black_hash )
 
+        als = wo.get_parents( hdbfs.ObjectClass.ALBUM )
+        self.assertEqual( len( als ), 1, 'Expected one album' )
+
+        al = als[0]
         self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
 
@@ -413,11 +417,14 @@ class InsertCases( testutil.TestCase ):
         self._run( [ white, grey, black ], album = 'bw', taglist = [ 'bw' ] )
 
         h = hdbfs.Database()
-        al = h.get_object_by_id( 2 )
-        wo = h.get_object_by_id( 3 )
-        lo = h.get_object_by_id( 4 )
-        ko = h.get_object_by_id( 5 )
+        wo = h.get_object_by_sha1( self.white_hash )
+        lo = h.get_object_by_sha1( self.grey_hash )
+        ko = h.get_object_by_sha1( self.black_hash )
 
+        als = wo.get_parents( hdbfs.ObjectClass.ALBUM )
+        self.assertEqual( len( als ), 1, 'Expected one album' )
+
+        al = als[0]
         self.assertTrue( isinstance( al, hdbfs.Album ),
                 'Expected album' )
 
