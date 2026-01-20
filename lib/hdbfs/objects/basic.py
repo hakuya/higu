@@ -406,13 +406,8 @@ class Obj( SessionObject ):
             assert False
 
         # Orders and names are allowed only for albums and imports
-        if( order is not None ):
-            assert parent.obj.get_type().get_class() in [
-                    model.ObjectClass.ALBUM,
-                    model.ObjectClass.IMPORT
-                ] or parent.obj.get_type() in [
-                    model.ObjectType.CLASSIFIER_ORDERED
-                ]
+        is_ordered_relation = model.is_relation_ordered( parent.get_type(), self.get_type() )
+        assert order is None or is_ordered_relation
 
         # Names are allowed only for albums and imports
         if( name is not None ):
@@ -441,14 +436,11 @@ class Obj( SessionObject ):
 
             rel.parent_obj = parent.obj
             rel.child_obj = self.obj
+            rel.sort = None
 
         elif( rels != [] ):
 
-            if( parent.obj.get_type() in [
-                        model.ObjectType.ALBUM_FORMAL,
-                        model.ObjectType.IMPORT_OPEN,
-                    ] ):
-
+            if( model.is_poly_linking_permitted( parent.get_type(), self.get_type() ) ):
                 # Poly linking allowed, though see if we're being sloted to
                 # an existing position
                 for r in rels:
@@ -470,7 +462,27 @@ class Obj( SessionObject ):
             if( is_duplicate ):
                 self.__assign_duplicate( parent, rel )
 
-        if( rel is None ):
+        if( (rel is None or rel.sort is None)
+                and order is None and is_ordered_relation ):
+            # Make sure we have a unique order if we're ordered
+            from sqlalchemy import func
+
+            order = self.session.model.query( func.max( model.Relation.sort ) ) \
+                        .filter( model.Relation.parent_id == parent.obj.object_id ) \
+                        .scalar()
+            if( order is not None ):
+                order += 1
+            else:
+                order = 0
+
+        if( rel is not None ):
+            # We have an existing relationship
+
+            if( order is not None ):
+                # Update the order if requested
+                rel.sort = order
+
+        else:
             # Make sure we have a unique instance number for poly linking
             instance = 0
             for r in rels:
@@ -480,10 +492,10 @@ class Obj( SessionObject ):
             rel.parent_obj = parent.obj
             rel.child_obj = self.obj
             rel.instance = instance
+            if( order is not None ):
+                rel.sort = order
             self.session.model.add( rel )
 
-        if( order is not None ):
-            rel.sort = order
         if( name is not None ):
             rel.child_name = name
 

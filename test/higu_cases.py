@@ -824,6 +824,64 @@ class HiguLibCases( testutil.TestCase ):
             self.assertEqual( files[1], go, 'Green not in second position after reorder' )
             self.assertEqual( files[2], ro, 'Red not in third position after reorder' )
 
+    def test_order_assigned( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            album = h.create_album()
+
+            ro = h.register_file( red, False )
+            go = h.register_file( green, False )
+            bo = h.register_file( blue, False )
+
+            ro.assign( album )
+            go.assign( album )
+            bo.assign( album )
+
+            files = album.get_files()
+
+            self.assertEqual( files[0], ro, 'Red not in first position after add with order' )
+            self.assertEqual( files[1], go, 'Green not in second position after add with order' )
+            self.assertEqual( files[2], bo, 'Blue not in third position after add with order' )
+
+            self.assertEqual( ro.get_order( album ), 0, 'Red order improperly assigned' )
+            self.assertEqual( go.get_order( album ), 1, 'Green order improperly assigned' )
+            self.assertEqual( bo.get_order( album ), 2, 'Blue order improperly assigned' )
+
+    def test_order_add_to_end( self ):
+
+        red = self._load_data( self.red )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            album = h.create_album()
+
+            ro = h.register_file( red, False )
+            go = h.register_file( green, False )
+            bo = h.register_file( blue, False )
+
+            ro.assign( album, 3 )
+            go.assign( album, 2 )
+            bo.assign( album )
+
+            files = album.get_files()
+
+            self.assertEqual( files[0], go, 'Green not in first position after add with order' )
+            self.assertEqual( files[1], ro, 'Red not in second position after add with order' )
+            self.assertEqual( files[2], bo, 'Blue not in third position after add with order' )
+
+            self.assertEqual( ro.get_order( album ), 3, 'Red order improperly assigned' )
+            self.assertEqual( go.get_order( album ), 2, 'Green order improperly assigned' )
+            self.assertEqual( bo.get_order( album ), 4, 'Blue order improperly assigned' )
+
     def test_set_variant( self ):
 
         white = self._load_data( self.white )

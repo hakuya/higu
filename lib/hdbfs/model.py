@@ -98,6 +98,31 @@ class StreamPriority( Enum ):
     NORMAL     = 2000
     PRIORITY   = 3000
 
+def is_relation_ordered( parent: ObjectType, child: ObjectType ) -> bool:
+    """ Returns true if the given relation has an explicit order. """
+
+    ORDERED_PARENTS = [
+        ObjectType.ALBUM_FREE,
+        ObjectType.ALBUM_FORMAL,
+        ObjectType.ALBUM_CLOSED,
+        ObjectType.CLASSIFIER_ORDERED,
+        ObjectType.IMPORT_OPEN,
+        ObjectType.IMPORT_CLOSED,
+    ]
+
+    return parent in ORDERED_PARENTS
+
+def is_poly_linking_permitted( parent: ObjectType, child: ObjectType ) -> bool:
+
+    POLY_PARENTS = [
+        ObjectType.ALBUM_FORMAL,
+        ObjectType.ALBUM_CLOSED,
+        ObjectType.IMPORT_OPEN,
+        ObjectType.IMPORT_CLOSED,
+    ]
+
+    return parent in POLY_PARENTS
+
 VERSION = 16
 REVISION = 1
 
