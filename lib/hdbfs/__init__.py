@@ -25,6 +25,8 @@ import hdbfs.bulk as bulk
 
 from hdbfs.model import ImageRequestPriority
 
+from hdbfs.albums import Albums_interface
+
 from typing import \
         Optional, \
         NamedTuple, \
@@ -54,6 +56,8 @@ class Database( Session ):
 
         imgdb.init_session( self, self.tbcache )
         init_basic_factories( self, self.tbcache )
+
+        self.albums = Albums_interface( self )
 
     def _get_object_by_id( self, object_id: int ) -> Obj:
 
@@ -293,7 +297,7 @@ class Database( Session ):
                 #log.warn( '%s was not found in the db and was ignored', f )
                 pass
 
-    @Session._with_access( write = True )
+    # ***Deprecated*** use albums.create directly
     def create_album( self,
                 tags = [],
                 name = None,
@@ -301,33 +305,10 @@ class Database( Session ):
                 from_import : Optional[hdbfs.Import] = None
             ) -> hdbfs.Album:
 
-        model_album = model.Object( model.ObjectType.ALBUM_FREE )
-        self.model.add( model_album )
-
-        album = self._construct_session_object( model_album )
-        assert isinstance( album, hdbfs.Album )
-
-        if( name is None and from_import is not None ):
-            name = from_import.get_name()
-        if( text is None and from_import is not None ):
-            text = from_import['text']
-
-        if( name is not None ):
-            album.obj.name = name
-
-        if( text is not None ):
-            album.obj['text'] = text
-
-        for t in tags:
-            album.assign( t, None )
-
         if( from_import is not None ):
-            album.make_formal_album()
-            for it, f in enumerate( from_import.get_files() ):
-                f.assign( album, it, f.get_name( from_import, it ) )
-            album.close_album()
-
-        return album
+            return self.albums.create_from_import( from_import, tags, name, text )
+        else:
+            return self.albums.create( tags, name, text )
 
     @Session._with_access( write = True )
     def start_import( self, name = None, text = None ) -> hdbfs.Import:
@@ -410,7 +391,7 @@ class Database( Session ):
             name = os.path.split( path )[1]
 
         ext = os.path.splitext( name )[1]
-        assert ext[0] == '.'
+        assert len( ext ) > 0 and ext[0] == '.'
         ext = ext[1:]
 
         details = calculate_details( path )

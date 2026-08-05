@@ -401,6 +401,18 @@ class JsonInterface:
 
         return json_ok()
 
+    def cmd_album_partition( self, album, items ):
+
+        db = self.__db
+
+        album = db.get_object_by_id( album )
+        assert( isinstance( album, hdbfs.Album ) )
+
+        items = list( map( db.get_object_by_id, items ) )
+        db.albums.partition( album, items )
+
+        return json_ok()
+
     def cmd_taglist( self ):
 
         db = self.__db

@@ -757,6 +757,39 @@ class HiguLibCases( testutil.TestCase ):
             self.assertTrue( child in par_albums, 'Blue not in album' )
             self.assertTrue( child in par_items, 'Blue not in album' )
 
+    def test_partition_album( self ):
+
+        red = self._load_data( self.red )
+        yellow = self._load_data( self.yellow )
+        green = self._load_data( self.green )
+        blue = self._load_data( self.blue )
+        magenta = self._load_data( self.magenta )
+
+        with hdbfs.Database() as h:
+            h.enable_write_access()
+
+            ro = h.register_file( red, False )
+            yo = h.register_file( yellow, False )
+            go = h.register_file( green, False )
+            bo = h.register_file( blue, False )
+            mo = h.register_file( magenta, False )
+
+            album = h.albums.create_from_files( [ ro, yo, go, bo, mo ] )
+            part = h.albums.partition( album, [ yo, go, bo ] )
+
+            alb_files = album.get_items()
+            self.assertEqual( len( alb_files ), 3, 'Wrong number of files in album' )
+            self.assertEqual( alb_files[0], ro, 'Red not in album or bad position' )
+            self.assertEqual( alb_files[1], part, 'Partition not in album or bad position' )
+            self.assertEqual( alb_files[2], mo, 'Magenta not in album or bad position' )
+
+            part_files = part.get_items()
+
+            self.assertEqual( len( part_files ), 3, 'Wrong number of files in partition' )
+            self.assertEqual( part_files[0], yo, 'Yellow not in parition or bad position' )
+            self.assertEqual( part_files[1], go, 'Green not in parition or bad position' )
+            self.assertEqual( part_files[2], bo, 'Blue not in parition or bad position' )
+
     def test_order_then_reorder( self ):
 
         red = self._load_data( self.red )

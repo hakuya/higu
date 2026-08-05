@@ -129,6 +129,20 @@ export class Header extends React.Component
     }
 }
 
+class PartitionAction extends React.Component
+{
+    render() {
+        return (
+            <Dropdown.Item
+                onClick={ () => {
+                        this.props.display.partition( this.props.dropData );
+                    } }>
+                    { 'Partition' }
+            </Dropdown.Item>
+        );
+    }
+}
+
 class RemoveAction extends React.Component
 {
     render() {
@@ -352,6 +366,10 @@ export class ActionsGroup extends React.Component
             <div id='editmenu'>
                 { this.state.selected.length + ' selected' }
                 <DropdownButton size='sm' algin='end' title='Edit'>
+                    <PartitionAction
+                        display={ this.state.display }
+                        dropData={ this.selection_drop_data() }/>
+                    <Dropdown.Divider/>
                     <RemoveAction
                         label='Remove'
                         display={ this.state.display }

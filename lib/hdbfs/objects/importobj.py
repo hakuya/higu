@@ -12,6 +12,11 @@ class Import( Obj ):
         super().__init__( session, obj )
 
     @SessionObject._with_access( write = True )
+    def open_import( self ) -> None:
+
+        self.obj.set_type( model.ObjectType.IMPORT_OPEN )
+
+    @SessionObject._with_access( write = True )
     def close_import( self ) -> None:
 
         self.obj.set_type( model.ObjectType.IMPORT_CLOSED )

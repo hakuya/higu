@@ -167,12 +167,14 @@ export class DisplayableObject extends DisplayableBase
         tabs.on_event( { type: 'info_changed', affected: affected } );
     }
 
-    reorder( drop_data, idx )
+    /**
+     * Given a drop-data object, determine the list of sorted source indexes
+     * from the local files array.
+     */
+    _determine_src_indexes( drop_data )
     {
         var files = drop_data.get_files();
-
         var src_idxs = [];
-        var src_objs = [];
 
         for( var i = 0; i < files.length; i++ ) {
             var src_idx = this.find_item( files[i][0] );
@@ -185,9 +187,49 @@ export class DisplayableObject extends DisplayableBase
         }
 
         src_idxs.sort( ( a, b ) => ( a - b ) );
+        return src_idxs;
+    }
+
+    /**
+     * Given a list of indexes, produce a list of objects.
+     */
+    _src_indexes_to_objects( src_idxs )
+    {
+        var src_objs = [];
+
         for( var i = 0; i < src_idxs.length; i++ ) {
             src_objs.push( this.info.files[src_idxs[i]] )
         }
+
+        return src_objs;
+    }
+
+    /**
+     * Given a list of objects, return a list of object_ids.
+     */
+    _objects_to_ids( objs )
+    {
+        var obj_ids = [];
+
+        for( var i = 0; i < objs.length; i++ ) {
+            obj_ids.push( objs[i][0] );
+        }
+
+        return obj_ids;
+    }
+
+    /**
+     * Given a drop-data object, determine a new order for the local files
+     * of this local object.
+     *
+     * drop_data - drop data of files to be reordered.
+     * idx       - index within the complete list of files to place the
+     *             files in the drop_data.
+     */
+    _produce_output_order( drop_data, idx )
+    {
+        var src_idxs = this._determine_src_indexes( drop_data );
+        var src_objs = this._src_indexes_to_objects( src_idxs );
 
         var output = [];
         for( var i = 0; i < this.info.files.length; i++ ) {
@@ -200,6 +242,13 @@ export class DisplayableObject extends DisplayableBase
             if( src_idxs.indexOf( i ) >= 0 ) continue;
             output.push( this.info.files[i] );
         }
+
+        return output;
+    }
+
+    reorder( drop_data, idx )
+    {
+        var output = this._produce_output_order( drop_data, idx )
 
         var changed = false;
         for( var i = 0; i < this.info.files.length; i++ ) {
@@ -224,6 +273,26 @@ export class DisplayableObject extends DisplayableBase
     {
         tabs.on_event( { type: 'files_changed', affected:
                 [ this.obj_id ] } );
+    }
+
+    partition( drop_data )
+    {
+        var src_idxs = this._determine_src_indexes( drop_data );
+        var src_objs = this._src_indexes_to_objects( src_idxs );
+
+        var obj_ids = this._objects_to_ids( src_objs );
+        var request = {
+            action:     'album_partition',
+            album:      this.obj_id,
+            items:      obj_ids,
+        };
+        load_async( request, this._partition_cb.bind( this ), {} );
+    }
+
+    _partition_cb( data, response )
+    {
+        tabs.on_event( { type: 'files_changed', affected:
+                [ this.obj_id ].concat( this.obj_id_list() ) } );
     }
 
     set_field( field, value )
@@ -656,13 +725,7 @@ export class DisplayableObject extends DisplayableBase
 
     obj_id_list()
     {
-        var obj_ids = [];
-
-        for( var i = 0; i < this.info.files.length; i++ ) {
-            obj_ids.push( this.info.files[i][0] );
-        }
-
-        return obj_ids;
+        return this._objects_to_ids( this.info.files );
     }
 
     get_obj_id()
