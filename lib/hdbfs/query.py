@@ -1,3 +1,26 @@
+""" Query interface for searching and filtering database objects.
+
+This module provides a flexible query system for finding files, albums, tags,
+and other objects in the database. Queries can be built incrementally by adding
+constraints for tags, names, types, dates, and other properties.
+
+The Query class uses a constraint-based approach where each constraint narrows
+down the result set. Constraints can be combined with AND, OR, and NOT logic.
+
+Key classes:
+    Query: Main query builder interface
+    TagConstraint: Filter by tag assignment
+    TagCountConstraint: Filter by number of tags
+    NameConstraint: Filter by object name
+    TypeConstraint: Filter by object type
+    AddedConstraint: Filter by creation date
+    AlbumConstraint: Filter by album membership
+    ImportConstraint: Filter by import session
+
+Functions:
+    QueryInt: Parse integer values with special handling for month names
+"""
+
 import calendar
 import datetime
 
@@ -7,20 +30,74 @@ import hdbfs.model as model
 
 from hdbfs.session import SessionObjectFactoryIterator
 
-from typing import Union
+from typing import Union, Optional, List, Any, Tuple, Protocol
+
+class Constraint( Protocol ):
+    """ Protocol for query constraint objects.
+
+    All constraint classes must implement these methods to be usable
+    in Query objects.
+    """
+
+    def get_preferred_order( self ) -> Optional[Union[str, Tuple[str, bool]]]:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            None, a sort field string, or a (field, descending) tuple
+        """
+        ...
+
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
+        ...
 
 class TagConstraint:
+    """ Constraint that matches objects tagged with a specific tag.
 
-    def __init__( self, tag, fuzzy = False ):
+    Filters objects by tag assignment. Supports exact tag matching or fuzzy
+    matching with wildcards. Can match by tag object, tag name, or tag ID.
+
+    Attributes:
+        __tag: Tag to match (can be Obj, int ID, or string name)
+        __fuzzy: Whether to enable fuzzy/wildcard matching
+    """
+
+    def __init__( self, tag: Union['hdbfs.Obj', int, str], fuzzy: bool = False ):
+        """ Initialize a tag constraint.
+
+        Args:
+            tag: Tag to filter by (Obj, object ID, or tag name string)
+            fuzzy: If True, enables wildcard matching with * in tag names
+        """
 
         self.__tag = tag
         self.__fuzzy = fuzzy
 
-    def get_preferred_order( self ):
+    def get_preferred_order( self ) -> Optional[Tuple[str, bool]]:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            None (no preferred order for tag constraints)
+        """
 
         return None
 
-    def to_db_constraint( self, db: 'hdbfs.Database' ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
 
         from sqlalchemy import and_
 
@@ -47,17 +124,47 @@ class TagConstraint:
                      .filter( model.Relation.parent_id.in_( tag ) )
 
 class TagCountConstraint:
+    """ Constraint that matches objects by their tag count.
 
-    def __init__( self, op, c ):
+    Filters objects based on how many tags they have assigned. Supports
+    various comparison operators (=, !=, <, <=, >, >=).
+
+    Attributes:
+        __op: Comparison operator string
+        __c: Count value to compare against
+    """
+
+    def __init__( self, op: str, c: Union[int, str] ):
+        """ Initialize a tag count constraint.
+
+        Args:
+            op: Comparison operator ('=', '!=', '<', '<=', '>', '>=')
+            c: Tag count to compare against (int or string that converts to int)
+        """
 
         self.__op = op
         self.__c = int( c )
 
-    def get_preferred_order( self ):
+    def get_preferred_order( self ) -> Optional[Tuple[str, bool]]:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            None (no preferred order for tag count constraints)
+        """
 
         return None
 
-    def to_db_constraint( self, db: 'hdbfs.Database' ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Builds a query that counts tags per object and filters by the count.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
 
         from sqlalchemy import func, literal_column
 
@@ -86,8 +193,22 @@ class TagCountConstraint:
         }[self.__op]( q )
 
 class NameConstraint:
+    """ Constraint that matches objects by name.
 
-    def __init__( self, op, s ):
+    Filters objects based on their name field. Supports exact matching,
+    wildcard matching with *, and null checking.
+
+    Attributes:
+        __constraint: SQLAlchemy constraint expression
+    """
+
+    def __init__( self, op: str, s: Optional[str] ):
+        """ Initialize a name constraint.
+
+        Args:
+            op: Comparison operator ('=' or '!=')
+            s: Name to match (supports * wildcards), or None to check for null
+        """
 
         from sqlalchemy import and_
 
@@ -110,26 +231,69 @@ class NameConstraint:
         else:
             assert False
 
-    def get_preferred_order( self ):
+    def get_preferred_order( self ) -> str:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            'name' (results should be sorted by name)
+        """
 
         return 'name'
 
-    def to_db_constraint( self, db: 'hdbfs.Database' ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
 
         return db.model.query( model.Object.object_id ) \
                        .filter( self.__constraint )
 
 class UnboundConstraint:
+    """ Constraint that performs a broad search across names and tags.
 
-    def __init__( self, s ):
+    A fallback constraint that searches for the given string in object names
+    and tag names. First tries to match as a tag name, then falls back to
+    substring search in names and tag assignments.
+
+    Attributes:
+        __s: Search string
+    """
+
+    def __init__( self, s: str ):
+        """ Initialize an unbound constraint.
+
+        Args:
+            s: String to search for in names and tags
+        """
 
         self.__s = s
 
-    def get_preferred_order( self ):
+    def get_preferred_order( self ) -> Optional[Tuple[str, bool]]:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            None (no preferred order for unbound constraints)
+        """
 
         return None
 
-    def to_db_constraint( self, db: 'hdbfs.Database' ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Tries tag matching first, then falls back to substring search in
+        object names and objects tagged with matching tags.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
 
         from sqlalchemy import or_
 
@@ -159,7 +323,29 @@ class UnboundConstraint:
                         )
                     )
 
-def QueryInt( v, ceil = False ):
+def QueryInt( v: Union[int, str], ceil: bool = False ) -> int:
+    """ Parse an integer or date string to Unix timestamp.
+
+    Converts various input formats to integers. Handles plain integers,
+    date strings (YYYY/MM/DD), and date-time strings (YYYY/MM/DD_HH:MM:SS).
+    Month names in date strings are not yet supported.
+
+    Args:
+        v: Value to parse (int or date string)
+        ceil: If True, rounds partial dates to end of period (e.g., '2024'
+            becomes end of 2024). If False, uses start of period.
+
+    Returns:
+        Integer value or Unix timestamp
+
+    Raises:
+        ValueError: If string cannot be parsed as int or date
+
+    Example:
+        >>> QueryInt('2024/06/15')  # June 15, 2024 at 00:00:00
+        >>> QueryInt('2024', ceil=True)  # End of 2024
+        >>> QueryInt('2024/06/15_14:30:00')  # Specific date and time
+    """
 
     try:
         # Try as int
@@ -219,8 +405,27 @@ def QueryInt( v, ceil = False ):
         return dt
 
 class ObjIdConstraint:
+    """ Constraint that matches objects by their object ID.
 
-    def __init__( self, op, value ):
+    Filters objects by their unique object_id. Supports various comparison
+    operators and range syntax.
+
+    Attributes:
+        __constraint: SQLAlchemy constraint expression
+    """
+
+    def __init__( self, op: str, value: Union[int, str] ):
+        """ Initialize an object ID constraint.
+
+        Args:
+            op: Comparison operator:
+                - '=', '!=', '<', '<=', '>', '>=': Standard comparisons
+                - '~': Range syntax (see below)
+            value: Object ID or range specification:
+                - Integer: single ID
+                - 'N-M': range from N to M inclusive
+                - 'N|R': range N±R (N-R to N+R inclusive)
+        """
 
         from sqlalchemy import and_
 
@@ -255,18 +460,55 @@ class ObjIdConstraint:
         else:
             assert False
 
-    def get_preferred_order( self ):
+    def get_preferred_order( self ) -> Tuple[str, bool]:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            ('add', False) - sort by creation order (object ID), ascending
+        """
 
         return ( 'add', False, )
 
-    def to_db_constraint( self, db: 'hdbfs.Database' ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
 
         return db.model.query( model.Object.object_id ) \
                        .filter( self.__constraint )
 
 class ParameterConstraint:
+    """ Constraint that matches objects by metadata/parameter values.
 
-    def __init__( self, key, op, value ):
+    Filters objects based on their metadata key-value pairs. Supports string
+    matching (with wildcards), numeric comparisons, and null checks.
+
+    Attributes:
+        __key: Metadata key to filter on
+        __constraint: SQLAlchemy constraint expression
+    """
+
+    def __init__( self, key: str, op: str, value: Optional[Union[int, str]] ):
+        """ Initialize a parameter constraint.
+
+        Args:
+            key: Metadata key name to filter on
+            op: Comparison operator:
+                - '=' or '!=': equality/inequality (supports wildcards)
+                - '<', '<=', '>', '>=': numeric comparison (uses QueryInt)
+                - '~': range syntax (see value description)
+            value: Value to compare against:
+                - None: null check
+                - String with *: wildcard match
+                - Integer or date string: numeric comparison
+                - 'N-M': range from N to M inclusive
+                - 'N|R': range N±R (N-R to N+R inclusive)
+        """
 
         from sqlalchemy import and_
 
@@ -315,11 +557,24 @@ class ParameterConstraint:
         else:
             assert False
 
-    def get_preferred_order( self ):
+    def get_preferred_order( self ) -> Optional[Tuple[str, bool]]:
+        """ Get the preferred sort order for this constraint.
+
+        Returns:
+            None (no preferred order for parameter constraints)
+        """
 
         return None
 
-    def to_db_constraint( self, db: 'hdbfs.Database' ):
+    def to_db_constraint( self, db: 'hdbfs.Database' ) -> 'sqlalchemy.orm.Query':
+        """ Convert this constraint to a database query.
+
+        Args:
+            db: Database session to use for query building
+
+        Returns:
+            SQLAlchemy query selecting object IDs that match the constraint
+        """
 
         from sqlalchemy import and_
 
@@ -328,8 +583,47 @@ class ParameterConstraint:
                                         self.__constraint ) )
 
 class Query:
+    """ Flexible query builder for searching database objects.
+
+    Builds queries incrementally by adding constraints that filter objects by
+    tags, names, types, dates, and other properties. Constraints can be
+    combined with AND (required), OR (any), and NOT (exclude) logic.
+
+    The Query class supports:
+    - Tag-based filtering (with fuzzy matching)
+    - Text search in names and metadata
+    - Type filtering (files, albums, imports)
+    - Date range filtering
+    - Sorting and pagination
+    - Album expansion (include all files from matching albums)
+
+    Query strings can be parsed from a compact syntax:
+        - Plain text: required constraint (AND)
+        - `?term`: optional constraint (OR)
+        - `!term`: exclusion constraint (NOT)
+        - `#tag`: tag search with fuzzy matching
+        - `@text`: name substring search
+        - `&key=value`: parameter/metadata constraint
+        - `$command`: special commands (sort, type, expand, etc.)
+        - `^field`: sort by field (prefix ! for descending)
+
+    Example:
+        >>> q = Query()
+        >>> q.set_type(hdbfs.ObjectClass.FILE)
+        >>> q.add_require_constraint(TagConstraint('vacation'))
+        >>> results = q.execute(db)
+
+        >>> # Or using string syntax:
+        >>> q = Query().from_string('#vacation #beach $sort:add')
+        >>> results = q.execute(db)
+    """
 
     def __init__( self ):
+        """ Initialize an empty query.
+
+        Sets up default search types (files and albums) and empty constraint
+        lists. Use set_* and add_* methods to build the query.
+        """
 
         self.__search_types = [
             hdbfs.ObjectType.FILE.value,
@@ -477,7 +771,45 @@ class Query:
         else:
             self.set_order( sorts[0], False )
 
-    def from_string( self, s ):
+    def from_string( self, s: str ) -> 'Query':
+        """ Parse and apply a query string.
+
+        Parses a compact query syntax and builds the corresponding constraints.
+        Special handling: if the entire string is a number, searches all object
+        types by ID.
+
+        Syntax:
+            - term: required (AND logic)
+            - ?term: optional (OR logic)
+            - !term: excluded (NOT logic)
+            - #tag: tag with fuzzy matching
+            - @text: name substring search
+            - 123: object ID search
+            - &key=val: parameter equals value
+            - &key>val, &key<val, etc.: parameter comparison
+            - &!key: parameter is null
+            - &!!key: parameter is not null
+            - $sort:field or $sort:field:desc: set sort order
+            - $type:file, $type:album, etc.: set object type filter
+            - $expand: expand albums to include their files
+            - $untagged: show only untagged items
+            - $limit:N: limit to N results
+            - $range:offset:limit: pagination
+            - ^field or ^!field: sort by field (! = descending)
+
+        Args:
+            s: Query string to parse
+
+        Returns:
+            Self for method chaining
+
+        Raises:
+            ValueError: If syntax is invalid
+
+        Example:
+            >>> q = Query().from_string('#vacation ?#beach !#work $sort:add')
+            >>> q = Query().from_string('@sunset $type:file ^name')
+        """
 
         try:
             # If the query is an ID, we search all types
@@ -517,12 +849,41 @@ class Query:
 
         return self
 
-    def set_expand( self, expand = True ):
+    def set_expand( self, expand: bool = True ) -> 'Query':
+        """ Enable or disable album expansion.
+
+        When enabled, matching albums will be expanded to include all their
+        contained files in the results. This is useful for getting all files
+        from albums that match certain criteria.
+
+        Args:
+            expand: True to enable expansion, False to disable
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query().add_require_constraint(TagConstraint('vacation'))
+            >>> q.set_expand()  # Include all files from vacation albums
+        """
 
         self.__expand = expand
         return self
 
-    def set_untagged( self ):
+    def set_untagged( self ) -> 'Query':
+        """ Configure query to find only untagged objects.
+
+        Replaces all constraints with a single constraint that matches only
+        objects with zero tags. This is useful for finding newly imported
+        files that haven't been organized yet.
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query().set_untagged()
+            >>> untagged_files = list(q.execute(db))
+        """
 
         self.__nochild = True
         self.__req_constraints = [ TagCountConstraint( '=', 0 ) ]
@@ -531,7 +892,24 @@ class Query:
 
         return self
 
-    def set_type( self, obj_type: Union['hdbfs.ObjectClass','hdbfs.ObjectType'] ):
+    def set_type( self, obj_type: Union['hdbfs.ObjectClass','hdbfs.ObjectType'] ) -> 'Query':
+        """ Set the object type filter.
+
+        Restricts results to specific object types. Can filter by class
+        (e.g., all files, all albums) or by specific type (e.g., only
+        closed albums, only duplicate files).
+
+        Args:
+            obj_type: ObjectClass for all types in that class, or
+                ObjectType for a specific type
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query().set_type(hdbfs.ObjectClass.FILE)  # All files
+            >>> q = Query().set_type(hdbfs.ObjectType.ALBUM_CLOSED)  # Only closed albums
+        """
 
         if( isinstance( obj_type, hdbfs.ObjectClass ) ):
             self.__search_types = obj_type.all_type_values()
@@ -540,44 +918,186 @@ class Query:
 
         return self
 
-    def set_order( self, prop, desc = False ):
+    def set_order( self, prop: str, desc: bool = False ) -> 'Query':
+        """ Set the result sort order.
+
+        Args:
+            prop: Property to sort by:
+                - 'rand': random order
+                - 'add': creation order (object ID)
+                - 'name': alphabetical by name
+                - 'origin': by origin_time metadata
+            desc: True for descending order, False for ascending
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query().set_order('name')  # A-Z
+            >>> q = Query().set_order('add', desc=True)  # Newest first
+        """
 
         self.__order_by = ( prop, desc )
         return self
 
-    def set_limit( self, limit ):
+    def set_limit( self, limit: int ) -> 'Query':
+        """ Limit the number of results.
+
+        Args:
+            limit: Maximum number of results to return
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query().set_limit(10)  # First 10 results
+        """
 
         self.__range = ( 0, limit, )
         return self
 
-    def set_range( self, offset, limit ):
+    def set_range( self, offset: int, limit: int ) -> 'Query':
+        """ Set pagination range for results.
+
+        Args:
+            offset: Number of results to skip
+            limit: Maximum number of results to return after offset
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query().set_range(20, 10)  # Results 20-29 (page 3)
+        """
 
         self.__range = ( offset, limit, )
         return self
 
-    def add_require_constraint( self, constraint ):
+    def add_require_constraint( self, constraint: Constraint ) -> 'Query':
+        """ Add a required constraint (AND logic).
+
+        All required constraints must match for an object to be included
+        in results. This narrows down the result set.
+
+        Args:
+            constraint: Constraint object (TagConstraint, NameConstraint, etc.)
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query()
+            >>> q.add_require_constraint(TagConstraint('vacation'))
+            >>> q.add_require_constraint(NameConstraint('=', '*beach*'))
+        """
 
         self.__req_constraints.append( constraint )
         return self
 
-    def add_or_constraint( self, constraint ):
+    def add_or_constraint( self, constraint: Constraint ) -> 'Query':
+        """ Add an optional constraint (OR logic).
+
+        At least one OR constraint must match (if any are specified) for
+        an object to be included. This expands the result set.
+
+        Args:
+            constraint: Constraint object (TagConstraint, NameConstraint, etc.)
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query()
+            >>> q.add_or_constraint(TagConstraint('beach'))
+            >>> q.add_or_constraint(TagConstraint('ocean'))
+            # Matches items tagged with beach OR ocean
+        """
 
         self.__or_constraints.append( constraint )
         return self
 
-    def add_not_constraint( self, constraint ):
+    def add_not_constraint( self, constraint: Constraint ) -> 'Query':
+        """ Add an exclusion constraint (NOT logic).
+
+        Objects matching any NOT constraint will be excluded from results.
+        This filters out unwanted items.
+
+        Args:
+            constraint: Constraint object (TagConstraint, NameConstraint, etc.)
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query()
+            >>> q.add_require_constraint(TagConstraint('vacation'))
+            >>> q.add_not_constraint(TagConstraint('private'))
+            # Vacation photos except private ones
+        """
 
         self.__not_constraints.append( constraint )
         return self
 
-    def set_constraints( self, req_c = [], or_c = [], not_c = [] ):
+    def set_constraints( self,
+                req_c: List[Constraint] = [],
+                or_c: List[Constraint] = [],
+                not_c: List[Constraint] = []
+            ) -> 'Query':
+        """ Replace all constraints at once.
+
+        Replaces the current constraint lists with new ones. Useful for
+        building queries programmatically or resetting constraints.
+
+        Args:
+            req_c: List of required constraints (AND logic)
+            or_c: List of optional constraints (OR logic)
+            not_c: List of exclusion constraints (NOT logic)
+
+        Returns:
+            Self for method chaining
+
+        Example:
+            >>> q = Query()
+            >>> q.set_constraints(
+            ...     req_c=[TagConstraint('vacation')],
+            ...     not_c=[TagConstraint('private')]
+            ... )
+        """
 
         self.__req_constraints = list( req_c )
         self.__or_constraints = list( or_c )
         self.__not_constraints = list( not_c )
         return self
 
-    def execute( self, db: 'hdbfs.Database' ):
+    def execute( self, db: 'hdbfs.Database' ) -> SessionObjectFactoryIterator:
+        """ Execute the query and return an iterator of matching objects.
+
+        Builds and runs the database query based on all configured constraints,
+        filters, and sort order. Returns an iterator that lazily loads objects
+        as they're accessed.
+
+        Query logic:
+        1. Required constraints are combined with AND (intersection)
+        2. Optional constraints are combined with OR (union)
+        3. Required and optional are combined (required AND (opt1 OR opt2...))
+        4. Exclusion constraints filter out matches (NOT)
+        5. Type filter is applied
+        6. If no specific constraints, filters out child objects (files already
+           in albums) to avoid duplication
+        7. If expand=True, albums are expanded to their contained files
+        8. Results are sorted and paginated
+
+        Args:
+            db: Database session to execute query against
+
+        Returns:
+            Iterator of matching objects (File, Album, Tag, Import, etc.)
+
+        Example:
+            >>> q = Query().from_string('#vacation $sort:name')
+            >>> for obj in q.execute(db):
+            ...     print(obj.get_name())
+        """
 
         from sqlalchemy.sql.expression import func
 

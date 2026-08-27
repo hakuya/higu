@@ -1,3 +1,21 @@
+""" Bulk operation framework for batch modifications.
+
+This module provides a framework for performing bulk operations on database
+objects. Operations can be applied to query results or lists of objects,
+with support for dry-run mode (simulation) before committing changes.
+
+Key classes:
+    BulkOperation: Base class for bulk operations
+    BulkNameReplaceOp: Regex-based name replacement
+    SetAttribute: Set metadata attribute on objects
+    UnsetAttribute: Remove metadata attribute from objects
+    AssignTag: Assign tag to objects
+    UnassignTag: Remove tag from objects
+
+Functions:
+    op_from_string: Parse operation from string syntax
+"""
+
 import re
 
 import hdbfs
@@ -5,49 +23,105 @@ import hdbfs
 from typing import Optional, Tuple, List, Dict
 
 class ParseError( Exception ):
+    """ Exception raised when parsing bulk operation syntax fails.
+
+    Raised by op_from_string when the operation string cannot be parsed.
+    """
 
     def __init__( self ):
         Exception.__init__( self )
 
 class BadArgument( Exception ):
+    """ Exception raised when operation arguments are invalid.
+
+    Raised when an operation receives invalid arguments or parameters.
+    """
 
     def __init__( self ):
         Exception.__init__( self )
 
 class BulkOperation:
-    '''Protocol for a bulk operation. Subclases should implement the _process()
-    method.'''
+    """ Base class for bulk operations on database objects.
+
+    Provides a framework for performing batch modifications to multiple
+    objects. Subclasses implement the _process() method to define the
+    specific operation logic.
+
+    Operations can be run in simulation mode (commit=False) to preview
+    changes before applying them.
+
+    Attributes:
+        _db: Database session
+        _commit: Whether to commit changes (True) or simulate (False)
+        _modified_list: List of (object, comment) tuples for modified items
+    """
 
     def __init__( self, db: 'hdbfs.Database' ):
+        """ Initialize a bulk operation.
+
+        Args:
+            db: Database session to operate on
+        """
 
         self._db = db
         self._commit = False
-        self._modified_list = []
+        self._modified_list: List[Tuple[hdbfs.Obj, str]] = []
 
-    def _modified( self, it: hdbfs.Obj, comment: str ):
+    def _modified( self, it: hdbfs.Obj, comment: str ) -> None:
+        """ Record that an object was modified.
+
+        Should be called by _process() when an object is modified.
+
+        Args:
+            it: The modified object
+            comment: Description of the modification
+        """
 
         self._modified_list.append( ( it, comment, ) )
 
     def _process( self, it: hdbfs.Obj ) -> None:
-        '''Abstract method to process an item in the operation. Takes in an
-        item 'it' and returns a tuple containing 'it' and a comment string
-        if the item was modified.
+        """ Process a single object (abstract method).
 
-        This method should call _modified() when an item is modified.
-        '''
+        Subclasses must implement this method to define the operation logic.
+        Should call _modified() when an object is modified.
+
+        Args:
+            it: Object to process
+        """
 
         pass
 
-    def set_commit( self, commit: bool = True ) -> None:
-        '''Configures whether this operation should take real effect. If
-        commit is False, the operation should be a simulation.
-        '''
+    def set_commit( self, commit: bool = True ) -> 'BulkOperation':
+        """ Configure whether to commit changes or simulate.
+
+        Args:
+            commit: If True, apply changes. If False, simulate only.
+
+        Returns:
+            Self for method chaining
+        """
 
         self._commit = commit
         return self
 
-    def execute( self, db, query ) -> List[ Tuple[hdbfs.Obj,str] ]:
-        '''Calls the bulk operation on a query.'''
+    def execute( self, db: 'hdbfs.Database', query ) -> List[Tuple[hdbfs.Obj, str]]:
+        """ Execute the bulk operation on query results.
+
+        Args:
+            db: Database session (for compatibility)
+            query: Query object to execute, or list of objects
+
+        Returns:
+            List of (object, comment) tuples for all modified objects
+
+        Example:
+            >>> op = BulkNameReplaceOp(db, r'IMG_', 'Photo_')
+            >>> op.set_commit(False)  # Simulate first
+            >>> results = op.execute(db, query)
+            >>> for obj, comment in results:
+            ...     print(f"{obj.get_name()}: {comment}")
+            >>> op.set_commit(True).execute(db, query)  # Apply changes
+        """
 
         if( isinstance( query, list ) ):
             rs = query
@@ -60,15 +134,30 @@ class BulkOperation:
         return self._modified_list
 
 class BulkNameReplaceOp( BulkOperation ):
-    '''Performs a bulk rename with a regex replacement.'''
+    """ Bulk rename operation using regex replacement.
+
+    Applies a regex substitution to object names. Objects without names
+    are skipped.
+
+    Attributes:
+        __pattern: Regex pattern to match
+        __repl: Replacement string (can use regex groups like \\1, \\2)
+    """
 
     def __init__( self, db: 'hdbfs.Database', pattern: str, repl: str ):
+        """ Initialize a bulk name replacement operation.
+
+        Args:
+            db: Database session
+            pattern: Regex pattern to match in names
+            repl: Replacement string
+        """
 
         super().__init__( db )
         self.__pattern = pattern
         self.__repl = repl
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         name = it.get_name()
         if( name is None ):
@@ -83,14 +172,27 @@ class BulkNameReplaceOp( BulkOperation ):
             self._modified( it, f'{name} -> {subd}' )
 
 class BulkNameDelOp( BulkOperation ):
-    '''Deletes the name of all queried items.'''
+    """ Bulk operation to delete object names.
+
+    Removes names from objects, optionally filtered by pattern. Objects
+    without names are skipped.
+
+    Attributes:
+        __pattern: Optional regex pattern - only delete names matching this
+    """
 
     def __init__( self, db: 'hdbfs.Database', pattern: Optional[str] = None ):
+        """ Initialize a bulk name deletion operation.
+
+        Args:
+            db: Database session
+            pattern: Optional regex - only delete names matching this pattern
+        """
 
         super().__init__( db )
         self.__pattern = pattern
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         name = it.get_name()
         if( name is None ):
@@ -106,21 +208,37 @@ class BulkNameDelOp( BulkOperation ):
         self._modified( it, f'{name} -> [none]' )
 
 class BulkNameSelectOp( BulkOperation ):
-    '''If an item has a name in its import log that matches the pattern
-    sets the item to that name.
-    '''
+    """ Bulk operation to select names from import log.
+
+    Sets object names from their import log (origin names). Useful for
+    restoring original filenames from imports.
+
+    Only processes FILE objects.
+
+    Attributes:
+        __pattern: Optional regex to filter origin names
+        __force: If True, overwrite existing names
+    """
 
     def __init__( self,
                 db: 'hdbfs.Database',
                 pattern: Optional[str] = None,
                 force: bool = False
             ):
+        """ Initialize a bulk name selection operation.
+
+        Args:
+            db: Database session
+            pattern: Optional regex - only select origin names matching this
+            force: If True, overwrite existing names. If False, skip objects
+                that already have names
+        """
 
         super().__init__( db )
         self.__pattern = pattern
         self.__force = force
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         if( it.get_type() != hdbfs.ObjectType.FILE ):
             return
@@ -150,14 +268,26 @@ class BulkNameSelectOp( BulkOperation ):
             self._modified( it, f'[none] -> {new_name}' )
 
 class BulkRateOp( BulkOperation ):
-    '''Sets a rating.'''
+    """ Bulk operation to set rating metadata.
+
+    Sets the 'rating' metadata attribute on all objects.
+
+    Attributes:
+        __rating: Rating value to set
+    """
 
     def __init__( self, db: 'hdbfs.Database', rating: int ):
+        """ Initialize a bulk rating operation.
+
+        Args:
+            db: Database session
+            rating: Rating value to set on all objects
+        """
 
         super().__init__( db )
         self.__rating = rating
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         if( self._commit ):
             it['rating'] = self.__rating
@@ -165,19 +295,34 @@ class BulkRateOp( BulkOperation ):
         self._modified( it, f'-> rating {self.__rating}' )
 
 class BulkAssignOp( BulkOperation ):
-    '''Performs bulk assign or unassign operations on the membership tree.'''
+    """ Bulk operation to assign/unassign objects to/from groups.
+
+    Modifies group membership for objects. Can assign to multiple groups
+    and unassign from multiple groups in a single operation.
+
+    Attributes:
+        __assign: List of groups to assign objects to
+        __unassign: List of groups to unassign objects from
+    """
 
     def __init__( self,
                 db: 'hdbfs.Database',
                 assign: List[hdbfs.Obj] = [],
                 unassign: List[hdbfs.Obj] = []
             ):
+        """ Initialize a bulk assign/unassign operation.
+
+        Args:
+            db: Database session
+            assign: List of groups (tags, albums) to assign objects to
+            unassign: List of groups to unassign objects from
+        """
 
         super().__init__( db )
         self.__assign = list( assign )
         self.__unassign = list( unassign )
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         if( self._commit ):
             for jt in self.__unassign:
@@ -191,13 +336,19 @@ class BulkAssignOp( BulkOperation ):
         self._modified( it, f'assign: {assign_str}' )
 
 class BulkDivide( BulkOperation ):
-    '''Divides an album into sub-albums.
+    """ Bulk operation to divide albums into sub-albums.
 
-    The items of the album are grouped by pattern, looking at the file name.
-    If a subset_name is provided, it will be used to name the new albums.
+    Groups an album's items by regex pattern matching on names, creating
+    sub-albums for each group. Can either replace the album's contents
+    (inplace) or add sub-albums alongside existing items.
 
-    If 'inplace' is true, then the subsets will replace the album's contents.
-    '''
+    Only processes Album objects with more than one item.
+
+    Attributes:
+        _inplace: If True, move items to sub-albums. If False, copy items.
+        _pattern: Regex pattern to extract group names from item names
+        _subset_pattern: Optional regex to transform group names for sub-album names
+    """
 
     def __init__( self,
                 db: 'hdbfs.Database',
@@ -205,6 +356,16 @@ class BulkDivide( BulkOperation ):
                 pattern: str,
                 subset_pattern: Optional[str] = None
             ):
+        """ Initialize a bulk album divide operation.
+
+        Args:
+            db: Database session
+            inplace: If True, move items to sub-albums and remove from parent.
+                If False, copy items to sub-albums.
+            pattern: Regex pattern to extract group identifier from item names
+            subset_pattern: Optional regex substitution to transform group name
+                into sub-album name
+        """
 
         super().__init__( db )
         self._inplace = inplace
@@ -240,7 +401,7 @@ class BulkDivide( BulkOperation ):
 
         return groups, group_map
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         if( not isinstance( it, hdbfs.Album ) ):
             return
@@ -285,14 +446,31 @@ class BulkDivide( BulkOperation ):
                     self._modified( member, f'Attached to {subset_alb_log}' )
 
 class BulkAlbum2Import( BulkOperation ):
-    '''Performs bulk assign or unassign operations on the membership tree.'''
+    """ Bulk operation to convert closed albums to imports.
+
+    Converts CLOSED albums to IMPORT_CLOSED objects. Useful for reopening
+    albums for editing or reorganization.
+
+    Only processes ALBUM_CLOSED objects.
+
+    Attributes:
+        __duplicate: If True, creates a copy before converting. If False,
+            replaces the album with an import.
+    """
 
     def __init__( self, db: 'hdbfs.Database', duplicate: bool ):
+        """ Initialize a bulk album-to-import operation.
+
+        Args:
+            db: Database session
+            duplicate: If True, keep original album and create an import copy.
+                If False, replace album with import.
+        """
 
         super().__init__( db )
         self.__duplicate = duplicate
 
-    def _process( self, it ):
+    def _process( self, it: hdbfs.Obj ) -> None:
 
         if( it.get_type() != hdbfs.ObjectType.ALBUM_CLOSED ):
             return
@@ -305,25 +483,45 @@ class BulkAlbum2Import( BulkOperation ):
         self._modified( imp, f'Converted to import' )
 
 def op_from_string( db: 'hdbfs.Database', s: str ) -> BulkOperation:
-    '''Constructs a bulk operation from a operation string.
+    """ Parse a bulk operation string into a BulkOperation object.
 
-    The operation string has the following format,
+    Parses compact string syntax into corresponding operation objects.
+    Format: ``operation:operand``
 
-      operation:operand
+    Args:
+        db: Database session
+        s: Operation string to parse
 
-    Valid operations are,
+    Returns:
+        Appropriate BulkOperation subclass instance
 
-      name:s/pattern/repl       - bulk rename with a pattern
-      name:del[/pattern]        - bulk delete name (if pattern matches)
-      name:select[!][/pattern]  - select the name with the given pattern
+    Raises:
+        ParseError: Invalid operation format
+        BadArgument: Valid format but invalid argument values
 
-      rate:rating               - bulk rate matching items
+    Valid operations:
+        - ``name:s/pattern/repl`` - Regex rename (BulkNameReplaceOp)
+        - ``name:del[/pattern]`` - Delete names, optionally filtered (BulkNameDelOp)
+        - ``name:select[!][/pattern]`` - Select name from import log (BulkNameSelectOp)
+            - ``!`` forces overwrite of existing names
+        - ``rate:rating`` - Set rating (BulkRateOp)
+            - rating must be 2, 4, 6, 8, or 10
+        - ``tag:[tags]... [-tags]...`` - Assign/unassign tags (BulkAssignOp)
+            - Prefix with ``-`` to unassign
+        - ``untag:[tags]...`` - Unassign tags (BulkAssignOp with swapped args)
+        - ``divide[!]:pattern[/name]`` - Divide album into sub-albums (BulkDivide)
+            - ``!`` moves items (inplace), without ``!`` copies items
+        - ``album2import[!]`` - Convert album to import (BulkAlbum2Import)
+            - ``!`` keeps original, without ``!`` replaces album
 
-      tag:[tags]... [-tags]...  - bulk assign or unassign tags
-      untag:[tags]...           - (shorthand) bulk unassign tags
+    Note:
+        Use ``\\/`` to escape forward slashes in patterns.
 
-      divide[!]:pattern[/name]  - divides an album
-      '''
+    Examples:
+        >>> op_from_string(db, "name:s/old/new")  # Rename old->new
+        >>> op_from_string(db, "rate:8")  # Set rating to 8
+        >>> op_from_string(db, "tag:mytag -oldtag")  # Assign mytag, unassign oldtag
+    """
 
     try:
         action, operand = tuple( map( lambda x: x.strip(), s.split( ':', 1 ) ) )

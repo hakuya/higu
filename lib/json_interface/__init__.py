@@ -7,12 +7,23 @@ import hdbfs
 import hdbfs.objects.groups
 import json_interface.cache as cache
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Tuple, Union
+
+# Type alias for JSON response dictionaries
+JsonResponse = Dict[str, Any]
 
 VERSION = 0
 REVISION = 0
 
-def get_type_str( obj ):
+def get_type_str( obj: hdbfs.Obj ) -> str:
+    """ Get the type string representation for an object.
+
+    Args:
+        obj: The object to get the type string for
+
+    Returns:
+        A string like 'file:original', 'album:free', 'tag:unordered', etc.
+    """
 
     TYPE_MAP = {
         hdbfs.ObjectType.FILE                  : 'file:original',
@@ -30,7 +41,15 @@ def get_type_str( obj ):
 
     return TYPE_MAP.get( obj.get_type(), 'unknown' )
 
-def make_obj_tuple( obj: hdbfs.Obj ):
+def make_obj_tuple( obj: hdbfs.Obj ) -> List[Union[int, str]]:
+    """ Create a [id, repr, type] tuple for an object.
+
+    Args:
+        obj: The object to create a tuple for
+
+    Returns:
+        A list containing [object_id, repr_string, type_string]
+    """
 
     return [
         obj.get_id(),
@@ -38,12 +57,35 @@ def make_obj_tuple( obj: hdbfs.Obj ):
         get_type_str( obj ),
     ]
 
-def json_ok( **args ) -> dict:
+def json_ok( **args ) -> JsonResponse:
+    """ Create a successful JSON response.
+
+    Args:
+        **args: Additional fields to include in the response
+
+    Returns:
+        JSON response dictionary
+
+    Example:
+        {'result': 'ok', 'data': 'value', 'count': 42}
+    """
 
     args['result'] = 'ok'
     return args
 
-def json_err( err: any, emsg: Optional[str] = None ) -> dict:
+def json_err( err: Union[str, Exception], emsg: Optional[str] = None ) -> JsonResponse:
+    """ Create an error JSON response.
+
+    Args:
+        err: Either an exception object or error type string
+        emsg: Optional error message (auto-generated if not provided)
+
+    Returns:
+        JSON response dictionary
+
+    Example:
+        {'result': 'err', 'except': 'value', 'msg': 'Invalid input'}
+    """
 
     if( isinstance( err, KeyError ) ):
         etype = 'key'
@@ -72,14 +114,45 @@ def json_err( err: any, emsg: Optional[str] = None ) -> dict:
         }
 
 class JsonInterface:
+    """ JSON RPC interface for database operations.
+
+    Provides a command-based API for interacting with the higurashi database
+    via JSON requests. Handles object queries, modifications, tagging, albums,
+    and bulk operations.
+    """
 
     def __init__( self, db: hdbfs.Database, session_id: str ):
+        """ Initialize the JSON interface.
+
+        Args:
+            db: Database instance to operate on
+            session_id: Session identifier for this interface
+        """
 
         self.__cache = cache.get_default_cache()
         self.__db = db
         self.__session_id = session_id
 
-    def __fetch_info( self, items, target, parent = None, stream = None ):
+    def __fetch_info( self,
+                items: List[str],
+                target: Union[int, hdbfs.Obj],
+                parent: Optional[Union[int, hdbfs.Obj]] = None,
+                stream: Optional[hdbfs.Stream] = None
+            ) -> JsonResponse:
+        """ Fetch information about an object.
+
+        Internal method that retrieves various metadata fields based on
+        the requested items list.
+
+        Args:
+            items: List of field names to fetch
+            target: Object ID or object to fetch info for
+            parent: Optional parent object or ID
+            stream: Optional stream to fetch info for
+
+        Returns:
+            Dictionary containing requested information fields
+        """
 
         if( target is None ):
             return { 'type' : 'invalid' }
@@ -226,9 +299,18 @@ class JsonInterface:
 
         return info
 
-    def __fetch_fields( self, fields, target ):
+    def __fetch_fields( self, fields: List[str], target: hdbfs.Obj ) -> Dict[str, Any]:
+        """ Fetch custom metadata fields from an object.
 
-        def read_field( target, field ):
+        Args:
+            fields: List of field names to fetch
+            target: Object to fetch fields from
+
+        Returns:
+            Dictionary mapping field names to their values (None if not present)
+        """
+
+        def read_field( target: hdbfs.Obj, field: str ) -> Any:
 
             try:
                 return target[field]
@@ -240,11 +322,26 @@ class JsonInterface:
             for f in fields
         }
 
-    def close( self ):
+    def close( self ) -> None:
+        """ Close the interface and release resources. """
 
         pass
 
-    def execute( self, data ):
+    def execute( self, data: Dict[str, Any] ) -> JsonResponse:
+        """ Execute a JSON command.
+
+        Dispatches to cmd_* methods based on the 'action' field in data.
+        Supports three calling conventions:
+        1. Old style: cmd_method(data) - takes full data dict
+        2. Strict: cmd_method(arg1, arg2) - explicit parameters
+        3. Flexible: cmd_method(**kwargs) - accepts keyword arguments
+
+        Args:
+            data: Dictionary containing 'action' field and command parameters
+
+        Returns:
+            JSON response dictionary
+        """
 
         if( self.__db is None or self.__session_id is None ):
             return json_err( 'nosession' )
@@ -296,14 +393,50 @@ class JsonInterface:
         #        'errmsg' : sys.exc_info()[0],
         #    }
 
-    def cmd_version( self ):
+    def cmd_version( self ) -> JsonResponse:
+        """ Get version information.
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'json_ver': [0, 0],
+                'higu_ver': [16, 0],
+                'db_ver': [16, 0]
+            }
+        """
 
         return json_ok(
             json_ver = [ VERSION, REVISION ],
             higu_ver = [ hdbfs.VERSION, hdbfs.REVISION ],
             db_ver   = [ hdbfs.DB_VERSION, hdbfs.DB_REVISION ] )
 
-    def cmd_info( self, target = None, targets = None, items = None, fields = None ):
+    def cmd_info( self,
+                target: Optional[int] = None,
+                targets: Optional[List[int]] = None,
+                items: Optional[List[str]] = None,
+                fields: Optional[List[str]] = None
+            ) -> JsonResponse:
+        """ Get information about one or more objects.
+
+        Args:
+            target: Single object ID to fetch info for
+            targets: List of object IDs to fetch info for
+            items: List of info items to fetch
+            fields: List of custom fields to fetch
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'info': {'object_id': 123, 'type': 'file:original', 'repr': 'image.jpg'},
+                'fields': {'custom_field': 'value'}
+            }
+        """
 
         db = self.__db
 
@@ -329,7 +462,27 @@ class JsonInterface:
 
         return json_ok( **results )
 
-    def cmd_stream_info( self, target, stream, items ):
+    def cmd_stream_info( self,
+                target: int,
+                stream: Optional[int],
+                items: List[str]
+            ) -> JsonResponse:
+        """ Get information about a stream.
+
+        Args:
+            target: Object ID
+            stream: Stream ID (None for root stream)
+            items: List of info items to fetch
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'info': {'object_id': 123, 'stream_id': 456, 'width': 1920, 'height': 1080}
+            }
+        """
 
         db = self.__db
         target = db.get_object_by_id( target )
@@ -339,14 +492,33 @@ class JsonInterface:
         results = self.__fetch_info( items, target, stream = stream )
         return json_ok( info = results )
 
-    def cmd_set_field( self, target, field, value ):
+    def cmd_set_field( self, target: int, field: str, value: Any ) -> JsonResponse:
+        """ Set a custom metadata field on an object.
+
+        Args:
+            target: Object ID
+            field: Field name
+            value: Field value
+
+        Returns:
+            JSON response dictionary
+        """
 
         target = self.__db.get_object_by_id( target )
         target[field] = value
 
         return json_ok()
 
-    def cmd_tag( self, targets: List[int], **args ) -> dict:
+    def cmd_tag( self, targets: List[int], **args ) -> JsonResponse:
+        """ Add or remove tags from objects.
+
+        Args:
+            targets: List of object IDs to tag
+            **args: Can contain 'query' (tag string) or 'add_tags', 'sub_tags', 'new_tags'
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -377,7 +549,17 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rename( self, target, name, saveold = False ):
+    def cmd_rename( self, target: int, name: str, saveold: bool = False ) -> JsonResponse:
+        """ Rename an object.
+
+        Args:
+            target: Object ID
+            name: New name
+            saveold: Whether to save old name (currently unused)
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -386,7 +568,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_deorder( self, group ):
+    def cmd_group_deorder( self, group: int ) -> JsonResponse:
+        """ Remove explicit ordering from an ordered group.
+
+        Args:
+            group: Group object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -397,7 +587,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_reorder( self, group, items ):
+    def cmd_group_reorder( self, group: int, items: List[int] ) -> JsonResponse:
+        """ Set explicit order for items in an ordered group.
+
+        Args:
+            group: Group object ID
+            items: List of object IDs in desired order
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -409,7 +608,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_album_partition( self, album, items ):
+    def cmd_album_partition( self, album: int, items: List[int] ) -> JsonResponse:
+        """ Partition files from an album into a new album.
+
+        Args:
+            album: Album object ID
+            items: List of file IDs to partition out
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -421,7 +629,18 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_taglist( self ):
+    def cmd_taglist( self ) -> JsonResponse:
+        """ Get a list of all tags with usage counts.
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'tags': [['vacation', 123, 45], ['family', 124, 32]]
+            }
+        """
 
         db = self.__db
 
@@ -432,7 +651,18 @@ class JsonInterface:
 
         return json_ok( tags = tags )
 
-    def __exec_search( self, data ):
+    def __exec_search( self, data: Dict[str, Any] ) -> Tuple[Any, Dict]:
+        """ Execute a search query.
+
+        Internal method that handles various search modes and returns
+        results along with context information.
+
+        Args:
+            data: Search parameters
+
+        Returns:
+            Tuple of (result_iterator, context_dict)
+        """
 
         db = self.__db
 
@@ -480,7 +710,24 @@ class JsonInterface:
 
             return query.execute( db ), {}
 
-    def cmd_search( self, data ):
+    def cmd_search( self, data: Dict[str, Any] ) -> JsonResponse:
+        """ Execute a search and return results.
+
+        Args:
+            data: Search parameters including query, index, count, info, fields, etc.
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'results': 150,
+                'index': 0,
+                'selection': 'abc123',
+                'items': [...]
+            }
+        """
 
         try:
             rs, ctx = self.__exec_search( data )
@@ -543,7 +790,22 @@ class JsonInterface:
 
         return json_ok( **result )
 
-    def cmd_bulk( self, data ):
+    def cmd_bulk( self, data: Dict[str, Any] ) -> JsonResponse:
+        """ Execute a bulk operation on search results.
+
+        Args:
+            data: Contains search parameters and 'exec' string for bulk operation
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'affected': 42,
+                'changes': [[123, 'Tagged'], [124, 'Tagged'], ...]
+            }
+        """
 
         try:
             rs, ctx = self.__exec_search( data )
@@ -572,7 +834,31 @@ class JsonInterface:
 
         return json_ok( affected = len( items ), changes = items )
 
-    def cmd_selection_fetch( self, selection, index, info = None, fields = None ):
+    def cmd_selection_fetch( self,
+                selection: str,
+                index: int,
+                info: Optional[List[str]] = None,
+                fields: Optional[List[str]] = None
+            ) -> JsonResponse:
+        """ Fetch an item from a saved selection.
+
+        Args:
+            selection: Selection ID
+            index: Index of item to fetch
+            info: Optional list of info items to fetch
+            fields: Optional list of fields to fetch
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'object_id': 123,
+                'info': {...},
+                'fields': {...}
+            }
+        """
 
         sel_id = selection
         idx = index
@@ -597,7 +883,15 @@ class JsonInterface:
 
         return json_ok( **result )
 
-    def cmd_selection_close( self, selection ):
+    def cmd_selection_close( self, selection: str ) -> JsonResponse:
+        """ Close a saved selection.
+
+        Args:
+            selection: Selection ID to close
+
+        Returns:
+            JSON response dictionary
+        """
 
         if( not isinstance( selection, str ) ):
             return json_err( 'argument', 'selection is not a valid selection id' )
@@ -609,7 +903,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_obj_delete( self, target ):
+    def cmd_obj_delete( self, target: int ) -> JsonResponse:
+        """ Delete an object from the database.
+
+        Args:
+            target: Object ID to delete
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -623,7 +925,25 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_create( self, targets = None, from_import = None ):
+    def cmd_group_create( self,
+                targets: Optional[List[int]] = None,
+                from_import: Optional[int] = None
+            ) -> JsonResponse:
+        """ Create a new album group.
+
+        Args:
+            targets: List of object IDs to add to new album
+            from_import: Import ID to create album from
+
+        Returns:
+            JSON response dictionary
+
+        Example:
+            {
+                'result': 'ok',
+                'group': [456, 'New Album', 'album:free']
+            }
+        """
 
         db = self.__db
 
@@ -650,7 +970,16 @@ class JsonInterface:
         else:
             return json_err( 'argument', 'must specify targets or from_import' )
 
-    def cmd_group_append( self, group, targets ):
+    def cmd_group_append( self, group: int, targets: List[int] ) -> JsonResponse:
+        """ Add items to an album.
+
+        Args:
+            group: Album object ID
+            targets: List of object IDs to add
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -664,7 +993,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_group_remove( self, group, targets ):
+    def cmd_group_remove( self, group: int, targets: List[int] ) -> JsonResponse:
+        """ Remove items from an album.
+
+        Args:
+            group: Album object ID
+            targets: List of object IDs to remove
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -676,7 +1014,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_gather_tags( self, target ):
+    def cmd_gather_tags( self, target: int ) -> JsonResponse:
+        """ Gather tags from album contents to the album itself.
+
+        Args:
+            target: Album object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -687,28 +1033,68 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_tag_delete( self, tag ):
+    def cmd_tag_delete( self, tag: str ) -> JsonResponse:
+        """ Delete a tag.
+
+        Args:
+            tag: Tag name or pattern to delete
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
         db.delete_tag( tag )
         return json_ok()
 
-    def cmd_tag_move( self, tag, target ):
+    def cmd_tag_move( self, tag: str, target: str ) -> JsonResponse:
+        """ Move/rename a tag.
+
+        Args:
+            tag: Current tag name
+            target: New tag name
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
         db.move_tag( tag, target )
         return json_ok()
 
-    def cmd_tag_copy( self, tag, target ):
+    def cmd_tag_copy( self, tag: str, target: str ) -> JsonResponse:
+        """ Copy a tag to a new name.
+
+        Args:
+            tag: Source tag name
+            target: Destination tag name
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
         db.copy_tag( tag, target )
         return json_ok()
 
-    def cmd_link_files( self, original, variant, is_duplicate = False ):
+    def cmd_link_files( self,
+                original: int,
+                variant: int,
+                is_duplicate: bool = False
+            ) -> JsonResponse:
+        """ Link files as variants or duplicates.
+
+        Args:
+            original: Original file object ID
+            variant: Variant file object ID
+            is_duplicate: Whether to mark as duplicate
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -719,7 +1105,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_unlink_files( self, original, variant ):
+    def cmd_unlink_files( self, original: int, variant: int ) -> JsonResponse:
+        """ Unlink files.
+
+        Args:
+            original: Original file object ID
+            variant: Variant file object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -730,7 +1125,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_clear_variant( self, original, variant ):
+    def cmd_clear_variant( self, original: int, variant: int ) -> JsonResponse:
+        """ Clear variant relationship between files.
+
+        Args:
+            original: Original file object ID
+            variant: Variant file object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -741,7 +1145,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_change_album( self, target, subtype ):
+    def cmd_change_album( self, target: int, subtype: str ) -> JsonResponse:
+        """ Change album type (free/formal/closed).
+
+        Args:
+            target: Album object ID
+            subtype: New subtype ('free', 'formal', or 'closed')
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -762,7 +1175,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_change_tag( self, target, subtype ):
+    def cmd_change_tag( self, target: int, subtype: str ) -> JsonResponse:
+        """ Change tag ordering mode.
+
+        Args:
+            target: Tag object ID
+            subtype: New ordering ('unordered', 'ordered', 'nameorder', 'dateorder')
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -778,7 +1200,16 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_set_root_stream( self, target, stream ):
+    def cmd_set_root_stream( self, target: int, stream: int ) -> JsonResponse:
+        """ Set the root stream for a file.
+
+        Args:
+            target: File object ID
+            stream: Stream ID to set as root
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -789,7 +1220,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_auto_orientation( self, target ):
+    def cmd_auto_orientation( self, target: int ) -> JsonResponse:
+        """ Apply auto-orientation based on EXIF data.
+
+        Args:
+            target: Image file object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -798,7 +1237,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rotate_cw( self, target ):
+    def cmd_rotate_cw( self, target: int ) -> JsonResponse:
+        """ Rotate image clockwise.
+
+        Args:
+            target: Image file object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -807,7 +1254,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_rotate_ccw( self, target ):
+    def cmd_rotate_ccw( self, target: int ) -> JsonResponse:
+        """ Rotate image counter-clockwise.
+
+        Args:
+            target: Image file object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
@@ -816,7 +1271,15 @@ class JsonInterface:
 
         return json_ok()
 
-    def cmd_mirror( self, target ):
+    def cmd_mirror( self, target: int ) -> JsonResponse:
+        """ Mirror image horizontally.
+
+        Args:
+            target: Image file object ID
+
+        Returns:
+            JSON response dictionary
+        """
 
         db = self.__db
 
