@@ -14,6 +14,10 @@ class SubConfig:
 
         return self.main.cfg.get( self.sec, key )
 
+    def __contains__( self, key ):
+
+        return self.main.cfg.has_option( self.sec, key )
+
 class MainConfig:
 
     def __init__( self, config ):
@@ -37,6 +41,10 @@ class MainConfig:
     def __getitem__( self, key ):
 
         return self.cfg.get( 'main', key )
+
+    def __contains__( self, key ):
+
+        return self.main.cfg.has_option( 'main', key )
 
 def config():
     global cfg

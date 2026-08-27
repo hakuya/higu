@@ -86,6 +86,13 @@ class Server:
 
         return int( self.cfg['port'] )
 
+    def get_ssl_cert( self ):
+
+        if( 'ssl_crt' not in self.cfg or 'ssl_key' not in self.cfg ):
+            return None
+
+        return self.cfg['ssl_crt'], self.cfg['ssl_key']
+
     @cherrypy.expose
     def do_login( self, username, password, json = 0 ):
 
@@ -228,8 +235,14 @@ def start():
     tbgen.start()
 
     server = Server()
+
     CONFIG['global']['server.socket_host'] = server.get_host()
     CONFIG['global']['server.socket_port'] = server.get_port()
+
+    ssl_cert = server.get_ssl_cert()
+    if( ssl_cert is not None ):
+        CONFIG['global']['server.ssl_certificate'] = ssl_cert[0]
+        CONFIG['global']['server.ssl_private_key'] = ssl_cert[1]
 
     print( 'Starting server' )
     cherrypy.quickstart( server, config=CONFIG )
