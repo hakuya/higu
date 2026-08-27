@@ -22,6 +22,12 @@ if [ -z $1 ] || [ $1 == "imgdb" ]; then
     $PYTHON test/imgdb_cases.py $2 || exit $?
 fi
 
+if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_access" ]; then
+    echo 'Testing HDBFS access manager and transaction handling'
+    echo '============================================================'
+    $PYTHON test/access_cases.py $2 || exit $?
+fi
+
 if [ -z $1 ] || [ $1 == "hdbfs" ] || [ $1 == "hdbfs_core" ]; then
     echo 'Testing HDBFS core library and database functions'
     echo '============================================================'

@@ -73,11 +73,13 @@ class AccessManager:
         if( dba.is_transaction() ):
             assert len( self.__accesses ) == 0
 
-        self.__accesses.append( dba )
-
         if( dba.is_write() and not self.__locked ):
             self.__session._begin()
             self.__locked = True
+
+        # Add our context last: we don't want to add
+        # if beginning of the session fails.
+        self.__accesses.append( dba )
 
     def _end_access( self, dba: _AccessContext, is_except: bool ):
         '''Ends an access context.'''

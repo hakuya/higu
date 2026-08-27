@@ -135,6 +135,7 @@ class JsonInterface:
             try:
                 info['thumb_gen'] = target.get_generation()
             except:
+                # TODO: Consider catching specific exceptions and logging
                 info['thumb_gen'] = 0
 
         if( isinstance( target, hdbfs.File ) ):
@@ -161,11 +162,13 @@ class JsonInterface:
                         try:
                             w, h = stream.get_dimensions()
                         except:
+                            # TODO: Consider catching specific exceptions and logging
                             pass
                 elif( isinstance( target, hdbfs.ImageFile ) ):
                     try:
                         w, h = target.get_dimensions()
                     except:
+                        # TODO: Consider catching specific exceptions and logging
                         pass
 
                 info['width'] = w
@@ -246,6 +249,9 @@ class JsonInterface:
         if( self.__db is None or self.__session_id is None ):
             return json_err( 'nosession' )
 
+        # TODO: Re-enable proper exception handling instead of letting exceptions
+        # propagate to CherryPy. The finally: pass is present to disable the
+        # commented exception handler below.
         try:
             with self.__db.transaction():
                 fn = getattr( self, 'cmd_' + data['action'] )
@@ -264,7 +270,8 @@ class JsonInterface:
 
                     args = {}
                     for arg in req_args:
-                        assert arg in data, f'{arg} not provided for {data["action"]}'
+                        if arg not in data:
+                            return json_err( 'value', f'{arg} not provided for {data["action"]}' )
                         args[arg] = data[arg]
                     for arg in opt_args:
                         if( arg in data ):
@@ -278,7 +285,8 @@ class JsonInterface:
                         req_args = argspec.args[1:-len( argspec.defaults )]
 
                     for arg in req_args:
-                        assert arg in data, f'Missing arg {arg}'
+                        if arg not in data:
+                            return json_err( 'value', f'Missing arg {arg}' )
                     return fn( **data )
         finally:
             pass
@@ -445,12 +453,7 @@ class JsonInterface:
 
         else:
             if( 'query' in data ):
-                #try:
-                if( 1 ):
-                    query = hdbfs.query.Query().from_string( data['query'] )
-                #except ( KeyError, ValueError, ), e:
-                #    return json_err( e )
-
+                query = hdbfs.query.Query().from_string( data['query'] )
             else:
                 query = hdbfs.query.Query()
 
@@ -471,18 +474,18 @@ class JsonInterface:
                 add = data['add'] if 'add' in data else []
                 sub = data['sub'] if 'sub' in data else []
 
-                try:
-                    req = list( map( higu.query.create_constraint, req ) )
-                    add = list( map( higu.query.create_constraint, req ) )
-                    sub = list( map( higu.query.create_constraint, req ) )
-                except ( KeyError, ValueError, ) as e:
-                    return json_err( e ), {}
+                req = list( map( higu.query.create_constraint, req ) )
+                add = list( map( higu.query.create_constraint, add ) )
+                sub = list( map( higu.query.create_constraint, sub ) )
 
             return query.execute( db ), {}
 
     def cmd_search( self, data ):
 
-        rs, ctx = self.__exec_search( data )
+        try:
+            rs, ctx = self.__exec_search( data )
+        except ( KeyError, ValueError, ) as e:
+            return json_err( e )
 
         # Register the result set
         sel = self.__cache.register_selection(
@@ -542,7 +545,10 @@ class JsonInterface:
 
     def cmd_bulk( self, data ):
 
-        rs, ctx = self.__exec_search( data )
+        try:
+            rs, ctx = self.__exec_search( data )
+        except ( KeyError, ValueError, ) as e:
+            return json_err( e )
 
         count = 0
         items = []

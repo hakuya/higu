@@ -526,8 +526,8 @@ class Query:
 
         self.__nochild = True
         self.__req_constraints = [ TagCountConstraint( '=', 0 ) ]
-        self.__add_constraints = []
-        self.__not_constratins = []
+        self.__or_constraints = []
+        self.__not_constraints = []
 
         return self
 

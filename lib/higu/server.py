@@ -147,7 +147,7 @@ class Server:
             exp_int = int( exp ) if exp is not None else None
             prio_int = int( prio ) if prio is not None else None
             stream_int = int( stream ) if stream is not None else None
-        except:
+        except ValueError:
             raise cherrypy.HTTPError( 400 )
 
         with self.__get_session()[0] as db:

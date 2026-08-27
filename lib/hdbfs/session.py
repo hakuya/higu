@@ -145,7 +145,7 @@ class Session( SessionAccess ):
 
     def transaction( self ):
 
-        return self._access()
+        return self._access( transaction = True )
 
 class SessionObject:
 
